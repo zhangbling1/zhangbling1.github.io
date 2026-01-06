@@ -1,7 +1,193 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的作品集 | Portfolio</title>
+    <style>
+        /* ================== 视觉样式区 (你可以不管) ================== */
+        body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; margin: 0; background: #f9f9f9; color: #333; }
+        header { background: #fff; padding: 60px 20px; text-align: center; border-bottom: 1px solid #eee; }
+        h1 { margin: 0 0 10px 0; letter-spacing: 2px; text-transform: uppercase; }
+        p.subtitle { color: #888; font-size: 0.9rem; margin-bottom: 30px; }
+
+        /* 按钮样式 */
+        .filter-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        .btn {
+            padding: 8px 25px;
+            border: 1px solid #ddd;
+            background: #fff;
+            cursor: pointer;
+            border-radius: 50px;
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+            color: #666;
+        }
+        .btn:hover { border-color: #000; color: #000; }
+        .btn.active { background: #000; color: #fff; border-color: #000; }
+
+        /* 瀑布流网格布局 */
+        .gallery-container {
+            max-width: 1600px;
+            margin: 40px auto;
+            padding: 0 20px;
+            column-count: 5; /* 电脑上显示5列 */
+            column-gap: 20px;
+        }
+        
+        /* 手机适配：变2列 */
+        @media (max-width: 1200px) { .gallery-container { column-count: 3; } }
+        @media (max-width: 768px) { .gallery-container { column-count: 2; column-gap: 10px; } }
+
+        /* 图片卡片 */
+        .photo-item {
+            break-inside: avoid;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            /* 加上淡入动画 */
+            animation: fadeIn 0.5s ease;
+        }
+        .photo-item img {
+            width: 100%;
+            display: block;
+            transition: transform 0.3s;
+        }
+        .photo-item:hover img { transform: scale(1.02); }
+
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        footer { text-align: center; padding: 40px; color: #aaa; font-size: 0.8rem; }
+    </style>
+</head>
 <body>
-<h1>你好！这是我的个人主页</h1>
-<p>恭喜，你的 GitHub Pages 已经设置成功了！</p>
+
+    <header>
+        <h1>MY PORTFOLIO</h1>
+        <p class="subtitle">Visual Design & Artworks</p>
+        
+        <div class="filter-buttons" id="filters"></div>
+    </header>
+
+    <div class="gallery-container" id="gallery">
+        </div>
+
+    <footer>© 2025 Created by Zhangbling1</footer>
+
+    <script>
+        // =================================================================
+        // 👇👇👇【核心配置区】自定义分类看这里 👇👇👇
+        // =================================================================
+        
+        const categories = [
+            // --- 第 1 个分类 ---
+            { 
+                id: 'illustration',    // 对应你 images 里的文件夹名 (必须英文/拼音)
+                name: '商业插画',       // 网页上按钮显示的中文名
+                count: 20,             // 这个文件夹里有几张图？
+                format: '.jpg'         // 图片格式 (.jpg / .png)
+            },
+
+            // --- 第 2 个分类 ---
+            { 
+                id: 'character',       
+                name: '角色设计',       
+                count: 15,             
+                format: '.jpg'
+            },
+
+            // --- 第 3 个分类 ---
+            { 
+                id: 'scene',           
+                name: '场景概念',       
+                count: 10,             
+                format: '.jpg'
+            },
+
+            // --- 第 4 个分类 ---
+            { 
+                id: 'sketch',          
+                name: '速写练习',       
+                count: 30,             
+                format: '.jpg'
+            },
+
+            // --- 第 5 个分类 ---
+            { 
+                id: 'other',           
+                name: '其他摸鱼',       
+                count: 8,             
+                format: '.jpg'
+            },
+            
+            // 💡 想要增加第 6 个？
+            // 复制上面的一块 {...}, 粘贴在这里即可。
+            // 💡 想要删除？
+            // 直接删掉对应的 {...}, 这一块代码即可。
+        ];
+
+        // ☝️☝️☝️ 配置结束，下面的不要动 ☝️☝️☝️
+        // =================================================================
+
+        const gallery = document.getElementById('gallery');
+        const filters = document.getElementById('filters');
+
+        // 初始化加载
+        function init() {
+            createButtons();
+            loadImages('all'); // 默认加载全部
+        }
+
+        // 1. 创建分类按钮
+        function createButtons() {
+            // "全部"按钮
+            const allBtn = document.createElement('button');
+            allBtn.className = 'btn active';
+            allBtn.innerText = '全部作品';
+            allBtn.onclick = () => { switchFilter('all', allBtn); };
+            filters.appendChild(allBtn);
+
+            // 循环创建分类按钮
+            categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = 'btn';
+                btn.innerText = cat.name;
+                btn.onclick = () => { switchFilter(cat.id, btn); };
+                filters.appendChild(btn);
+            });
+        }
+
+        // 2. 切换分类逻辑
+        function switchFilter(filterId, activeBtn) {
+            // 按钮变色
+            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+            activeBtn.classList.add('active');
+            // 重新加载图片
+            loadImages(filterId);
+        }
+
+        // 3. 加载图片逻辑
+        function loadImages(filterId) {
+            gallery.innerHTML = ''; // 清空当前画廊
+
+            categories.forEach(cat => {
+                // 如果是"all"或者是当前选中的分类，则加载
+                if (filterId === 'all' || filterId === cat.id) {
+                    for (let i = 1; i <= cat.count; i++) {
+                        const div = document.createElement('div');
+                        div.className = 'photo-item';
+                        // 路径规则: images/文件夹名/数字.jpg
+                        const imgPath = `images/${cat.id}/${i}${cat.format}`;
+                        
+                        div.innerHTML = `<img src="${imgPath}" loading="lazy" alt="Image">`;
+                        gallery.appendChild(div);
+                    }
+                }
+            });
+        }
+
+        // 启动！
+        init();
+
+    </script>
 </body>
 </html>
