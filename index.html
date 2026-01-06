@@ -5,30 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的作品集 | Portfolio</title>
     <style>
-        /* ================== ✨ 特效画布 (作为背景) ✨ ================== */
+        /* ================== ✨ 特效画布 (背景) ✨ ================== */
         #particle-canvas {
-            position: fixed; /* 固定在屏幕背景 */
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 0; /* 放在最底层 */
-            pointer-events: none; /* 关键：让鼠标点击穿透，别挡住按钮 */
+            z-index: 0;
+            pointer-events: none;
         }
 
-        /* ================== 页面 UI 样式 (浮在特效上面) ================== */
+        /* ================== 页面 UI 样式 ================== */
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             margin: 0; 
-            background-color: #f8f9fa; /* 浅灰底色，配合特效 */
+            background-color: #f8f9fa; 
             color: #333; 
             overflow-x: hidden;
         }
         
-        /* 头部：带一点磨砂玻璃效果，防止文字看不清 */
         header { 
             position: relative; 
-            z-index: 10; /* 保证在特效上面 */
+            z-index: 10; 
             background: rgba(255, 255, 255, 0.85); 
             padding: 80px 20px 60px; 
             text-align: center; 
@@ -53,10 +52,9 @@
         .btn:hover { background: #f1f3f4; color: #202124; border-color: #dadce0; }
         .btn.active { background: #1a73e8; color: white; border-color: #1a73e8; box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3); }
 
-        /* 画廊容器 */
         .gallery-container { 
             position: relative; 
-            z-index: 10; /* 保证在特效上面 */
+            z-index: 10; 
             max-width: 1600px; 
             margin: 60px auto; 
             padding: 0 30px; 
@@ -92,86 +90,121 @@
 
     <script>
         // =========================================================
-        // 🌊 Part A: Google Antigravity 粒子特效逻辑
+        // 🌊 Part A: 修复版 Google 粒子特效
         // =========================================================
         const canvas = document.getElementById('particle-canvas');
         const ctx = canvas.getContext('2d');
+        
         let width, height;
         let particles = [];
-        const COLOR_BASE = { r: 66, g: 133, b: 244 }; 
-        const mouse = { x: -9999, y: -9999, active: false };
-        const CONFIG = { gridSize: 18, noiseScale: 0.003, timeSpeed: 0.005, ringRadius: 150, dispScale: 100, baseSize: 1.5 };
+        const COLOR_RGB = "66, 133, 244"; // Google Blue
+        const mouse = { x: -5000, y: -5000 }; // 初始放到屏幕外
 
-        // 简化的 Simplex Noise (用于模拟水流感)
-        const SimplexNoise = (function() {
-            const p = new Uint8Array([151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180]);
-            const perm = new Uint8Array(512); for(let i=0; i<512; i++) perm[i] = p[i & 255];
-            const grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
-            return { noise2D: function(xin, yin) {
-                let n0, n1, n2; const F2 = 0.5*(Math.sqrt(3.0)-1.0), s = (xin+yin)*F2, i = Math.floor(xin+s), j = Math.floor(yin+s), G2 = (3.0-Math.sqrt(3.0))/6.0, t = (i+j)*G2, X0 = i-t, Y0 = j-t, x0 = xin-X0, y0 = yin-Y0;
-                let i1, j1; if(x0>y0) {i1=1; j1=0;} else {i1=0; j1=1;}
-                const x1 = x0 - i1 + G2, y1 = y0 - j1 + G2, x2 = x0 - 1.0 + 2.0 * G2, y2 = y0 - 1.0 + 2.0 * G2, ii = i & 255, jj = j & 255;
-                const gi0 = perm[ii+perm[jj]] % 12, gi1 = perm[ii+i1+perm[jj+j1]] % 12, gi2 = perm[ii+1+perm[jj+1]] % 12;
-                let t0 = 0.5 - x0*x0 - y0*y0; if(t0<0) n0 = 0.0; else { t0 *= t0; n0 = t0 * t0 * (grad3[gi0][0]*x0 + grad3[gi0][1]*y0); }
-                let t1 = 0.5 - x1*x1 - y1*y1; if(t1<0) n1 = 0.0; else { t1 *= t1; n1 = t1 * t1 * (grad3[gi1][0]*x1 + grad3[gi1][1]*y1); }
-                let t2 = 0.5 - x2*x2 - y2*y2; if(t2<0) n2 = 0.0; else { t2 *= t2; n2 = t2 * t2 * (grad3[gi2][0]*x2 + grad3[gi2][1]*y2); }
-                return 70.0 * (n0 + n1 + n2);
-            }};
-        })();
+        // ⚙️ 特效参数
+        const CONFIG = {
+            spacing: 25,       // 网格间距 (越小越密集)
+            mouseRadius: 200,  // 鼠标影响范围
+            pushStrength: 80,  // 推力强度
+            baseSize: 1.2,     // 粒子大小
+            twinkleSpeed: 0.002 // 闪烁速度
+        };
 
         class Particle {
-            constructor(x, y) { this.baseX = x; this.baseY = y; this.x = x; this.y = y; this.size = CONFIG.baseSize; }
-            update(time) {
-                const dx = mouse.x - this.baseX, dy = mouse.y - this.baseY, dist = Math.sqrt(dx*dx + dy*dy);
-                const smoothstep = (min, max, val) => { const x = Math.max(0, Math.min(1, (val - min) / (max - min))); return x*x*(3 - 2*x); };
-                let intensity = 0;
-                if (mouse.active) {
-                    const t1 = smoothstep(CONFIG.ringRadius - 40, CONFIG.ringRadius, dist);
-                    const t2 = smoothstep(CONFIG.ringRadius, CONFIG.ringRadius + 40, dist);
-                    intensity = t1 - t2;
-                }
-                const noiseX = SimplexNoise.noise2D(this.baseX * CONFIG.noiseScale, time * 0.5 + 10);
-                const noiseY = SimplexNoise.noise2D(this.baseY * CONFIG.noiseScale, time * 0.5 + 20);
-                const angle = Math.atan2(dy, dx);
-                const force = intensity * CONFIG.dispScale;
-                this.x = this.baseX + noiseX * 10 + Math.cos(angle) * force;
-                this.y = this.baseY + noiseY * 10 + Math.sin(angle) * force;
-                this.size = CONFIG.baseSize + intensity * 2;
+            constructor(x, y) {
+                this.baseX = x; // 锚点 X (回家的位置)
+                this.baseY = y; // 锚点 Y
+                this.x = x;     // 当前 X
+                this.y = y;     // 当前 Y
+                
+                // 随机偏移，让闪烁不是同时亮同时暗，而是有波浪感
+                this.density = (Math.random() * 30) + 1;
+                this.offset = Math.random() * 100; 
             }
-            draw() {
-                const alpha = 0.6 + (this.size - CONFIG.baseSize) * 0.2;
-                ctx.fillStyle = `rgba(${COLOR_BASE.r}, ${COLOR_BASE.g}, ${COLOR_BASE.b}, ${alpha})`;
-                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+
+            update(time) {
+                // 1. 计算鼠标推力 (不再是空心环，而是实心推球)
+                let dx = mouse.x - this.x;
+                let dy = mouse.y - this.y;
+                let distance = Math.sqrt(dx * dx + dy * dy);
+                let forceDirectionX = dx / distance;
+                let forceDirectionY = dy / distance;
+                let maxDistance = CONFIG.mouseRadius;
+                
+                // 计算排斥力：距离越近，推力越大
+                let force = (maxDistance - distance) / maxDistance;
+                let directionX = forceDirectionX * force * CONFIG.pushStrength;
+                let directionY = forceDirectionY * force * CONFIG.pushStrength;
+
+                if (distance < maxDistance) {
+                    // 如果在鼠标范围内，被推开
+                    this.x -= directionX;
+                    this.y -= directionY;
+                } else {
+                    // 如果鼠标走了，慢慢回到原位 (弹性归位)
+                    if (this.x !== this.baseX) {
+                        let dx = this.x - this.baseX;
+                        this.x -= dx / 10;
+                    }
+                    if (this.y !== this.baseY) {
+                        let dy = this.y - this.baseY;
+                        this.y -= dy / 10;
+                    }
+                }
+
+                // 2. 绘制粒子 + 呼吸闪烁
+                // 使用正弦波 Math.sin 实现规律的忽明忽暗
+                // time + this.x * 0.01 这种写法能让闪烁形成一种“扫过”屏幕的波浪感
+                const opacity = 0.2 + (Math.sin(time * CONFIG.twinkleSpeed + this.x * 0.01 + this.y * 0.01) + 1) / 2 * 0.5;
+                
+                ctx.fillStyle = `rgba(${COLOR_RGB}, ${opacity})`;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, CONFIG.baseSize, 0, Math.PI * 2);
+                ctx.fill();
             }
         }
 
         function initParticles() {
-            width = canvas.width = window.innerWidth; height = canvas.height = window.innerHeight;
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
             particles = [];
-            for (let y = 0; y < height; y += CONFIG.gridSize) {
-                for (let x = 0; x < width; x += CONFIG.gridSize) { particles.push(new Particle(x, y)); }
+            
+            // 生成整齐的网格
+            for (let y = 0; y < height; y += CONFIG.spacing) {
+                for (let x = 0; x < width; x += CONFIG.spacing) {
+                    particles.push(new Particle(x, y));
+                }
             }
         }
 
         let time = 0;
         function animateParticles() {
             ctx.clearRect(0, 0, width, height);
-            time += CONFIG.timeSpeed;
-            particles.forEach(p => { p.update(time); p.draw(); });
+            time += 1;
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update(time);
+            }
             requestAnimationFrame(animateParticles);
         }
 
         window.addEventListener('resize', initParticles);
-        window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true; });
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+        });
+        
+        // 鼠标离开时放到远处
+        window.addEventListener('mouseout', () => {
+            mouse.x = -5000;
+            mouse.y = -5000;
+        });
+
         initParticles();
         animateParticles();
 
 
         // =========================================================
-        // 🖼️ Part B: 全自动作品集逻辑 (你的业务核心)
+        // 🖼️ Part B: 全自动作品集逻辑 (保持不变)
         // =========================================================
-        
-        // 1. 定义分类 (id 对应文件夹名)
         const categories = [
             { id: 'illustration', name: '商业插画' }, 
             { id: 'character',    name: '角色设计' },
@@ -180,33 +213,24 @@
             { id: 'other',        name: '其他摸鱼' },
         ];
 
-        // 2. 支持的格式 (优先找视频)
         const supportedFormats = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
-
         const gallery = document.getElementById('gallery');
         const filters = document.getElementById('filters');
-        
-        const CONCURRENCY = 5;       // 5路并发
-        const MAX_TOLERANCE = 3;     // 允许连续失败3次
+        const CONCURRENCY = 5; 
+        const MAX_TOLERANCE = 3; 
         let currentSessionId = 0;
 
-        function initPortfolio() {
-            createButtons();
-            loadCategory('all');
-        }
+        function initPortfolio() { createButtons(); loadCategory('all'); }
 
         function createButtons() {
             const allBtn = document.createElement('button');
-            allBtn.className = 'btn active';
-            allBtn.innerText = '全部作品';
-            allBtn.onclick = () => { switchFilter('all', allBtn); };
+            allBtn.className = 'btn active'; allBtn.innerText = '全部作品';
+            allBtn.onclick = () => switchFilter('all', allBtn);
             filters.appendChild(allBtn);
-
             categories.forEach(cat => {
                 const btn = document.createElement('button');
-                btn.className = 'btn';
-                btn.innerText = cat.name;
-                btn.onclick = () => { switchFilter(cat.id, btn); };
+                btn.className = 'btn'; btn.innerText = cat.name;
+                btn.onclick = () => switchFilter(cat.id, btn);
                 filters.appendChild(btn);
             });
         }
@@ -214,54 +238,38 @@
         function switchFilter(filterId, activeBtn) {
             document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
             activeBtn.classList.add('active');
-            currentSessionId++; 
-            loadCategory(filterId);
+            currentSessionId++; loadCategory(filterId);
         }
 
         function loadCategory(filterId) {
             gallery.innerHTML = ''; 
             let targetCats = (filterId === 'all') ? categories : categories.filter(c => c.id === filterId);
-            
             targetCats.forEach(cat => {
-                // 启动 5 路侦察兵
-                for (let i = 1; i <= CONCURRENCY; i++) {
-                    startScout(cat.id, cat.name, i, currentSessionId, 0);
-                }
+                for (let i = 1; i <= CONCURRENCY; i++) { startScout(cat.id, cat.name, i, currentSessionId, 0); }
             });
         }
 
         async function startScout(folder, catName, index, sessionId, consecutiveErrors) {
             if (sessionId !== currentSessionId || consecutiveErrors > MAX_TOLERANCE || index > 2000) return;
-
             const media = await findMedia(folder, index);
             if (sessionId !== currentSessionId) return;
-
             if (media) {
-                // ✅ 找到了
                 renderCard(media, catName, index);
                 startScout(folder, catName, index + CONCURRENCY, sessionId, 0); 
             } else {
-                // ❌ 没找到，尝试下一个
                 startScout(folder, catName, index + CONCURRENCY, sessionId, consecutiveErrors + 1);
             }
         }
 
         function renderCard(media, catName, index) {
             const div = document.createElement('div');
-            div.className = 'photo-item';
-            div.style.order = index;
-            
+            div.className = 'photo-item'; div.style.order = index;
             if (media.type === 'video') {
-                div.innerHTML = `
-                    <video src="${media.src}" autoplay muted loop playsinline></video>
-                    <div class="video-badge">VIDEO</div>
-                `;
+                div.innerHTML = `<video src="${media.src}" autoplay muted loop playsinline></video><div class="video-badge">VIDEO</div>`;
             } else {
                 div.innerHTML = `<img src="${media.src}" alt="${catName} ${index}" loading="lazy">`;
             }
-            
             gallery.appendChild(div);
-            // 稍等一会显示，配合 fade-in 动画
             setTimeout(() => div.classList.add('loaded'), 50);
         }
 
@@ -273,8 +281,7 @@
                         const response = await fetch(src, { method: 'HEAD' });
                         if (response.ok) {
                             const isVideo = ext === '.mp4' || ext === '.mov';
-                            resolve({ src: src, type: isVideo ? 'video' : 'image' });
-                            return; 
+                            resolve({ src: src, type: isVideo ? 'video' : 'image' }); return; 
                         }
                     } catch (e) {}
                 }
@@ -282,9 +289,7 @@
             });
         }
 
-        // 启动作品集逻辑
         initPortfolio();
-
     </script>
 </body>
 </html>
