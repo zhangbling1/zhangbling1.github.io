@@ -5,148 +5,134 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的作品集 | Portfolio</title>
     <style>
-        /* ================== 视觉样式区 (你可以不管) ================== */
-        body { font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; margin: 0; background: #f9f9f9; color: #333; }
-        header { background: #fff; padding: 60px 20px; text-align: center; border-bottom: 1px solid #eee; }
-        h1 { margin: 0 0 10px 0; letter-spacing: 2px; text-transform: uppercase; }
-        p.subtitle { color: #888; font-size: 0.9rem; margin-bottom: 30px; }
+        /* ================== 视觉样式区 ================== */
+        /* 使用更现代的字体和柔和的背景 */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #f0f2f5; color: #333; }
+        
+        /* 头部设计：更干净、更有呼吸感 */
+        header { background: #fff; padding: 80px 20px 60px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
+        h1 { margin: 0; font-weight: 700; letter-spacing: 1px; font-size: 2.5rem; }
+        p.subtitle { color: #666; font-size: 1rem; margin: 15px 0 40px; font-weight: 300; }
 
-        /* 按钮样式 */
-        .filter-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+        /* 按钮样式优化：更精致 */
+        .filter-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
         .btn {
-            padding: 8px 25px;
-            border: 1px solid #ddd;
-            background: #fff;
+            padding: 10px 28px;
+            border: 2px solid transparent; /* 透明边框占位 */
+            background: #f0f2f5;
             cursor: pointer;
             border-radius: 50px;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
+            font-weight: 500;
             transition: all 0.3s ease;
-            color: #666;
+            color: #555;
         }
-        .btn:hover { border-color: #000; color: #000; }
-        .btn.active { background: #000; color: #fff; border-color: #000; }
+        .btn:hover { background: #e4e6eb; color: #000; }
+        /* 选中状态：用深色背景强调 */
+        .btn.active { background: #222; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
 
         /* 瀑布流网格布局 */
         .gallery-container {
             max-width: 1600px;
-            margin: 40px auto;
-            padding: 0 20px;
-            column-count: 5; /* 电脑上显示5列 */
-            column-gap: 20px;
+            margin: 60px auto;
+            padding: 0 30px;
+            /* 核心：多列布局实现瀑布流 */
+            column-count: 5; 
+            column-gap: 30px; /* 列间距 */
         }
         
-        /* 手机适配：变2列 */
-        @media (max-width: 1200px) { .gallery-container { column-count: 3; } }
-        @media (max-width: 768px) { .gallery-container { column-count: 2; column-gap: 10px; } }
-
-        /* 图片卡片 */
-        .photo-item {
-            break-inside: avoid;
-            margin-bottom: 20px;
-            border-radius: 8px;
-            overflow: hidden;
-            /* 加上淡入动画 */
-            animation: fadeIn 0.5s ease;
+        /* 响应式适配 */
+        @media (max-width: 1400px) { .gallery-container { column-count: 4; } }
+        @media (max-width: 1100px) { .gallery-container { column-count: 3; column-gap: 20px; } }
+        @media (max-width: 768px) { 
+            header { padding: 60px 20px 40px; }
+            h1 { font-size: 2rem; }
+            .gallery-container { column-count: 2; padding: 0 15px; column-gap: 15px; margin: 40px auto; } 
         }
+
+        /* 图片卡片优化：增加质感和交互 */
+        .photo-item {
+            break-inside: avoid; /* 防止卡片被跨列切断 */
+            margin-bottom: 30px; /* 卡片上下间距 */
+            border-radius: 12px; /* 更圆润的角 */
+            overflow: hidden;
+            background: #fff;
+            /* 默认状态的轻微阴影 */
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+            transition: all 0.3s ease;
+            /* 初始状态：用于动画 */
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        
+        /* 鼠标悬停效果：上浮并加深阴影 */
+        .photo-item:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
+        }
+
         .photo-item img {
             width: 100%;
             display: block;
-            transition: transform 0.3s;
+            /* 图片本身也可以有一点点放大效果，增加动感 */
+            transition: transform 0.5s ease;
         }
-        .photo-item:hover img { transform: scale(1.02); }
+        .photo-item:hover img { transform: scale(1.03); }
 
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        footer { text-align: center; padding: 40px; color: #aaa; font-size: 0.8rem; }
+        /* 图片加载出来后的动画类 */
+        .photo-item.loaded {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        footer { text-align: center; padding: 60px 20px; color: #999; font-size: 0.9rem; }
     </style>
 </head>
 <body>
 
     <header>
         <h1>MY PORTFOLIO</h1>
-        <p class="subtitle">Visual Design & Artworks</p>
-        
+        <p class="subtitle">Visual Design & Artworks Collection</p>
         <div class="filter-buttons" id="filters"></div>
     </header>
 
-    <div class="gallery-container" id="gallery">
-        </div>
+    <div class="gallery-container" id="gallery"></div>
 
-    <footer>© 2025 Created by Zhangbling1</footer>
+    <footer>© 2025 Created by Zhangbling1. All rights reserved.</footer>
 
     <script>
         // =================================================================
-        // 👇👇👇【核心配置区】自定义分类看这里 👇👇👇
+        // 👇👇👇【核心配置区】只需修改这里 👇👇👇
         // =================================================================
         
+        // 小技巧：把 count 设置得大一点（比如 50 或 100），
+        // 代码会自动隐藏不存在的图片，这样你就不用每次都精确数有多少张图了。
         const categories = [
-            // --- 第 1 个分类 ---
-            { 
-                id: 'illustration',    // 对应你 images 里的文件夹名 (必须英文/拼音)
-                name: '商业插画',       // 网页上按钮显示的中文名
-                count: 20,             // 这个文件夹里有几张图？
-                format: '.jpg'         // 图片格式 (.jpg / .png)
-            },
-
-            // --- 第 2 个分类 ---
-            { 
-                id: 'character',       
-                name: '角色设计',       
-                count: 15,             
-                format: '.jpg'
-            },
-
-            // --- 第 3 个分类 ---
-            { 
-                id: 'scene',           
-                name: '场景概念',       
-                count: 10,             
-                format: '.jpg'
-            },
-
-            // --- 第 4 个分类 ---
-            { 
-                id: 'sketch',          
-                name: '速写练习',       
-                count: 30,             
-                format: '.jpg'
-            },
-
-            // --- 第 5 个分类 ---
-            { 
-                id: 'other',           
-                name: '其他摸鱼',       
-                count: 8,             
-                format: '.jpg'
-            },
-            
-            // 💡 想要增加第 6 个？
-            // 复制上面的一块 {...}, 粘贴在这里即可。
-            // 💡 想要删除？
-            // 直接删掉对应的 {...}, 这一块代码即可。
+            { id: 'illustration', name: '商业插画', count: 50, format: '.jpg' },
+            { id: 'character',    name: '角色设计', count: 50, format: '.jpg' },
+            { id: 'scene',        name: '场景概念', count: 50, format: '.jpg' },
+            { id: 'sketch',       name: '速写练习', count: 50, format: '.jpg' },
+            { id: 'other',        name: '其他摸鱼', count: 50, format: '.jpg' },
         ];
 
-        // ☝️☝️☝️ 配置结束，下面的不要动 ☝️☝️☝️
+        // ☝️☝️☝️ 配置结束 ☝️☝️☝️
         // =================================================================
 
         const gallery = document.getElementById('gallery');
         const filters = document.getElementById('filters');
 
-        // 初始化加载
         function init() {
             createButtons();
-            loadImages('all'); // 默认加载全部
+            loadImages('all'); 
         }
 
-        // 1. 创建分类按钮
         function createButtons() {
-            // "全部"按钮
             const allBtn = document.createElement('button');
             allBtn.className = 'btn active';
             allBtn.innerText = '全部作品';
             allBtn.onclick = () => { switchFilter('all', allBtn); };
             filters.appendChild(allBtn);
 
-            // 循环创建分类按钮
             categories.forEach(cat => {
                 const btn = document.createElement('button');
                 btn.className = 'btn';
@@ -156,36 +142,51 @@
             });
         }
 
-        // 2. 切换分类逻辑
         function switchFilter(filterId, activeBtn) {
-            // 按钮变色
             document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
             activeBtn.classList.add('active');
-            // 重新加载图片
             loadImages(filterId);
         }
 
-        // 3. 加载图片逻辑
         function loadImages(filterId) {
-            gallery.innerHTML = ''; // 清空当前画廊
+            gallery.innerHTML = ''; 
 
             categories.forEach(cat => {
-                // 如果是"all"或者是当前选中的分类，则加载
                 if (filterId === 'all' || filterId === cat.id) {
                     for (let i = 1; i <= cat.count; i++) {
+                        // 1. 创建卡片容器
                         const div = document.createElement('div');
                         div.className = 'photo-item';
-                        // 路径规则: images/文件夹名/数字.jpg
-                        const imgPath = `images/${cat.id}/${i}${cat.format}`;
                         
-                        div.innerHTML = `<img src="${imgPath}" loading="lazy" alt="Image">`;
+                        // 2. 创建图片元素
+                        const img = document.createElement('img');
+                        img.src = `images/${cat.id}/${i}${cat.format}`;
+                        img.loading = "lazy"; // 懒加载，提升性能
+                        img.alt = `${cat.name} - 作品 ${i}`;
+
+                        // =========================================
+                        // 🔥🔥🔥 核心魔法：消灭破图图标 🔥🔥🔥
+                        // =========================================
+                        
+                        // 当图片加载失败时（比如文件不存在），执行这个函数
+                        img.onerror = function() {
+                            // 把包含这张图的整个卡片隐藏掉
+                            div.style.display = 'none'; 
+                        };
+
+                        // 当图片加载成功时，添加一个类名来触发淡入动画
+                        img.onload = function() {
+                            div.classList.add('loaded');
+                        }
+
+                        // 3. 组装
+                        div.appendChild(img);
                         gallery.appendChild(div);
                     }
                 }
             });
         }
 
-        // 启动！
         init();
 
     </script>
