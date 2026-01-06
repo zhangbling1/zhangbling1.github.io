@@ -1,255 +1,239 @@
-<script>
-    // =================================================================
-    // 👇👇👇 ✨ 真·水母 (Jellyfish) 核心算法 (重写版) ✨ 👇👇👇
-    // =================================================================
-    const canvas = document.getElementById('particle-canvas');
-    const ctx = canvas.getContext('2d');
-    
-    let width, height;
-    function resize() {
-        width = window.innerWidth;
-        height = window.innerHeight;
-        canvas.width = width;
-        canvas.height = height;
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    // 鼠标位置 (带平滑延迟)
-    const mouse = { x: width / 2, y: height / 2 };
-    const target = { x: width / 2, y: height / 2 };
-
-    window.addEventListener('mousemove', e => {
-        target.x = e.clientX;
-        target.y = e.clientY;
-    });
-
-    // ==================== 触须类 (Tentacle) ====================
-    class Tentacle {
-        constructor(length, n, friction, offsetAngle) {
-            this.length = length; // 触须总长
-            this.n = n;           // 关节数量
-            this.friction = friction; // 阻力（越小越甩）
-            this.offsetAngle = offsetAngle; // 在头部周围的偏移角度
-            this.nodes = [];      // 触须上的节点
-            
-            // 初始化节点
-            for (let i = 0; i < this.n; i++) {
-                this.nodes.push({ x: 0, y: 0 });
-            }
-        }
-
-        update(headX, headY, angleOffset) {
-            // 1. 第一个节点跟随头部（带一点偏移，形成圆形的身体）
-            // 让我们把触须根部固定在一个虚拟的圆周上
-            const headRadius = 20; 
-            const rootX = headX + Math.cos(this.offsetAngle + angleOffset) * headRadius;
-            const rootY = headY + Math.sin(this.offsetAngle + angleOffset) * headRadius;
-
-            this.nodes[0].x += (rootX - this.nodes[0].x) * this.friction;
-            this.nodes[0].y += (rootY - this.nodes[0].y) * this.friction;
-
-            // 2. 后续节点跟随前一个节点 (IK - Inverse Kinematics 简化版)
-            for (let i = 1; i < this.n; i++) {
-                const prev = this.nodes[i - 1];
-                const curr = this.nodes[i];
-                
-                // 简单的弹簧跟随
-                curr.x += (prev.x - curr.x) * this.friction;
-                curr.y += (prev.y - curr.y) * this.friction;
-                
-                // 加入一点正弦波动的“水流感”
-                curr.x += Math.sin(Date.now() * 0.003 + i * 0.2 + this.offsetAngle) * 0.5;
-            }
-        }
-
-        draw(ctx) {
-            ctx.beginPath();
-            ctx.moveTo(this.nodes[0].x, this.nodes[0].y);
-            
-            // 使用二次贝塞尔曲线连接节点，使触须看起来丝滑
-            for (let i = 1; i < this.n - 1; i++) {
-                const curr = this.nodes[i];
-                const next = this.nodes[i + 1];
-                const xc = (curr.x + next.x) / 2;
-                const yc = (curr.y + next.y) / 2;
-                ctx.quadraticCurveTo(curr.x, curr.y, xc, yc);
-            }
-            
-            // 最后一节
-            const last = this.nodes[this.n - 1];
-            ctx.lineTo(last.x, last.y);
-
-            // 样式设置
-            ctx.strokeStyle = 'rgba(66, 133, 244, 0.4)'; // 谷歌蓝
-            ctx.lineWidth = 2;
-            ctx.lineCap = 'round';
-            ctx.stroke();
-            ctx.closePath();
-        }
-    }
-
-    // ==================== 初始化水母 ====================
-    const tentacles = [];
-    const NUM_TENTACLES = 12; // 触须数量
-    
-    for (let i = 0; i < NUM_TENTACLES; i++) {
-        // 创建一圈触须
-        const angle = (Math.PI * 2 / NUM_TENTACLES) * i;
-        // 长度30，20个关节，阻力0.1~0.15随机
-        tentacles.push(new Tentacle(30, 20, 0.1 + Math.random() * 0.05, angle));
-    }
-
-    // 头部呼吸动画变量
-    let breathAngle = 0;
-    
-    function animate() {
-        ctx.clearRect(0, 0, width, height);
-
-        // 1. 鼠标位置平滑插值 (Lerp)
-        mouse.x += (target.x - mouse.x) * 0.08;
-        mouse.y += (target.y - mouse.y) * 0.08;
-
-        // 2. 头部呼吸效果
-        breathAngle += 0.03;
-        const breathRadius = 25 + Math.sin(breathAngle) * 5;
-        const rotateAngle = Math.sin(breathAngle * 0.5) * 0.3; // 整体轻微旋转
-
-        // 3. 绘制触须
-        tentacles.forEach(t => {
-            t.update(mouse.x, mouse.y, rotateAngle);
-            t.draw(ctx);
-        });
-
-        // 4. 绘制半透明头部
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, breathRadius, 0, Math.PI * 2);
-        const gradient = ctx.createRadialGradient(mouse.x, mouse.y, 0, mouse.x, mouse.y, breathRadius);
-        gradient.addColorStop(0, 'rgba(66, 133, 244, 0.1)'); // 中心淡
-        gradient.addColorStop(0.6, 'rgba(66, 133, 244, 0.2)');
-        gradient.addColorStop(1, 'rgba(66, 133, 244, 0.0)'); // 边缘消失
-        ctx.fillStyle = gradient;
-        ctx.fill();
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Antigravity Effect | Authentic Replica</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f8f9fa; } /* 浅灰背景，像原版 */
+        canvas { display: block; }
         
-        // 头部核心光点
-        ctx.beginPath();
-        ctx.arc(mouse.x, mouse.y, 4, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-        ctx.fill();
-
-        requestAnimationFrame(animate);
-    }
-    
-    animate();
-
-    // =================================================================
-    // 👇👇👇 下面保持你的作品集功能代码不变 👇👇👇
-    // =================================================================
-    // ... (把之前的 gallery, filters 等逻辑粘贴在这里) ...
-    const categories = [
-        { id: 'illustration', name: '商业插画' }, 
-        { id: 'character',    name: '角色设计' },
-        { id: 'scene',        name: '场景概念' },
-        { id: 'sketch',       name: '速写练习' },
-        { id: 'other',        name: '其他摸鱼' },
-    ];
-    // ... (其余代码省略，请务必保留) ...
-    
-    // 为了防止报错，补全必要的初始化调用（如果你是复制粘贴的话，记得保留下面这些）
-    const supportedFormats = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
-    const CONCURRENCY = 5; 
-    const MAX_TOLERANCE = 3;
-    const gallery = document.getElementById('gallery');
-    const filters = document.getElementById('filters');
-    let currentSessionId = 0;
-
-    function init() {
-        if(filters && gallery) { // 简单检查是否存在
-            createButtons();
-            loadCategory('all');
+        /* 简单的 UI 模拟 */
+        .ui-layer {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            pointer-events: none; /* 让鼠标穿透 */
+            font-family: 'Google Sans', sans-serif;
+            color: #202124;
         }
-    }
-    
-    // ... (createButtons, switchFilter, loadCategory 等函数逻辑与之前一致) ...
-    
-    // 这里为了演示完整性，我把 createButtons 的定义也写上，确保你可以直接跑
-    function createButtons() {
-        if(!filters) return;
-        const allBtn = document.createElement('button');
-        allBtn.className = 'btn active';
-        allBtn.innerText = '全部作品';
-        allBtn.onclick = () => { switchFilter('all', allBtn); };
-        filters.appendChild(allBtn);
+        h1 { font-size: 4rem; margin: 0; letter-spacing: -1px; }
+        p { font-size: 1.2rem; color: #5f6368; }
+    </style>
+</head>
+<body>
 
-        categories.forEach(cat => {
-            const btn = document.createElement('button');
-            btn.className = 'btn';
-            btn.innerText = cat.name;
-            btn.onclick = () => { switchFilter(cat.id, btn); };
-            filters.appendChild(btn);
-        });
-    }
+    <div class="ui-layer">
+        <h1>Antigravity</h1>
+        <p>Move your mouse to disturb the particles</p>
+    </div>
 
-    function switchFilter(filterId, activeBtn) {
-        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-        activeBtn.classList.add('active');
-        currentSessionId++; 
-        loadCategory(filterId);
-    }
+    <canvas id="canvas"></canvas>
 
-    function loadCategory(filterId) {
-        gallery.innerHTML = ''; 
-        let targetCats = (filterId === 'all') ? categories : categories.filter(c => c.id === filterId);
-        targetCats.forEach(cat => {
-            for (let i = 1; i <= CONCURRENCY; i++) {
-                startScout(cat.id, cat.name, i, currentSessionId, 0);
+    <script>
+        /**
+         * 🌊 Google Antigravity 核心复刻版
+         * 基于 main-F3FYKJAU.js 中的 Shader 逻辑翻译
+         */
+
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+
+        let width, height;
+        let particles = [];
+        // 原版 Google 蓝
+        const COLOR_BASE = { r: 66, g: 133, b: 244 }; 
+        
+        // 🐭 鼠标状态
+        const mouse = { x: -9999, y: -9999, active: false };
+
+        // ⚙️ 参数配置 (模拟 Shader 中的 uniform)
+        const CONFIG = {
+            gridSize: 15,      // 粒子间距 (越小粒子越多)
+            noiseScale: 0.003, // 噪声缩放 (控制"水流"的大小)
+            timeSpeed: 0.005,  // 游动速度
+            ringRadius: 150,   // 鼠标影响半径 (对应 uRingRadius)
+            dispScale: 100,    // 扭曲强度 (对应 uRingDisplacement)
+            baseSize: 1.5      // 粒子基础大小
+        };
+
+        // =========================================================
+        // 🧮 Simplex Noise (简化版，用于模拟原版 snoise)
+        // =========================================================
+        const SimplexNoise = (function() {
+            // 经典的 Perlin/Simplex 噪声置换表
+            const p = new Uint8Array([151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180]);
+            const perm = new Uint8Array(512);
+            for(let i=0; i<512; i++) perm[i] = p[i & 255];
+
+            function dot(g, x, y) { return g[0]*x + g[1]*y; }
+            const grad3 = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+
+            return {
+                noise2D: function(xin, yin) {
+                    let n0, n1, n2; 
+                    const F2 = 0.5*(Math.sqrt(3.0)-1.0);
+                    const s = (xin+yin)*F2; 
+                    const i = Math.floor(xin+s);
+                    const j = Math.floor(yin+s);
+                    const G2 = (3.0-Math.sqrt(3.0))/6.0;
+                    const t = (i+j)*G2;
+                    const X0 = i-t; 
+                    const Y0 = j-t;
+                    const x0 = xin-X0; 
+                    const y0 = yin-Y0;
+                    let i1, j1;
+                    if(x0>y0) {i1=1; j1=0;} else {i1=0; j1=1;}
+                    const x1 = x0 - i1 + G2; 
+                    const y1 = y0 - j1 + G2;
+                    const x2 = x0 - 1.0 + 2.0 * G2; 
+                    const y2 = y0 - 1.0 + 2.0 * G2;
+                    const ii = i & 255; 
+                    const jj = j & 255;
+                    const gi0 = perm[ii+perm[jj]] % 12;
+                    const gi1 = perm[ii+i1+perm[jj+j1]] % 12;
+                    const gi2 = perm[ii+1+perm[jj+1]] % 12;
+                    let t0 = 0.5 - x0*x0 - y0*y0;
+                    if(t0<0) n0 = 0.0;
+                    else { t0 *= t0; n0 = t0 * t0 * dot(grad3[gi0], x0, y0); }
+                    let t1 = 0.5 - x1*x1 - y1*y1;
+                    if(t1<0) n1 = 0.0;
+                    else { t1 *= t1; n1 = t1 * t1 * dot(grad3[gi1], x1, y1); }
+                    let t2 = 0.5 - x2*x2 - y2*y2;
+                    if(t2<0) n2 = 0.0;
+                    else { t2 *= t2; n2 = t2 * t2 * dot(grad3[gi2], x2, y2); }
+                    return 70.0 * (n0 + n1 + n2);
+                }
+            };
+        })();
+
+        // =========================================================
+        // 🧪 粒子系统 (复刻 Shader 逻辑)
+        // =========================================================
+        
+        class Particle {
+            constructor(x, y) {
+                this.baseX = x; // 原始位置 (refPos)
+                this.baseY = y;
+                this.x = x;     // 当前位置 (curentPos)
+                this.y = y;
+                this.size = CONFIG.baseSize;
             }
-        });
-    }
 
-    // 这里的 startScout 等函数你需要保留原来生成的，不要弄丢了哦
-    async function startScout(folder, catName, index, sessionId, consecutiveErrors) {
-        // ... (保持原样) ...
-        // 简写版逻辑：
-        if (sessionId !== currentSessionId || consecutiveErrors > MAX_TOLERANCE || index > 2000) return;
-        const media = await findMedia(folder, index);
-        if (sessionId !== currentSessionId) return;
-        if (media) {
-            renderCard(media, catName, index);
-            startScout(folder, catName, index + CONCURRENCY, sessionId, 0); 
-        } else {
-            startScout(folder, catName, index + CONCURRENCY, sessionId, consecutiveErrors + 1);
-        }
-    }
+            update(time) {
+                // 1. 计算与鼠标的距离
+                const dx = mouse.x - this.baseX;
+                const dy = mouse.y - this.baseY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
 
-    function renderCard(media, catName, index) {
-        const div = document.createElement('div');
-        div.className = 'photo-item';
-        div.style.order = index;
-        if (media.type === 'video') {
-            div.innerHTML = `<video src="${media.src}" autoplay muted loop playsinline></video><div class="video-badge">VIDEO</div>`;
-        } else {
-            div.innerHTML = `<img src="${media.src}" alt="${catName} ${index}" loading="lazy">`;
-        }
-        gallery.appendChild(div);
-        setTimeout(() => div.classList.add('loaded'), 50);
-    }
+                // 2. 核心：Shader 中的平滑阶梯函数复刻
+                // float t = smoothstep(uRingRadius - (uRingWidth * 2.), uRingRadius, dist) ...
+                // 这里的逻辑是创建一个环形的影响区域
+                const ringRadius = CONFIG.ringRadius;
+                const ringWidth = 20; 
+                
+                // 模拟 GLSL smoothstep: clamp((x - edge0) / (edge1 - edge0), 0.0, 1.0)
+                const smoothstep = (min, max, value) => {
+                    const x = Math.max(0, Math.min(1, (value - min) / (max - min)));
+                    return x * x * (3 - 2 * x);
+                };
 
-    function findMedia(folder, index) {
-        return new Promise(async (resolve) => {
-            // 模拟查找
-             for (const ext of supportedFormats) {
-                const src = `images/${folder}/${index}${ext}`;
-                // 实际使用时这里保留 fetch 逻辑
-                // 这里为了不报错，简单处理
-                try {
-                    // const response = await fetch(src, { method: 'HEAD' });
-                    // if (response.ok) ...
-                } catch(e){}
+                // 计算对鼠标的“反应强度” (t)
+                let intensity = 0;
+                if (mouse.active) {
+                    // 一个向外推的力 + 一个内部的拉力，形成环形波
+                    const t1 = smoothstep(ringRadius - ringWidth * 2, ringRadius, dist);
+                    const t2 = smoothstep(ringRadius, ringRadius + ringWidth, dist);
+                    intensity = t1 - t2; // 这是一个波峰在 ringRadius 处的环
+                }
+
+                // 3. 噪声位移 (Noise Displacement) - 让粒子像水母一样浮动
+                // vec2 disp = vec2(noise1, noise2) * .03;
+                const noiseX = SimplexNoise.noise2D(this.baseX * CONFIG.noiseScale, time * 0.5 + 10);
+                const noiseY = SimplexNoise.noise2D(this.baseY * CONFIG.noiseScale, time * 0.5 + 20);
+                
+                const driftX = noiseX * 10; // 基础漂浮
+                const driftY = noiseY * 10;
+
+                // 4. 最终位置计算
+                // pos -= (uRingPos - (curentPos + disp)) * pow(t2, .75) * uRingDisplacement;
+                // 简单的说：如果不受鼠标影响，就在原地漂浮；如果受影响，就被推开/拉扯
+                
+                const force = intensity * CONFIG.dispScale;
+                const angle = Math.atan2(dy, dx); // 角度
+
+                this.x = this.baseX + driftX + Math.cos(angle) * force;
+                this.y = this.baseY + driftY + Math.sin(angle) * force;
+
+                // 5. 动态大小
+                // 根据强度改变大小，产生“呼吸感”
+                this.size = CONFIG.baseSize + intensity * 2;
             }
-            resolve(null); // 默认没找到
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                
+                // 颜色处理：稍微带点透明度，叠加后更好看
+                const alpha = 0.6 + (this.size - CONFIG.baseSize) * 0.2;
+                ctx.fillStyle = `rgba(${COLOR_BASE.r}, ${COLOR_BASE.g}, ${COLOR_BASE.b}, ${alpha})`;
+                ctx.fill();
+            }
+        }
+
+        // =========================================================
+        // 🎬 动画循环
+        // =========================================================
+
+        function init() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            
+            particles = [];
+            // 网格化生成粒子 (对应 uPosRefs)
+            for (let y = 0; y < height; y += CONFIG.gridSize) {
+                for (let x = 0; x < width; x += CONFIG.gridSize) {
+                    particles.push(new Particle(x, y));
+                }
+            }
+        }
+
+        let time = 0;
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            
+            time += CONFIG.timeSpeed;
+
+            // 批量更新和绘制
+            for (let i = 0; i < particles.length; i++) {
+                const p = particles[i];
+                p.update(time);
+                p.draw();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        // 🖱️ 事件监听
+        window.addEventListener('resize', init);
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.clientX;
+            mouse.y = e.clientY;
+            mouse.active = true;
         });
-    }
-    
-    init();
-</script>
+        
+        // 鼠标离开时重置
+        window.addEventListener('mouseleave', () => {
+            mouse.active = false;
+            // 可以在这里加一个缓动让 mouse.x/y 慢慢归零
+        });
+
+        // 启动
+        init();
+        animate();
+
+    </script>
+</body>
+</html>
