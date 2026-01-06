@@ -5,29 +5,55 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的作品集 | Portfolio</title>
     <style>
-        /* ================== ✨ 新增特效样式 ✨ ================== */
+        /* ================== ✨ 升级版特效样式 ✨ ================== */
         #particle-canvas {
-            position: fixed; /* 固定定位，作为背景 */
+            position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: -1; /* 放在最底层，不遮挡内容 */
-            pointer-events: none; /* 让鼠标点击穿透，不影响页面交互 */
+            z-index: 0; /* 放在最底层，但在背景色之上 */
+            pointer-events: none;
         }
 
         /* ================== 原有样式保持不变 ================== */
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #f0f2f5; color: #333; /* 可以尝试把背景改深色看看效果，比如 #1a1a1a */ }
-        header { background: rgba(255, 255, 255, 0.9); /* 头部稍微透明一点 */ padding: 80px 20px 60px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); backdrop-filter: blur(10px); /*这也增加点磨砂质感*/ }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
+            margin: 0; 
+            /* 背景改得稍微深一点点，让发光粒子更明显，你可以改回 #f0f2f5 */
+            background: #eef2f6; 
+            color: #333; 
+        }
+        
+        /* 头部和容器必须加 relative 和 z-index，否则会被画布挡住无法点击 */
+        header { 
+            position: relative;
+            z-index: 10;
+            background: rgba(255, 255, 255, 0.85); 
+            padding: 80px 20px 60px; 
+            text-align: center; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05); 
+            backdrop-filter: blur(10px); 
+        }
+        
         h1 { margin: 0; font-weight: 700; letter-spacing: 1px; font-size: 2.5rem; }
         p.subtitle { color: #666; font-size: 1rem; margin: 15px 0 40px; font-weight: 300; }
 
         .filter-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
-        .btn { padding: 10px 28px; border: 2px solid transparent; background: #f0f2f5; cursor: pointer; border-radius: 50px; font-size: 0.95rem; font-weight: 500; transition: all 0.3s ease; color: #555; }
-        .btn:hover { background: #e4e6eb; color: #000; }
+        .btn { padding: 10px 28px; border: 2px solid transparent; background: #fff; cursor: pointer; border-radius: 50px; font-size: 0.95rem; font-weight: 500; transition: all 0.3s ease; color: #555; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .btn:hover { background: #e4e6eb; color: #000; transform: translateY(-2px); }
         .btn.active { background: #222; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
 
-        .gallery-container { max-width: 1600px; margin: 60px auto; padding: 0 30px; column-count: 5; column-gap: 30px; }
+        .gallery-container { 
+            position: relative;
+            z-index: 10;
+            max-width: 1600px; 
+            margin: 60px auto; 
+            padding: 0 30px; 
+            column-count: 5; 
+            column-gap: 30px; 
+        }
+        
         @media (max-width: 1400px) { .gallery-container { column-count: 4; } }
         @media (max-width: 1100px) { .gallery-container { column-count: 3; column-gap: 20px; } }
         @media (max-width: 768px) { header { padding: 60px 20px 40px; } h1 { font-size: 2rem; } .gallery-container { column-count: 2; padding: 0 15px; column-gap: 15px; margin: 40px auto; } }
@@ -37,7 +63,7 @@
         .photo-item img, .photo-item video { width: 100%; display: block; object-fit: cover; }
         .photo-item.loaded { opacity: 1; transform: translateY(0); }
         .video-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; pointer-events: none; }
-        footer { text-align: center; padding: 60px 20px; color: #999; font-size: 0.9rem; }
+        footer { position: relative; z-index: 10; text-align: center; padding: 60px 20px; color: #999; font-size: 0.9rem; }
     </style>
 </head>
 <body>
@@ -55,80 +81,124 @@
 
     <script>
         // =================================================================
-        // 👇👇👇 ✨ 新增特效脚本 ✨ 👇👇👇
+        // 👇👇👇 ✨ "水母呼吸" 核心算法 ✨ 👇👇👇
         // =================================================================
         const canvas = document.getElementById('particle-canvas');
         const ctx = canvas.getContext('2d');
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
+        
+        // 自适应宽高
+        let width, height;
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
 
-        let particlesArray = [];
-        const mouse = { x: null, y: null };
+        // 鼠标位置（初始在中心）
+        const mouse = { x: width / 2, y: height / 2 };
+        
+        // “虚拟中心点”：这个点会平滑地追逐鼠标，产生惯性拖拽感
+        const center = { x: width / 2, y: height / 2 };
 
-        // 监听鼠标移动
-        window.addEventListener('mousemove', function(event){
-            mouse.x = event.x;
-            mouse.y = event.y;
-            // 每次移动产生几个粒子
-            for(let i=0; i<2; i++){
-                particlesArray.push(new Particle());
-            }
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.x;
+            mouse.y = e.y;
         });
 
-        // 监听窗口大小改变
-        window.addEventListener('resize', function(){
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-        });
+        // 粒子配置
+        const PARTICLE_COUNT = 120; // 粒子数量，越多越密集
+        const particles = [];
 
-        // 粒子类
         class Particle {
-            constructor(){
-                this.x = mouse.x;
-                this.y = mouse.y;
-                // 粒子大小随机
-                this.size = Math.random() * 3 + 1; 
-                // 初始透明度
-                this.opacity = 1;
-                // Google 蓝
-                this.colorBase = '66, 133, 244'; 
+            constructor() {
+                // 每个粒子都有一个相对于中心的“轨道”
+                this.orbitRadius = Math.random() * 100 + 20; // 初始半径
+                this.baseRadius = this.orbitRadius; // 记住基础半径用于呼吸
+                this.angle = Math.random() * Math.PI * 2; // 初始角度
+                this.speed = Math.random() * 0.02 + 0.01; // 旋转速度
+                this.size = Math.random() * 2 + 0.5; // 粒子大小
+                
+                // 呼吸频率（每个粒子不一样，显得自然）
+                this.breathSpeed = Math.random() * 0.03 + 0.01;
+                this.breathOffset = Math.random() * Math.PI * 2;
+                
+                // 颜色：Google Blue 风格，带透明度
+                this.alpha = Math.random() * 0.5 + 0.1;
             }
-            update(){
-                // 逐渐变透明
-                this.opacity -= 0.02;
+
+            update() {
+                // 1. 旋转
+                this.angle += this.speed;
+
+                // 2. 呼吸效果 (核心算法)
+                // 半径在 baseRadius 基础上，利用正弦波 expanding/shrinking
+                // 就像水母一张一缩
+                this.orbitRadius = this.baseRadius + Math.sin(Date.now() * 0.002 + this.breathOffset) * 20;
+
+                // 3. 计算实际坐标
+                // 坐标 = 虚拟中心点 + 旋转偏移
+                this.x = center.x + Math.cos(this.angle) * this.orbitRadius;
+                this.y = center.y + Math.sin(this.angle) * this.orbitRadius;
             }
-            draw(){
-                ctx.fillStyle = `rgba(${this.colorBase}, ${this.opacity})`;
+
+            draw() {
                 ctx.beginPath();
                 ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                // 颜色稍微带点青色，更像科技感/水母
+                ctx.fillStyle = `rgba(66, 133, 244, ${this.alpha})`;
                 ctx.fill();
             }
         }
 
-        // 动画循环
-        function animateParticles(){
-            ctx.clearRect(0, 0, canvas.width, canvas.height); // 清空画布
-            for (let i = 0; i < particlesArray.length; i++){
-                particlesArray[i].update();
-                particlesArray[i].draw();
+        // 初始化粒子
+        for (let i = 0; i < PARTICLE_COUNT; i++) {
+            particles.push(new Particle());
+        }
 
-                // 移除完全透明的粒子
-                if (particlesArray[i].opacity <= 0){
-                    particlesArray.splice(i, 1);
-                    i--;
+        // 动画循环
+        function animate() {
+            // 清空画布
+            ctx.clearRect(0, 0, width, height);
+
+            // 1. 让“虚拟中心点”平滑地追逐鼠标 (Lerp算法)
+            // 0.05 是延迟系数，越小越慢，越有那种在水里拖拽的感觉
+            center.x += (mouse.x - center.x) * 0.08;
+            center.y += (mouse.y - center.y) * 0.08;
+
+            // 2. 绘制所有粒子
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            // 3. 画几条连线，增加整体感 (可选，太乱可以删掉)
+            // 这里只连接距离很近的粒子，形成一种网状结构
+            ctx.strokeStyle = 'rgba(66, 133, 244, 0.05)'; // 线非常淡
+            ctx.lineWidth = 0.5;
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const dx = particles[i].x - particles[j].x;
+                    const dy = particles[i].y - particles[j].y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance < 50) { // 只有距离小于50才连线
+                        ctx.beginPath();
+                        ctx.moveTo(particles[i].x, particles[i].y);
+                        ctx.lineTo(particles[j].x, particles[j].y);
+                        ctx.stroke();
+                    }
                 }
             }
-            requestAnimationFrame(animateParticles);
+
+            requestAnimationFrame(animate);
         }
-        animateParticles(); // 启动动画
-        
-        // =================================================================
-        // 👆👆👆 ✨ 特效脚本结束 ✨ 👆👆👆
-        // =================================================================
+        animate();
 
 
         // =================================================================
-        // 👇👇👇 原有的作品集脚本（保持不变） 👇👇👇
+        // 👇👇👇 下面是你的作品集功能代码 (全自动版) 👇👇👇
         // =================================================================
         const categories = [
             { id: 'illustration', name: '商业插画' }, 
