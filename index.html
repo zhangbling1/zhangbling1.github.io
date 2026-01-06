@@ -5,86 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的作品集 | Portfolio</title>
     <style>
-        /* ================== 视觉样式区 ================== */
-        /* 使用更现代的字体和柔和的背景 */
+        /* ================== 视觉样式保持完美 ================== */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; background: #f0f2f5; color: #333; }
-        
-        /* 头部设计：更干净、更有呼吸感 */
         header { background: #fff; padding: 80px 20px 60px; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.05); }
         h1 { margin: 0; font-weight: 700; letter-spacing: 1px; font-size: 2.5rem; }
         p.subtitle { color: #666; font-size: 1rem; margin: 15px 0 40px; font-weight: 300; }
 
-        /* 按钮样式优化：更精致 */
         .filter-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; }
-        .btn {
-            padding: 10px 28px;
-            border: 2px solid transparent; /* 透明边框占位 */
-            background: #f0f2f5;
-            cursor: pointer;
-            border-radius: 50px;
-            font-size: 0.95rem;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            color: #555;
-        }
+        .btn { padding: 10px 28px; border: 2px solid transparent; background: #f0f2f5; cursor: pointer; border-radius: 50px; font-size: 0.95rem; font-weight: 500; transition: all 0.3s ease; color: #555; }
         .btn:hover { background: #e4e6eb; color: #000; }
-        /* 选中状态：用深色背景强调 */
         .btn.active { background: #222; color: #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }
 
-        /* 瀑布流网格布局 */
-        .gallery-container {
-            max-width: 1600px;
-            margin: 60px auto;
-            padding: 0 30px;
-            /* 核心：多列布局实现瀑布流 */
-            column-count: 5; 
-            column-gap: 30px; /* 列间距 */
-        }
-        
-        /* 响应式适配 */
+        .gallery-container { max-width: 1600px; margin: 60px auto; padding: 0 30px; column-count: 5; column-gap: 30px; }
         @media (max-width: 1400px) { .gallery-container { column-count: 4; } }
         @media (max-width: 1100px) { .gallery-container { column-count: 3; column-gap: 20px; } }
-        @media (max-width: 768px) { 
-            header { padding: 60px 20px 40px; }
-            h1 { font-size: 2rem; }
-            .gallery-container { column-count: 2; padding: 0 15px; column-gap: 15px; margin: 40px auto; } 
-        }
+        @media (max-width: 768px) { header { padding: 60px 20px 40px; } h1 { font-size: 2rem; } .gallery-container { column-count: 2; padding: 0 15px; column-gap: 15px; margin: 40px auto; } }
 
-        /* 图片卡片优化：增加质感和交互 */
-        .photo-item {
-            break-inside: avoid; /* 防止卡片被跨列切断 */
-            margin-bottom: 30px; /* 卡片上下间距 */
-            border-radius: 12px; /* 更圆润的角 */
-            overflow: hidden;
-            background: #fff;
-            /* 默认状态的轻微阴影 */
-            box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-            transition: all 0.3s ease;
-            /* 初始状态：用于动画 */
-            opacity: 0;
-            transform: translateY(20px);
-        }
-        
-        /* 鼠标悬停效果：上浮并加深阴影 */
-        .photo-item:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 24px rgba(0,0,0,0.15);
-        }
-
-        .photo-item img {
-            width: 100%;
-            display: block;
-            /* 图片本身也可以有一点点放大效果，增加动感 */
-            transition: transform 0.5s ease;
-        }
-        .photo-item:hover img { transform: scale(1.03); }
-
-        /* 图片加载出来后的动画类 */
-        .photo-item.loaded {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
+        .photo-item { break-inside: avoid; margin-bottom: 30px; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.08); transition: all 0.3s ease; opacity: 0; transform: translateY(20px); position: relative; }
+        .photo-item:hover { transform: translateY(-5px); box-shadow: 0 12px 24px rgba(0,0,0,0.15); }
+        .photo-item img, .photo-item video { width: 100%; display: block; object-fit: cover; }
+        .photo-item.loaded { opacity: 1; transform: translateY(0); }
+        .video-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; pointer-events: none; }
         footer { text-align: center; padding: 60px 20px; color: #999; font-size: 0.9rem; }
     </style>
 </head>
@@ -98,32 +39,39 @@
 
     <div class="gallery-container" id="gallery"></div>
 
-    <footer>© 2025 Created by Zhangbling1. All rights reserved.</footer>
+    <footer>© 2025 Created by Zhangbling1</footer>
 
     <script>
         // =================================================================
-        // 👇👇👇【核心配置区】只需修改这里 👇👇👇
+        // 👇👇👇【最终版配置区】只需设置名字 👇👇👇
         // =================================================================
         
-        // 小技巧：把 count 设置得大一点（比如 50 或 100），
-        // 代码会自动隐藏不存在的图片，这样你就不用每次都精确数有多少张图了。
         const categories = [
-            { id: 'illustration', name: '商业插画', count: 50, format: '.jpg' },
-            { id: 'character',    name: '角色设计', count: 50, format: '.jpg' },
-            { id: 'scene',        name: '场景概念', count: 50, format: '.jpg' },
-            { id: 'sketch',       name: '速写练习', count: 50, format: '.jpg' },
-            { id: 'other',        name: '其他摸鱼', count: 50, format: '.jpg' },
+            // id 必须对应文件夹名
+            { id: 'illustration', name: '商业插画' }, 
+            { id: 'character',    name: '角色设计' },
+            { id: 'scene',        name: '场景概念' },
+            { id: 'sketch',       name: '速写练习' },
+            { id: 'other',        name: '其他摸鱼' },
         ];
+
+        // 支持格式 (优先找视频，再找图)
+        const supportedFormats = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
+
+        // ⚙️ 核心参数
+        const CONCURRENCY = 5;       // 同时有 5 个侦察兵在干活（保证速度）
+        const MAX_TOLERANCE = 3;     // 允许连续失败 3 次（防止中间缺图导致中断）
 
         // ☝️☝️☝️ 配置结束 ☝️☝️☝️
         // =================================================================
 
         const gallery = document.getElementById('gallery');
         const filters = document.getElementById('filters');
+        let currentSessionId = 0;
 
         function init() {
             createButtons();
-            loadImages('all'); 
+            loadCategory('all');
         }
 
         function createButtons() {
@@ -145,50 +93,84 @@
         function switchFilter(filterId, activeBtn) {
             document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
             activeBtn.classList.add('active');
-            loadImages(filterId);
+            currentSessionId++; 
+            loadCategory(filterId);
         }
 
-        function loadImages(filterId) {
+        function loadCategory(filterId) {
             gallery.innerHTML = ''; 
+            
+            let targetCats = (filterId === 'all') ? categories : categories.filter(c => c.id === filterId);
 
-            categories.forEach(cat => {
-                if (filterId === 'all' || filterId === cat.id) {
-                    for (let i = 1; i <= cat.count; i++) {
-                        // 1. 创建卡片容器
-                        const div = document.createElement('div');
-                        div.className = 'photo-item';
-                        
-                        // 2. 创建图片元素
-                        const img = document.createElement('img');
-                        img.src = `images/${cat.id}/${i}${cat.format}`;
-                        img.loading = "lazy"; // 懒加载，提升性能
-                        img.alt = `${cat.name} - 作品 ${i}`;
-
-                        // =========================================
-                        // 🔥🔥🔥 核心魔法：消灭破图图标 🔥🔥🔥
-                        // =========================================
-                        
-                        // 当图片加载失败时（比如文件不存在），执行这个函数
-                        img.onerror = function() {
-                            // 把包含这张图的整个卡片隐藏掉
-                            div.style.display = 'none'; 
-                        };
-
-                        // 当图片加载成功时，添加一个类名来触发淡入动画
-                        img.onload = function() {
-                            div.classList.add('loaded');
-                        }
-
-                        // 3. 组装
-                        div.appendChild(img);
-                        gallery.appendChild(div);
-                    }
+            targetCats.forEach(cat => {
+                // 启动 5 路侦察兵
+                for (let i = 1; i <= CONCURRENCY; i++) {
+                    startScout(cat.id, cat.name, i, currentSessionId, 0);
                 }
             });
         }
 
-        init();
+        // 🕵️‍♂️ 升级版侦察兵：带容错机制
+        async function startScout(folder, catName, index, sessionId, consecutiveErrors) {
+            
+            // 如果用户切走了，或者连续失败超过容忍度，就停止
+            if (sessionId !== currentSessionId || consecutiveErrors > MAX_TOLERANCE || index > 2000) return;
 
+            // 1. 尝试寻找文件
+            const media = await findMedia(folder, index);
+
+            if (sessionId !== currentSessionId) return;
+
+            if (media) {
+                // ✅ 找到了！
+                // 只要找到一张，就把连续错误计数器归零
+                renderCard(media, catName, index);
+                
+                // 继续找下一个 (比如当前是1，下次找6)
+                startScout(folder, catName, index + CONCURRENCY, sessionId, 0); 
+            } else {
+                // ❌ 没找到，但是不急着放弃！
+                // 增加错误计数，继续试下一个位置，直到连续失败 MAX_TOLERANCE 次
+                startScout(folder, catName, index + CONCURRENCY, sessionId, consecutiveErrors + 1);
+            }
+        }
+
+        function renderCard(media, catName, index) {
+            const div = document.createElement('div');
+            div.className = 'photo-item';
+            div.style.order = index; // 保持视觉顺序
+            
+            if (media.type === 'video') {
+                div.innerHTML = `
+                    <video src="${media.src}" autoplay muted loop playsinline></video>
+                    <div class="video-badge">VIDEO</div>
+                `;
+            } else {
+                div.innerHTML = `<img src="${media.src}" alt="${catName} ${index}" loading="lazy">`;
+            }
+            
+            gallery.appendChild(div);
+            setTimeout(() => div.classList.add('loaded'), 50);
+        }
+
+        function findMedia(folder, index) {
+            return new Promise(async (resolve) => {
+                for (const ext of supportedFormats) {
+                    const src = `images/${folder}/${index}${ext}`;
+                    try {
+                        const response = await fetch(src, { method: 'HEAD' });
+                        if (response.ok) {
+                            const isVideo = ext === '.mp4' || ext === '.mov';
+                            resolve({ src: src, type: isVideo ? 'video' : 'image' });
+                            return; 
+                        }
+                    } catch (e) {}
+                }
+                resolve(null); 
+            });
+        }
+
+        init();
     </script>
 </body>
 </html>
