@@ -3,48 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Antigravity | Radial Flow</title>
+    <title>Antigravity — Jelly Droop</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #f8f9fa; font-family: 'Google Sans', sans-serif; }
         canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
-        
-        /* UI 层 */
         .ui-layer { position: relative; z-index: 10; width: 100%; height: 100vh; pointer-events: none; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         header { pointer-events: auto; background: rgba(255,255,255,0.95); backdrop-filter: blur(20px); padding: 50px 70px; border-radius: 24px; box-shadow: 0 10px 40px rgba(0,0,0,0.06); text-align: center; border: 1px solid rgba(255,255,255,0.5); }
         h1 { margin: 0; color: #1f1f1f; font-size: 3.5rem; letter-spacing: -1.5px; font-weight: 600; }
         p.subtitle { margin-top: 10px; color: #5f6368; font-size: 1.1rem; }
-        
-        .gallery-container { display: none; }
     </style>
 </head>
 <body>
-
     <canvas id="canvas"></canvas>
-
     <div class="ui-layer">
         <header>
             <h1>Antigravity</h1>
-            <p class="subtitle">Pure Radial Diffusion — Jelly / silky motion (clean look)</p>
+            <p class="subtitle">Silky Droopy Jelly — clearer & tentacle-like</p>
         </header>
     </div>
 
-    <div class="gallery-container" id="gallery"></div>
-
     <script>
-        /**
-         * 调整版：去“近视模糊”、点更小更清晰、密度降低
-         */
-
+        // 更清晰 + 更“触手下垂”版
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
 
-        // ⚙️ 参数（已按你反馈调整）
         const CONFIG = {
-            pointDist: 40,        // 点间距（增大 = 更稀）
-            maxParticles: 900,    // 上限，防止过密
+            pointDist: 40,        // 更稀一些
+            maxParticles: 900,
 
             cursorRadius: 180,
-            pushStrength: 48,     // 推力减小（不拉太远）
+            pushStrength: 48,
             pushFalloff: 0.9,
 
             friction: 0.86,
@@ -52,12 +40,18 @@
             inertiaLerp: 0.12,
 
             color: [66,133,244],
-            baseSize: 0.9,        // 核更小
-            glowSize: 5,          // 光晕缩小（防止整帧糊）
+            baseSize: 0.75,       // 更小的内核
+            glowSize: 3,          // 更小更弱的光晕
+            glowIntensity: 0.36,  // 光晕强度控制
 
             globalFreq: 0.18,
-            localFreqRange: [0.9, 1.5],
-            noiseAmount: 0.45
+            localFreqRange: [0.9, 1.4],
+            noiseAmount: 0.42,
+
+            // 触手下垂参数
+            gravity: 0.04,        // 重力系数（向下加速度）
+            verticalBias: 0.85,   // 目标偏移的下垂增强系数
+            droopReturnMin: 0.32  // 下部粒子回位速度最小倍数
         };
 
         let DPR = Math.max(1, window.devicePixelRatio || 1);
@@ -65,7 +59,6 @@
         let particles = [];
         const mouse = { x: -9999, y: -9999, active: false };
 
-        // Poisson Disk (保留)
         function generatePoissonPoints(w, h, r) {
             const k = 30;
             const cellSize = r / Math.sqrt(2);
@@ -128,10 +121,11 @@
             return p;
         }
 
-        // tiny deterministic noise
         function hashTo(seed) { return fract(Math.sin(seed * 127.1) * 43758.5453); }
         function fract(x) { return x - Math.floor(x); }
         function pseudoNoise(x, y) { const s = x * 12.9898 + y * 78.233; return hashTo(s); }
+        function lerp(a,b,t){return a + (b-a)*t;}
+        function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
 
         class Particle {
             constructor(x, y) {
@@ -139,8 +133,7 @@
                 this.originY = y;
                 this.x = x;
                 this.y = y;
-                this.vx = 0;
-                this.vy = 0;
+                this.vx = 0; this.vy = 0;
                 this.phase = Math.random() * Math.PI * 2;
                 this.localFreq = lerp(CONFIG.localFreqRange[0], CONFIG.localFreqRange[1], Math.random());
                 this.seed = (x * 73856093) ^ (y * 19349663) ^ Math.floor(Math.random()*1000);
@@ -149,7 +142,7 @@
             }
 
             computeLocalBreath(t) {
-                return Math.sin( (t * CONFIG.globalFreq * this.localFreq) + this.phase );
+                return Math.sin((t * CONFIG.globalFreq * this.localFreq) + this.phase);
             }
 
             update(t, dt) {
@@ -166,16 +159,16 @@
                     const ny = dy / (dist || 1);
                     const force = Math.pow((CONFIG.cursorRadius - dist) / CONFIG.cursorRadius, 1.15);
                     const push = CONFIG.pushStrength * force * 0.01;
-                    const curl = Math.sin(this.phase + t * 0.8) * 0.25;
+                    const curl = Math.sin(this.phase + t * 0.8) * 0.22;
                     const rx = nx * Math.cos(curl) - ny * Math.sin(curl);
                     const ry = nx * Math.sin(curl) + ny * Math.cos(curl);
 
-                    pushX = rx * push * (1 + breath * 0.35);
-                    pushY = ry * push * (1 + breath * 0.35);
+                    pushX = rx * push * (1 + breath * 0.34);
+                    pushY = ry * push * (1 + breath * 0.34);
                 }
 
-                const passiveX = (Math.cos(this.phase + t * 0.4) * 0.5 + n * 0.85) * breath * 0.45;
-                const passiveY = (Math.sin(this.phase + t * 0.36) * 0.5 + n * 0.9) * breath * 0.45;
+                const passiveX = (Math.cos(this.phase + t*0.4)*0.45 + n*0.85) * breath * 0.42;
+                const passiveY = (Math.sin(this.phase + t*0.36)*0.45 + n*0.9) * breath * 0.42;
 
                 const targetOffX = pushX + passiveX;
                 const targetOffY = pushY + passiveY;
@@ -183,14 +176,29 @@
                 this.targetOffsetX = lerp(this.targetOffsetX, targetOffX, 0.14);
                 this.targetOffsetY = lerp(this.targetOffsetY, targetOffY, 0.14);
 
-                const desiredX = this.originX + this.targetOffsetX * CONFIG.pointDist * 0.7;
-                const desiredY = this.originY + this.targetOffsetY * CONFIG.pointDist * 0.7;
+                // weight based on vertical position (0 = top, 1 = bottom)
+                const weight = clamp(this.originY / (window.innerHeight || 1), 0, 1);
 
-                const ax = (desiredX - this.x) * CONFIG.returnSpeed;
-                const ay = (desiredY - this.y) * CONFIG.returnSpeed;
+                // compute local return speed: lower particles return slower -> droop
+                const localReturn = CONFIG.returnSpeed * lerp(1.0, CONFIG.droopReturnMin, weight);
+
+                // extra downward bias / gravity
+                const grav = CONFIG.gravity * (0.6 + weight * 0.8); // stronger on lower parts
+                // if there is a push (target offset), amplify downward shift (verticalBias)
+                const downBias = weight * CONFIG.verticalBias * Math.abs(this.targetOffsetY);
+
+                const desiredX = this.originX + this.targetOffsetX * CONFIG.pointDist * 0.68;
+                const desiredY = this.originY + this.targetOffsetY * CONFIG.pointDist * 0.68 + downBias * CONFIG.pointDist * 0.6;
+
+                // spring toward desired
+                const ax = (desiredX - this.x) * localReturn;
+                const ay = (desiredY - this.y) * localReturn;
+
+                // gravity applied as persistent downward acceleration (makes strands hang)
+                const gravityAcc = grav * CONFIG.pointDist * 0.02 * (1 + Math.abs(breath)*0.2);
 
                 this.vx = lerp(this.vx, this.vx + ax, CONFIG.inertiaLerp);
-                this.vy = lerp(this.vy, this.vy + ay, CONFIG.inertiaLerp);
+                this.vy = lerp(this.vy, this.vy + ay + gravityAcc, CONFIG.inertiaLerp);
 
                 this.vx *= CONFIG.friction;
                 this.vy *= CONFIG.friction;
@@ -206,41 +214,38 @@
                 const dy0 = this.y - this.originY;
                 const displacement = Math.sqrt(dx0*dx0 + dy0*dy0);
 
-                const size = CONFIG.baseSize + Math.min(displacement * 0.06, 3.2);
-                const alphaCore = clamp(0.18 + Math.min(displacement * 0.04, 0.45), 0.07, 0.9);
+                const size = CONFIG.baseSize + Math.min(displacement * 0.06, 3.0);
+                // core alpha slightly lower for clarity
+                const alphaCore = clamp(0.15 + Math.min(displacement * 0.035, 0.4), 0.07, 0.85);
                 const col = CONFIG.color;
 
-                // draw crisp inner core (small)
+                // draw crisp inner core
                 ctx.beginPath();
                 ctx.fillStyle = `rgba(${col[0]},${col[1]},${col[2]},${alphaCore})`;
-                ctx.arc(this.x, this.y, Math.max(0.8, size * 0.9), 0, Math.PI * 2);
+                ctx.arc(this.x, this.y, Math.max(0.7, size * 0.85), 0, Math.PI * 2);
                 ctx.fill();
 
-                // soft outer glow (very subtle, prevents模糊感)
+                // subtle outer glow (very restrained)
                 const r = size * CONFIG.glowSize;
-                const gx = this.x;
-                const gy = this.y;
-                const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
-                g.addColorStop(0, `rgba(${col[0]},${col[1]},${col[2]},${alphaCore * 0.36})`);
-                g.addColorStop(0.35, `rgba(${col[0]},${col[1]},${col[2]},${Math.max(0.02, alphaCore * 0.12)})`);
-                g.addColorStop(1, `rgba(${col[0]},${col[1]},${col[2]},${0.005})`);
-
-                // draw gradient with additive but very low intensity
-                ctx.save();
-                ctx.globalCompositeOperation = 'lighter';
-                ctx.fillStyle = g;
-                ctx.beginPath();
-                ctx.arc(gx, gy, r, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.restore();
+                if (r > 0.8) {
+                    const gx = this.x, gy = this.y;
+                    const g = ctx.createRadialGradient(gx, gy, 0, gx, gy, r);
+                    const ig = CONFIG.glowIntensity;
+                    g.addColorStop(0, `rgba(${col[0]},${col[1]},${col[2]},${alphaCore * ig})`);
+                    g.addColorStop(0.35, `rgba(${col[0]},${col[1]},${col[2]},${Math.max(0.01, alphaCore * ig * 0.22)})`);
+                    g.addColorStop(1, `rgba(${col[0]},${col[1]},${col[2]},${0.002})`);
+                    ctx.save();
+                    ctx.globalCompositeOperation = 'lighter';
+                    ctx.fillStyle = g;
+                    ctx.beginPath();
+                    ctx.arc(gx, gy, r, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                }
             }
         }
 
-        // helpers
-        function lerp(a, b, t) { return a + (b - a) * t; }
-        function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
-
-        // resize / regenerate
+        // resize / regen
         let lastTime = performance.now();
         function resize() {
             DPR = Math.max(1, window.devicePixelRatio || 1);
@@ -266,63 +271,37 @@
 
             ctx.clearRect(0, 0, width, height);
 
-            // draw particles in CSS-pixel space
             ctx.save();
             ctx.scale(DPR, DPR);
-
+            // draw particles
             for (let i = 0; i < particles.length; i++) {
                 particles[i].update(t, dt);
                 particles[i].draw(ctx, t);
             }
-
             ctx.restore();
 
             requestAnimationFrame(animate);
         }
 
         // interaction
-        window.addEventListener('mousemove', (e) => {
-            mouse.x = e.clientX;
-            mouse.y = e.clientY;
-            mouse.active = true;
+        window.addEventListener('mousemove', e => {
+            mouse.x = e.clientX; mouse.y = e.clientY; mouse.active = true;
         });
-
         window.addEventListener('mouseleave', () => {
-            mouse.x = -9999;
-            mouse.y = -9999;
-            mouse.active = false;
+            mouse.x = -9999; mouse.y = -9999; mouse.active = false;
         });
-
-        window.addEventListener('touchmove', (ev) => {
+        window.addEventListener('touchmove', ev => {
             const t = ev.touches[0];
-            if (t) {
-                mouse.x = t.clientX;
-                mouse.y = t.clientY;
-                mouse.active = true;
-            }
+            if (t) { mouse.x = t.clientX; mouse.y = t.clientY; mouse.active = true; }
         }, { passive: true });
+        window.addEventListener('touchend', () => { mouse.active = false; mouse.x = -9999; mouse.y = -9999; });
 
-        window.addEventListener('touchend', () => {
-            mouse.active = false;
-            mouse.x = -9999;
-            mouse.y = -9999;
-        });
-
-        window.addEventListener('resize', () => { resize(); });
+        window.addEventListener('resize', resize);
 
         // init
         resize();
         lastTime = performance.now();
         requestAnimationFrame(animate);
-
-        // keep categories placeholder
-        const categories = [
-            { id: 'illustration', name: 'Commercial Illustration' }, 
-            { id: 'character',    name: 'Character Design' },
-            { id: 'scene',        name: 'Environment Art' },
-            { id: 'sketch',       name: 'Sketches & Doodles' },
-            { id: 'other',        name: 'Others' },
-        ];
     </script>
 </body>
 </html>
