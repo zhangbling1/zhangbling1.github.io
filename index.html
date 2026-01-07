@@ -10,193 +10,122 @@
 
     <style>
         /* ================== 1. 基础重置 ================== */
-        body { 
-            margin: 0; 
-            background-color: #f0f2f5; 
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif; 
-            color: #1f1f1f;
-            overflow-x: hidden;
-        }
+        body { margin: 0; background-color: #f0f2f5; font-family: 'Inter', sans-serif; color: #1f1f1f; overflow-x: hidden; }
+        canvas { display: block; position: fixed; top: 0; left: 0; z-index: -1; }
 
-        /* ================== 2. 粒子画布 (底层) ================== */
-        canvas { 
-            display: block; 
-            position: fixed; 
-            top: 0; left: 0; 
-            z-index: -1; 
-        }
-
-        /* ================== 3. UI 内容层 ================== */
+        /* ================== 2. UI 框架 ================== */
         .content-layer {
-            position: relative;
-            z-index: 10;
-            width: 100%;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            
-            /* 初始隐藏，等粒子炸开后再显示 */
-            opacity: 0; 
-            transform: translateY(40px);
-            transition: all 1.2s cubic-bezier(0.19, 1, 0.22, 1);
-        }
-        
-        .content-layer.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* 导航栏 */
-        nav {
-            position: fixed; top: 0; left: 0; right: 0; 
-            padding: 20px 40px; display: flex; justify-content: space-between; align-items: center;
-            background: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(255,255,255,0)); 
-            z-index: 100; box-sizing: border-box;
-        }
-        .brand-container { display: flex; align-items: center; text-decoration: none; gap: 12px; }
-        .nav-icon { height: 32px; width: auto; display: block; }
-        .logo-text { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.4rem; color: #1a1a1a; letter-spacing: -0.5px; }
-
-        /* ================== 4. Hero 区域 ================== */
-        .hero-section {
-            margin-top: 15vh;
-            margin-bottom: 50px;
-            text-align: center;
+            position: relative; z-index: 10; width: 100%; min-height: 100vh;
             display: flex; flex-direction: column; align-items: center;
-            width: 100%; max-width: 1000px; padding: 0 20px; box-sizing: border-box;
+            opacity: 0; transform: translateY(20px); transition: all 0.8s ease;
         }
+        .content-layer.visible { opacity: 1; transform: translateY(0); }
 
-        .title-wrapper { margin-bottom: 40px; }
-        .hero h1 { font-size: 5.5rem; margin: 0; line-height: 1.0; color: #1a1a1a; letter-spacing: -2px; }
-        .word-digital { font-family: 'Inter', sans-serif; font-weight: 800; display: block; }
-        .word-biology { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 600; color: #2a2a2a; display: block; }
-        @media (min-width: 768px) { .word-digital, .word-biology { display: inline; } }
-        
-        .hero p.subtitle { 
-            font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #666; font-weight: 600; 
-            text-transform: uppercase; letter-spacing: 4px; margin-top: 25px; 
-            border-top: 1px solid rgba(0,0,0,0.1); padding-top: 25px; display: inline-block; 
+        /* 导航 */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; padding: 20px 40px;
+            display: flex; justify-content: space-between; align-items: center;
+            background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0));
+            z-index: 100;
         }
+        .brand-container { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .nav-icon { height: 32px; width: auto; }
+        .logo-text { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.4rem; color: #1a1a1a; letter-spacing: -0.5px; text-transform: uppercase; }
 
-        /* ================== 5. 筛选栏 (核心修改：双行布局 + Grid) ================== */
+        /* Hero */
+        .hero-section { margin-top: 15vh; margin-bottom: 40px; text-align: center; }
+        .title-wrapper h1 { font-size: 5.5rem; line-height: 1.0; margin: 0 0 10px 0; color: #1a1a1a; letter-spacing: -2px; }
+        .word-digital { font-family: 'Inter', sans-serif; font-weight: 800; }
+        .word-biology { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 600; }
+        .hero-section p { font-size: 0.9rem; color: #666; letter-spacing: 1px; margin-top: 20px; }
+
+        /* ================== 3. 筛选栏 ================== */
         .filter-wrapper {
-            /* 电脑端：保持单行横滑的高级感 */
-            background: rgba(255, 255, 255, 0.4);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            padding: 8px;
-            border-radius: 60px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.05);
-            
-            display: flex;
-            align-items: stretch; /* 让按钮高度一致 */
-            gap: 8px;
-            
-            max-width: 90vw;
-            width: max-content;
-            margin: 0 auto;
-            
-            overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
-            mask-image: linear-gradient(to right, transparent, black 15px, black calc(100% - 15px), transparent);
-            -webkit-mask-image: linear-gradient(to right, transparent, black 15px, black calc(100% - 15px), transparent);
+            display: flex; gap: 8px; justify-content: center;
+            background: rgba(255,255,255,0.5); backdrop-filter: blur(10px);
+            padding: 6px; border-radius: 50px; margin-top: 40px;
+            border: 1px solid rgba(255,255,255,0.6);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
         }
-        .filter-wrapper::-webkit-scrollbar { display: none; }
-
         .filter-btn {
-            padding: 10px 24px;
-            border: none; background: transparent; border-radius: 40px;
-            cursor: pointer; transition: all 0.3s ease; flex-shrink: 0;
-            
-            /* ✨ 核心：纵向排列 (中文上，英文下) */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            line-height: 1.2;
+            border: none; background: transparent; padding: 10px 24px; border-radius: 40px;
+            cursor: pointer; transition: all 0.3s; display: flex; flex-direction: column; align-items: center;
         }
-
-        /* 文字样式优化 */
-        .filter-btn .zh { 
-            font-size: 0.95rem; 
-            font-weight: 700; 
-            color: #555; 
-            margin-bottom: 2px; /* 给英文留点空隙 */
-        }
-        .filter-btn .en { 
-            font-size: 0.6rem; 
-            font-weight: 600; 
-            color: #999; 
-            text-transform: uppercase; 
-            letter-spacing: 0.5px; 
-            font-family: 'Inter', sans-serif;
-        }
-
-        /* 状态颜色 */
-        .filter-btn:hover { background: rgba(255, 255, 255, 0.6); }
-        .filter-btn:hover .zh { color: #000; }
-        
-        .filter-btn.active { background: #1a1a1a; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .filter-btn .zh { font-size: 0.9rem; font-weight: 700; color: #555; }
+        .filter-btn .en { font-size: 0.6rem; font-weight: 600; color: #999; margin-top: 2px; text-transform: uppercase; }
+        .filter-btn:hover { background: rgba(255,255,255,0.8); }
+        .filter-btn.active { background: #1a1a1a; box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
         .filter-btn.active .zh { color: #fff; }
-        .filter-btn.active .en { color: rgba(255,255,255,0.6); }
+        .filter-btn.active .en { color: rgba(255,255,255,0.7); }
 
-        /* --- 📱 手机端：整齐的网格布局 --- */
         @media (max-width: 600px) {
-            .filter-wrapper {
-                /* 切换为 Grid 网格 */
-                display: grid;
-                /* 2列 (或者改3列: repeat(3, 1fr)) */
-                grid-template-columns: repeat(2, 1fr); 
-                gap: 8px;
-                
-                width: 100%; max-width: 92%;
-                border-radius: 24px; padding: 12px;
-                
-                /* 取消PC端的遮罩和滚动 */
-                mask-image: none; -webkit-mask-image: none; overflow: visible;
-                animation: expandBox 0.6s ease forwards;
-            }
-            
-            .filter-btn {
-                width: 100%; /* 撑满格子 */
-                padding: 12px 0; /* 增加高度，方便点击 */
-                background: rgba(255,255,255,0.5); /* 手机端加个底色，像卡片一样 */
-                border-radius: 16px;
-            }
-            
-            .hero h1 { font-size: 3rem; }
-            .nav-icon { height: 28px; } nav { padding: 15px 20px; }
+            .hero-section { padding: 0 20px; margin-top: 12vh; }
+            .title-wrapper h1 { font-size: 3rem; }
+            .filter-wrapper { display: grid; grid-template-columns: repeat(3, 1fr); border-radius: 20px; padding: 10px; width: 90%; }
+            .filter-btn { padding: 8px 0; background: rgba(255,255,255,0.5); width: 100%; }
+            .nav-icon { height: 24px; } nav { padding: 15px 20px; }
         }
 
-        @keyframes expandBox { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        /* ================== 4. 画廊容器 (无刷新切换) ================== */
+        .galleries-wrapper { width: 100%; max-width: 1600px; padding: 0 40px 100px; box-sizing: border-box; }
+        
+        .gallery-pane {
+            display: none; /* 默认隐藏 */
+            column-count: 4; column-gap: 30px; 
+            animation: fadeInPane 0.5s ease;
+        }
+        .gallery-pane.active { display: block; }
+        
+        @keyframes fadeInPane { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        @media (max-width: 1400px) { .gallery-pane { column-count: 3; } }
+        @media (max-width: 1000px) { .gallery-pane { column-count: 2; column-gap: 20px; } }
+        @media (max-width: 600px) { .gallery-pane { column-count: 1; } }
 
-        /* ================== 6. 瀑布流画廊 ================== */
-        .gallery-container { width: 100%; max-width: 1600px; padding: 0 40px 100px; column-count: 4; column-gap: 30px; box-sizing: border-box; }
-        @media (max-width: 1400px) { .gallery-container { column-count: 3; } }
-        @media (max-width: 1000px) { .gallery-container { column-count: 2; column-gap: 20px; } }
-        @media (max-width: 600px) { .gallery-container { column-count: 1; } }
-
+        /* 卡片 */
         .photo-card {
             break-inside: avoid; margin-bottom: 30px; border-radius: 16px; overflow: hidden;
-            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.6);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            opacity: 0; transform: translateY(40px); pointer-events: auto; display: flex; flex-direction: column;
+            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.5);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.03); transition: all 0.3s ease;
+            cursor: zoom-in; opacity: 0; transform: translateY(30px);
         }
-        .photo-card:hover { transform: translateY(-10px); box-shadow: 0 25px 50px rgba(66, 133, 244, 0.15); background: #fff; z-index: 2; }
-        .media-wrapper { position: relative; width: 100%; overflow: hidden; border-bottom: 1px solid rgba(0,0,0,0.03); }
-        .photo-card img, .photo-card video { width: 100%; display: block; transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1); }
-        .photo-card:hover img, .photo-card:hover video { transform: scale(1.05); }
-        .card-info { padding: 18px 20px; }
-        .card-tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #4285F4; letter-spacing: 1px; margin-bottom: 6px; display: block; }
-        .card-title { font-size: 1rem; font-weight: 700; color: #222; margin: 0; line-height: 1.4; }
-        .video-badge { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; pointer-events: none; backdrop-filter: blur(4px); z-index: 5; }
         .photo-card.loaded { opacity: 1; transform: translateY(0); }
-        footer { padding: 40px; color: #888; font-size: 0.9rem; width: 100%; text-align: center; background: rgba(255,255,255,0.5); margin-top: auto; }
+        .photo-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15); background: #fff; z-index: 2; }
+        .media-wrapper { position: relative; }
+        .photo-card img, .photo-card video { width: 100%; display: block; }
+        .card-info { padding: 15px 20px; }
+        .card-tag { font-size: 0.7rem; font-weight: 700; color: #4285F4; text-transform: uppercase; display: block; margin-bottom: 4px; }
+        .card-title { font-size: 1rem; font-weight: 700; color: #222; margin: 0; }
+        .video-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; padding: 3px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; backdrop-filter: blur(4px); }
+
+        /* ================== 5. 灯箱 (Lightbox) ================== */
+        #lightbox {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; pointer-events: none; transition: opacity 0.3s;
+            backdrop-filter: blur(10px);
+        }
+        #lightbox.active { opacity: 1; pointer-events: auto; }
+        #lightbox-content { max-width: 90%; max-height: 90%; display: flex; justify-content: center; align-items: center; }
+        #lightbox img, #lightbox video { 
+            max-width: 100%; max-height: 90vh; border-radius: 4px; 
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            transform: scale(0.95); transition: transform 0.3s;
+        }
+        #lightbox.active img, #lightbox.active video { transform: scale(1); }
+        .close-btn { position: absolute; top: 30px; right: 40px; color: #fff; font-size: 2rem; cursor: pointer; }
+
+        footer { padding: 40px; text-align: center; color: #888; font-size: 0.9rem; margin-top: auto; }
     </style>
 </head>
 <body>
-    
     <canvas id="canvas"></canvas>
+
+    <div id="lightbox" onclick="closeLightbox()">
+        <div class="close-btn">&times;</div>
+        <div id="lightbox-content"></div>
+    </div>
 
     <nav>
         <a href="#" class="brand-container">
@@ -205,275 +134,143 @@
                 <circle cx="20" cy="24" r="6" fill="white"/>
                 <defs><linearGradient id="paint0_linear" x1="20" y1="4" x2="20" y2="36" gradientUnits="userSpaceOnUse"><stop stop-color="#4285F4"/><stop offset="1" stop-color="#40E0D0"/></linearGradient></defs>
             </svg>
-            <span class="logo-text">art portfolio</span>
+            <span class="logo-text">ART PORTFOLIO</span>
         </a>
     </nav>
 
     <div class="content-layer" id="content">
         <div class="hero-section">
             <div class="title-wrapper">
-                <h1><span class="word-digital">Design</span><span class="word-biology">Portfolio.</span></h1>
-                <p class="subtitle">Check out the latest online display of the portfolio</p>
+                <h1><span class="word-digital">Design </span><span class="word-biology">Portfolio.</span></h1>
+                <p>Check out the latest online display of the portfolio</p>
             </div>
-            
             <div class="filter-wrapper" id="filters"></div>
         </div>
 
-        <div class="gallery-container" id="gallery"></div>
+        <div class="galleries-wrapper" id="galleries-root"></div>
         
         <footer>© 2026 Created by Zhangbling & Gemini</footer>
     </div>
 
     <script>
-        // =========================================================
-        // 🔧 配置区 (保留你微调的动画参数)
-        // =========================================================
+        // 🔧 动画配置 (未改动)
         const CONFIG = {
             introDuration: 200, explosionForce: 40, drag: 0.7, returnStrength: 0.01,
             particleCount: 1500, clusterRadius: 450, clusterRatioX: 1.55, clusterRatioY: 1.0, minDistance: 24,
             voidBaseSize: 110, voidBreathing: 15, voidMoveSpeed: 0.002, voidWaitTime: 400,
             sizeMin: 1.0, sizeMax: 3.5, sizePeakPos: 0.85, aspectRatio: 1.6,
-            colorBase: { r: 66, g: 133, b: 244 }, 
-            colorHover: { r: 64, g: 224, b: 208 }, 
+            colorBase: { r: 66, g: 133, b: 244 }, colorHover: { r: 64, g: 224, b: 208 }, 
             mouseRepelDist: 160, mouseSenseDist: 350, colorChangeDist: 180,
             noiseScale: 0.003, timeSpeed: 0.0002, minLife: 300, maxLife: 800, fadeSpeed: 0.02
         };
 
+        // 🟢 最终确认的文案配置
         const CATEGORIES = [
-            { id: 'CG Style', name: 'CG风格', en: 'CG Style' }, 
-            { id: 'Cartoon',    name: '欧美卡通', en: 'Cartoon' },
-            { id: 'Icon Design',        name: 'icon设计', en: 'Icon Design' },
-            { id: 'Character',       name: '角色原画', en: 'Character' },
-            { id: 'Other',        name: '其他类型', en: 'Other' },
+            { id: 'CG Style',    name: 'CG风格',    en: 'CG Style' }, 
+            { id: 'Cartoon',     name: '欧美卡通',  en: 'Cartoon' },
+            { id: 'Icon Design', name: 'icon设计',  en: 'Icon Design' },
+            { id: 'Character',   name: '角色原画',  en: 'Character' },
+            { id: 'Other',       name: '其他类型',  en: 'Other' },
         ];
         const SUPPORTED_FORMATS = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
+        
+        // 排序设置：倒序开始的数字 (例如从 200.jpg 倒着找)
+        const START_INDEX = 200; 
 
-        // =========================================================
         // 🌌 粒子动画引擎
-        // =========================================================
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const contentLayer = document.getElementById('content');
-
         let width, height, DPR;
         let particles = [];
         const mouse = { x: -5000, y: -5000 };
         let frameCount = 0;
-
         const Simplex=(function(){const p=new Uint8Array([151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180]);const perm=new Uint8Array(512);for(let i=0;i<512;i++)perm[i]=p[i&255];const grad3=[[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];return{noise3D:(x,y,z)=>{let n0,n1,n2,n3;const F3=1.0/3.0,s=(x+y+z)*F3,i=Math.floor(x+s),j=Math.floor(y+s),k=Math.floor(z+s);const G3=1.0/6.0,t=(i+j+k)*G3,X0=i-t,Y0=j-t,Z0=k-t,x0=x-X0,y0=y-Y0,z0=z-Z0;let i1,j1,k1,i2,j2,k2;if(x0>=y0){if(y0>=z0){i1=1;j1=0;k1=0;i2=1;j2=1;k2=0;}else if(x0>=z0){i1=1;j1=0;k1=0;i2=1;j2=0;k2=1;}else{i1=0;j1=0;k1=1;i2=1;j2=0;k2=1;}}else{if(y0<z0){i1=0;j1=0;k1=1;i2=0;j2=1;k2=1;}else if(x0<z0){i1=0;j1=1;k1=0;i2=0;j2=1;k2=1;}else{i1=0;j1=1;k1=0;i2=1;j2=1;k2=0;}}const x1=x0-i1+G3,y1=y0-j1+G3,z1=z0-k1+G3,x2=x0-i2+2.0*G3,y2=y0-j2+2.0*G3,z2=z0-k2+2.0*G3,x3=x0-1.0+3.0*G3,y3=y0-1.0+3.0*G3,z3=z0-1.0+3.0*G3;const ii=i&255,jj=j&255,kk=k&255;const gi0=perm[ii+perm[jj+perm[kk]]]%12,gi1=perm[ii+i1+perm[jj+j1+perm[kk+k1]]]%12,gi2=perm[ii+i2+perm[jj+j2+perm[kk+k2]]]%12,gi3=perm[ii+1+perm[jj+1+perm[kk+1]]]%12;let t0=0.6-x0*x0-y0*y0-z0*z0;if(t0<0)n0=0.0;else{t0*=t0;n0=t0*t0*(grad3[gi0][0]*x0+grad3[gi0][1]*y0+grad3[gi0][2]*z0);}let t1=0.6-x1*x1-y1*y1-z1*z1;if(t1<0)n1=0.0;else{t1*=t1;n1=t1*t1*(grad3[gi1][0]*x1+grad3[gi1][1]*y1+grad3[gi1][2]*z1);}let t2=0.6-x2*x2-y2*y2-z2*z2;if(t2<0)n2=0.0;else{t2*=t2;n2=t2*t2*(grad3[gi2][0]*x2+grad3[gi2][1]*y2+grad3[gi2][2]*z2);}let t3=0.6-x3*x3-y3*y3-z3*z3;if(t3<0)n3=0.0;else{t3*=t3;n3=t3*t3*(grad3[gi3][0]*x3+grad3[gi3][1]*y3+grad3[gi3][2]*z3);}return 32.0*(n0+n1+n2+n3);}}})();
-
-        function getSpatialSize(normalizedDist) {
-            const d = Math.max(0, Math.min(1, normalizedDist));
-            const peak = CONFIG.sizePeakPos;
-            if (d < peak) return CONFIG.sizeMin + Math.pow(d / peak, 1.5) * (CONFIG.sizeMax - CONFIG.sizeMin);
-            return CONFIG.sizeMin + (1 - Math.pow((d - peak) / (1 - peak), 0.6)) * (CONFIG.sizeMax - CONFIG.sizeMin);
-        }
-
-        const GhostVoid = {
-            x: 0, y: 0, targetX: 0, targetY: 0, timer: 0, currentRadius: 0,
-            init() { this.pickNewTarget(); this.x = this.targetX; this.y = this.targetY; },
-            pickNewTarget() {
-                const angle = Math.random() * Math.PI * 2;
-                const r = CONFIG.clusterRadius * (0.7 + Math.random() * 0.4);
-                this.targetX = Math.cos(angle) * r * CONFIG.clusterRatioX;
-                this.targetY = Math.sin(angle) * r * CONFIG.clusterRatioY;
-                this.timer = CONFIG.voidWaitTime + Math.random() * 200;
-            },
-            update(time) {
-                this.timer--;
-                if (this.timer < 0) this.pickNewTarget();
-                this.x += (this.targetX - this.x) * CONFIG.voidMoveSpeed;
-                this.y += (this.targetY - this.y) * CONFIG.voidMoveSpeed;
-                this.currentRadius = CONFIG.voidBaseSize + Math.sin(time * 0.01) * CONFIG.voidBreathing;
-            }
-        };
-
-        class BioParticle {
-            constructor(homeX, homeY) {
-                this.homeX = homeX; this.homeY = homeY; this.layer = Math.random();
-                const dx = this.homeX - width/2; const dy = this.homeY - height/2;
-                const a = CONFIG.clusterRadius * CONFIG.clusterRatioX; const b = CONFIG.clusterRadius * CONFIG.clusterRatioY;
-                const normDist = Math.sqrt((dx*dx)/(a*a) + (dy*dy)/(b*b));
-                this.baseGeneSize = getSpatialSize(normDist);
-                this.x = width/2; this.y = height/2;
-                const angle = Math.atan2(this.homeY - height/2, this.homeX - width/2);
-                const force = CONFIG.explosionForce * (0.5 + Math.random() * 1.0);
-                this.vx = Math.cos(angle) * force; this.vy = Math.sin(angle) * force;
-                this.rotation = 0; this.phase = Math.random() * Math.PI * 2;
-                this.resetLife(true);
-                this.currentColor = { ...CONFIG.colorBase };
-            }
-            resetLife(initial = false) {
-                this.life = initial ? Math.random() : 0; 
-                this.lifeSpeed = 1 / (CONFIG.minLife + Math.random() * (CONFIG.maxLife - CONFIG.minLife));
-            }
-            update(time, isExploding) {
-                if (isExploding) {
-                    this.vx *= CONFIG.drag; this.vy *= CONFIG.drag;
-                    const dxHome = this.homeX - this.x; const dyHome = this.homeY - this.y;
-                    this.vx += dxHome * CONFIG.returnStrength; this.vy += dyHome * CONFIG.returnStrength;
-                    this.x += this.vx; this.y += this.vy;
-                    this.rotation = Math.atan2(this.vy, this.vx);
-                    this.currentSize = this.baseGeneSize; this.currentAlpha = 0.5;
-                    return;
-                }
-                this.life += this.lifeSpeed;
-                if (this.life > 1 + CONFIG.fadeSpeed * 2) this.resetLife();
-                let lifeFactor = 1;
-                if (this.life < 0.2) lifeFactor = this.life/0.2; 
-                else if (this.life > 0.8) lifeFactor = 1 - (this.life-0.8)/0.2;
-                if (lifeFactor < 0) lifeFactor = 0;
-
-                const relativeX = this.homeX - width/2; const relativeY = this.homeY - height/2;
-                const dxToVoid = relativeX - GhostVoid.x; const dyToVoid = relativeY - GhostVoid.y;
-                const distToVoid = Math.sqrt(dxToVoid*dxToVoid + dyToVoid*dyToVoid);
-                const edgeNoise = Simplex.noise3D(this.ox*0.01, this.oy*0.01, time*CONFIG.timeSpeed * 2) * 20;
-                const effectiveVoidRadius = GhostVoid.currentRadius + edgeNoise;
-                if (distToVoid < effectiveVoidRadius) lifeFactor *= 0; 
-                else if (distToVoid < effectiveVoidRadius + 30) lifeFactor *= (distToVoid - effectiveVoidRadius) / 30;
-
-                const noise = Simplex.noise3D(this.homeX*0.003, this.homeY*0.003, time*CONFIG.timeSpeed);
-                const angle = noise * Math.PI * 2;
-                const wander = 2 + this.baseGeneSize;
-                let baseX = this.homeX + Math.cos(angle) * wander;
-                let baseY = this.homeY + Math.sin(angle) * wander;
-
-                const dx = baseX - mouse.x; const dy = baseY - mouse.y;
-                const dist = Math.sqrt(dx*dx + dy*dy);
-                let pushX = 0, pushY = 0; let targetRotation = angle;
-
-                if (dist < CONFIG.mouseSenseDist) {
-                    targetRotation = Math.atan2(mouse.y - baseY, mouse.x - baseX);
-                    if (dist < CONFIG.colorChangeDist) {
-                        const blend = 1 - (dist / CONFIG.colorChangeDist);
-                        this.currentColor.r += (CONFIG.colorHover.r - this.currentColor.r) * 0.15 * blend;
-                        this.currentColor.g += (CONFIG.colorHover.g - this.currentColor.g) * 0.15 * blend;
-                        this.currentColor.b += (CONFIG.colorHover.b - this.currentColor.b) * 0.15 * blend;
-                    } else {
-                        this.currentColor.r += (CONFIG.colorBase.r - this.currentColor.r) * 0.05;
-                        this.currentColor.g += (CONFIG.colorBase.g - this.currentColor.g) * 0.05;
-                        this.currentColor.b += (CONFIG.colorBase.b - this.currentColor.b) * 0.05;
-                    }
-                    if (dist < CONFIG.mouseRepelDist) {
-                        const dxC = this.homeX - width/2; const dyC = this.homeY - height/2;
-                        const sensitivity = Math.min(1, Math.max(0, (Math.sqrt(dxC*dxC + dyC*dyC) - 100) / 200)); 
-                        const force = Math.pow((CONFIG.mouseRepelDist - dist) / CONFIG.mouseRepelDist, 2) * 50 * sensitivity;
-                        pushX = Math.cos(Math.atan2(dy, dx)) * force;
-                        pushY = Math.sin(Math.atan2(dy, dx)) * force;
-                    }
-                } else {
-                    this.currentColor.r += (CONFIG.colorBase.r - this.currentColor.r) * 0.05;
-                    this.currentColor.g += (CONFIG.colorBase.g - this.currentColor.g) * 0.05;
-                    this.currentColor.b += (CONFIG.colorBase.b - this.currentColor.b) * 0.05;
-                }
-                let diff = targetRotation - this.rotation;
-                while (diff > Math.PI) diff -= Math.PI * 2; while (diff < -Math.PI) diff += Math.PI * 2;
-                this.rotation += diff * 0.1;
-                this.x += (baseX + pushX - this.x) * 0.1; this.y += (baseY + pushY - this.y) * 0.1;
-                this.currentSize = this.baseGeneSize * (1 + Math.sin(time*0.05 + this.phase)*0.1) * lifeFactor;
-                const alphaFactor = (this.baseGeneSize - CONFIG.sizeMin)/(CONFIG.sizeMax - CONFIG.sizeMin);
-                this.currentAlpha = (0.3 + alphaFactor*0.6) * lifeFactor;
-            }
-            draw() {
-                if (this.currentSize < 0.2) return;
-                ctx.save(); ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
-                const w = this.currentSize; const h = w * CONFIG.aspectRatio;
-                ctx.fillStyle = `rgba(${this.currentColor.r}, ${this.currentColor.g}, ${this.currentColor.b}, ${this.currentAlpha})`;
-                ctx.beginPath(); ctx.arc(-h/4, 0, w/2, Math.PI*0.5, Math.PI*1.5); ctx.arc(h/4, 0, w/2, Math.PI*1.5, Math.PI*0.5);
-                ctx.closePath(); ctx.fill(); ctx.restore();
-            }
-        }
-
-        function init() {
-            DPR = window.devicePixelRatio || 1;
-            width = window.innerWidth; height = window.innerHeight;
-            canvas.width = width * DPR; canvas.height = height * DPR;
-            canvas.style.width = width + 'px'; canvas.style.height = height + 'px';
-            ctx.scale(DPR, DPR);
-            particles = [];
-            for (let i=0; i<CONFIG.particleCount * 3; i++) {
-                if(particles.length >= CONFIG.particleCount) break;
-                const angle = Math.random() * Math.PI * 2;
-                const r = Math.sqrt(Math.random()) * CONFIG.clusterRadius;
-                const x = width/2 + Math.cos(angle) * r * CONFIG.clusterRatioX;
-                const y = height/2 + Math.sin(angle) * r * CONFIG.clusterRatioY;
-                let ok = true;
-                for(let p of particles) {
-                    const dx = p.homeX - x; const dy = p.homeY - y;
-                    if(dx*dx + dy*dy < CONFIG.minDistance * CONFIG.minDistance) { ok = false; break; }
-                }
-                if(ok) particles.push(new BioParticle(x, y));
-            }
-            GhostVoid.init();
-        }
-
-        function animate() {
-            ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.scale(DPR, DPR);
-            frameCount++; GhostVoid.update(frameCount);
-            const isExploding = frameCount < 200;
-            particles.forEach(p => { p.update(frameCount, isExploding); p.draw(); });
-            requestAnimationFrame(animate);
-        }
-
-        window.addEventListener('resize', init);
-        window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
-        
-        // 启动逻辑: 移除遮罩, 延迟显示UI
-        window.onload = () => {
-            init(); animate();
-            
-            // 0.8秒后显示UI，此时粒子刚好炸开
-            setTimeout(() => { 
-                contentLayer.classList.add('visible'); 
-            }, 800);
-        };
+        function getSpatialSize(n){const d=Math.max(0,Math.min(1,n));const p=CONFIG.sizePeakPos;if(d<p)return CONFIG.sizeMin+Math.pow(d/p,1.5)*(CONFIG.sizeMax-CONFIG.sizeMin);return CONFIG.sizeMin+(1-Math.pow((d-p)/(1-p),0.6))*(CONFIG.sizeMax-CONFIG.sizeMin);}
+        const GhostVoid={x:0,y:0,targetX:0,targetY:0,timer:0,currentRadius:0,init(){this.pickNewTarget();this.x=this.targetX;this.y=this.targetY;},pickNewTarget(){const a=Math.random()*Math.PI*2;const r=CONFIG.clusterRadius*(0.7+Math.random()*0.4);this.targetX=Math.cos(a)*r*CONFIG.clusterRatioX;this.targetY=Math.sin(a)*r*CONFIG.clusterRatioY;this.timer=CONFIG.voidWaitTime+Math.random()*200;},update(t){this.timer--;if(this.timer<0)this.pickNewTarget();this.x+=(this.targetX-this.x)*CONFIG.voidMoveSpeed;this.y+=(this.targetY-this.y)*CONFIG.voidMoveSpeed;this.currentRadius=CONFIG.voidBaseSize+Math.sin(t*0.01)*CONFIG.voidBreathing;}};
+        class BioParticle{constructor(x,y){this.homeX=x;this.homeY=y;this.layer=Math.random();const dx=this.homeX-width/2;const dy=this.homeY-height/2;const a=CONFIG.clusterRadius*CONFIG.clusterRatioX;const b=CONFIG.clusterRadius*CONFIG.clusterRatioY;const n=Math.sqrt((dx*dx)/(a*a)+(dy*dy)/(b*b));this.baseGeneSize=getSpatialSize(n);this.x=width/2;this.y=height/2;const an=Math.atan2(this.homeY-height/2,this.homeX-width/2);const f=CONFIG.explosionForce*(0.5+Math.random()*1.0);this.vx=Math.cos(an)*f;this.vy=Math.sin(an)*f;this.rotation=0;this.phase=Math.random()*Math.PI*2;this.resetLife(true);this.currentColor={...CONFIG.colorBase};}resetLife(i=false){this.life=i?Math.random():0;this.lifeSpeed=1/(CONFIG.minLife+Math.random()*(CONFIG.maxLife-CONFIG.minLife));}update(t,e){if(e){this.vx*=CONFIG.drag;this.vy*=CONFIG.drag;const dhx=this.homeX-this.x;const dhy=this.homeY-this.y;this.vx+=dhx*CONFIG.returnStrength;this.vy+=dhy*CONFIG.returnStrength;this.x+=this.vx;this.y+=this.vy;this.rotation=Math.atan2(this.vy,this.vx);this.currentSize=this.baseGeneSize;this.currentAlpha=0.5;return;}this.life+=this.lifeSpeed;if(this.life>1+CONFIG.fadeSpeed*2)this.resetLife();let lf=1;if(this.life<0.2)lf=this.life/0.2;else if(this.life>0.8)lf=1-(this.life-0.8)/0.2;if(lf<0)lf=0;const rx=this.homeX-width/2;const ry=this.homeY-height/2;const dxv=rx-GhostVoid.x;const dyv=ry-GhostVoid.y;const dtv=Math.sqrt(dxv*dxv+dyv*dyv);const en=Simplex.noise3D(this.ox*0.01,this.oy*0.01,t*CONFIG.timeSpeed*2)*20;const evr=GhostVoid.currentRadius+en;if(dtv<evr)lf*=0;else if(dtv<evr+30)lf*=(dtv-evr)/30;const ns=Simplex.noise3D(this.homeX*0.003,this.homeY*0.003,t*CONFIG.timeSpeed);const ang=ns*Math.PI*2;const w=2+this.baseGeneSize;let bx=this.homeX+Math.cos(ang)*w;let by=this.homeY+Math.sin(ang)*w;const dx=bx-mouse.x;const dy=by-mouse.y;const d=Math.sqrt(dx*dx+dy*dy);let px=0,py=0;let ta=ang;if(d<CONFIG.mouseSenseDist){ta=Math.atan2(mouse.y-by,mouse.x-bx);if(d<CONFIG.colorChangeDist){const b=1-(d/CONFIG.colorChangeDist);this.currentColor.r+=(CONFIG.colorHover.r-this.currentColor.r)*0.15*b;this.currentColor.g+=(CONFIG.colorHover.g-this.currentColor.g)*0.15*b;this.currentColor.b+=(CONFIG.colorHover.b-this.currentColor.b)*0.15*b;}else{this.currentColor.r+=(CONFIG.colorBase.r-this.currentColor.r)*0.05;this.currentColor.g+=(CONFIG.colorBase.g-this.currentColor.g)*0.05;this.currentColor.b+=(CONFIG.colorBase.b-this.currentColor.b)*0.05;}if(d<CONFIG.mouseRepelDist){const dxc=this.homeX-width/2;const dyc=this.homeY-height/2;const s=Math.min(1,Math.max(0,(Math.sqrt(dxc*dxc+dyc*dyc)-100)/200));const f=Math.pow((CONFIG.mouseRepelDist-d)/CONFIG.mouseRepelDist,2)*50*s;px=Math.cos(Math.atan2(dy,dx))*f;py=Math.sin(Math.atan2(dy,dx))*f;}}else{this.currentColor.r+=(CONFIG.colorBase.r-this.currentColor.r)*0.05;this.currentColor.g+=(CONFIG.colorBase.g-this.currentColor.g)*0.05;this.currentColor.b+=(CONFIG.colorBase.b-this.currentColor.b)*0.05;}let df=ta-this.rotation;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;this.rotation+=df*0.1;this.x+=(bx+px-this.x)*0.1;this.y+=(by+py-this.y)*0.1;this.currentSize=this.baseGeneSize*(1+Math.sin(t*0.05+this.phase)*0.1)*lf;const af=(this.baseGeneSize-CONFIG.sizeMin)/(CONFIG.sizeMax-CONFIG.sizeMin);this.currentAlpha=(0.3+af*0.6)*lf;}draw(){if(this.currentSize<0.2)return;ctx.save();ctx.translate(this.x,this.y);ctx.rotate(this.rotation);const w=this.currentSize;ctx.fillStyle=`rgba(${this.currentColor.r},${this.currentColor.g},${this.currentColor.b},${this.currentAlpha})`;ctx.beginPath();ctx.arc(-w*CONFIG.aspectRatio/4,0,w/2,Math.PI*0.5,Math.PI*1.5);ctx.arc(w*CONFIG.aspectRatio/4,0,w/2,Math.PI*1.5,Math.PI*0.5);ctx.closePath();ctx.fill();ctx.restore();}}
+        function init(){DPR=window.devicePixelRatio||1;width=window.innerWidth;height=window.innerHeight;canvas.width=width*DPR;canvas.height=height*DPR;canvas.style.width=width+'px';canvas.style.height=height+'px';ctx.scale(DPR,DPR);particles=[];for(let i=0;i<CONFIG.particleCount*3;i++){if(particles.length>=CONFIG.particleCount)break;const a=Math.random()*Math.PI*2;const r=Math.sqrt(Math.random())*CONFIG.clusterRadius;const x=width/2+Math.cos(a)*r*CONFIG.clusterRatioX;const y=height/2+Math.sin(a)*r*CONFIG.clusterRatioY;let ok=true;for(let p of particles){const dx=p.homeX-x;const dy=p.homeY-y;if(dx*dx+dy*dy<CONFIG.minDistance*CONFIG.minDistance){ok=false;break;}}if(ok)particles.push(new BioParticle(x,y));}GhostVoid.init();}
+        function animate(){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.scale(DPR,DPR);frameCount++;GhostVoid.update(frameCount);const ex=frameCount<200;particles.forEach(p=>{p.update(frameCount,ex);p.draw();});requestAnimationFrame(animate);}
+        window.addEventListener('resize',init);window.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
+        window.onload=()=>{init();animate();setTimeout(()=>{contentLayer.classList.add('visible');},800);};
 
         // =========================================================
-        // 📂 作品集逻辑
+        // 📂 作品集逻辑 (升级版：内存常驻 + 灯箱 + 侦察兵)
         // =========================================================
-        const gallery = document.getElementById('gallery');
         const filters = document.getElementById('filters');
-        let currentSessionId = 0;
+        const galleriesRoot = document.getElementById('galleries-root');
+        
+        // 状态管理
+        let galleries = {}; // 存储每个分类的 DOM 容器: { 'illustration': divElement, ... }
+        let scoutsLaunched = {}; // 标记是否已经启动过侦察兵: { 'illustration': true, ... }
 
         function initPortfolio() {
-            createFilterBtn('all', '全部作品', 'ALL WORKS', true);
-            CATEGORIES.forEach(cat => createFilterBtn(cat.id, cat.name, cat.en));
+            // 1. 生成所有分类的按钮和容器
+            const allCats = [{id:'all', name:'全部作品', en:'ALL WORKS'}, ...CATEGORIES];
+            
+            allCats.forEach(cat => {
+                // 生成按钮
+                const btn = document.createElement('button');
+                btn.className = `filter-btn ${cat.id === 'all' ? 'active' : ''}`;
+                btn.innerHTML = `<span class="zh">${cat.name}</span><span class="en">${cat.en}</span>`;
+                btn.onclick = () => switchTab(cat.id, btn);
+                filters.appendChild(btn);
+
+                // 生成容器 (默认隐藏)
+                const pane = document.createElement('div');
+                pane.className = `gallery-pane ${cat.id === 'all' ? 'active' : ''}`;
+                pane.id = `pane-${cat.id}`;
+                galleriesRoot.appendChild(pane);
+                galleries[cat.id] = pane;
+            });
+
+            // 2. 启动 'all' 分类的加载
             loadCategory('all');
         }
 
-        // 修改：中文在上，英文在下
-        function createFilterBtn(id, zh, en, isActive=false) {
-            const btn = document.createElement('div');
-            btn.className = `filter-btn ${isActive ? 'active' : ''}`;
-            btn.innerHTML = `<span class="zh">${zh}</span><span class="en">${en}</span>`;
-            btn.onclick = () => switchFilter(id, btn);
-            filters.appendChild(btn);
-        }
-
-        function switchFilter(id, btn) {
+        // 切换 Tab (只控制显示隐藏，不重新加载)
+        function switchTab(id, btn) {
+            // UI 更新
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            currentSessionId++;
-            loadCategory(id);
+            
+            document.querySelectorAll('.gallery-pane').forEach(p => p.classList.remove('active'));
+            galleries[id].classList.add('active');
+
+            // 只有第一次点的时候才加载
+            if (!scoutsLaunched[id]) {
+                loadCategory(id);
+            }
         }
 
+        // 加载逻辑
         function loadCategory(filterId) {
-            gallery.innerHTML = '';
+            scoutsLaunched[filterId] = true; // 标记已启动
+            
             const targetCats = (filterId === 'all') ? CATEGORIES : CATEGORIES.filter(c => c.id === filterId);
+            
             targetCats.forEach(cat => {
-                for (let i = 1; i <= 5; i++) startScout(cat.id, cat.name, i, currentSessionId, 0);
+                // 启动 5 个侦察兵，从 START_INDEX 倒序开始
+                for (let i = 0; i < 5; i++) {
+                    startScout(cat.id, cat.name, START_INDEX - i, galleries[filterId]);
+                }
             });
         }
 
-        async function startScout(folder, catName, index, sessionId, errors) {
-            if (sessionId !== currentSessionId || errors > 3 || index > 1000) return;
+        // 🕵️‍♂️ 侦察兵 (倒序查找)
+        async function startScout(folder, catName, index, container, errors = 0) {
+            if (errors > 3 || index < 1) return; // 容错退出
+
             const media = await findMedia(folder, index);
-            if (sessionId !== currentSessionId) return;
+
             if (media) {
-                renderCard(media, catName, index);
-                startScout(folder, catName, index + 5, sessionId, 0);
+                // 找到了！渲染卡片
+                renderCard(media, catName, index, container);
+                // 继续找下一个 (倒序)
+                startScout(folder, catName, index - 5, container, 0);
             } else {
-                startScout(folder, catName, index + 5, sessionId, errors + 1);
+                // 没找到，尝试下一个
+                startScout(folder, catName, index - 5, container, errors + 1);
             }
         }
 
@@ -494,15 +291,17 @@
             });
         }
 
-        function renderCard(media, catName, index) {
+        function renderCard(media, catName, index, container) {
             const div = document.createElement('div');
             div.className = 'photo-card';
-            div.style.order = index;
+            // 倒序排列 (让大号在前)
+            div.style.order = -index; 
+            
             let mediaHtml = '';
             if (media.type === 'video') {
                 mediaHtml = `<video src="${media.src}" autoplay muted loop playsinline></video><div class="video-badge">VIDEO</div>`;
             } else {
-                mediaHtml = `<img src="${media.src}" alt="${catName} ${index}" loading="lazy">`;
+                mediaHtml = `<img src="${media.src}" alt="${catName}" loading="lazy">`;
             }
             div.innerHTML = `
                 <div class="media-wrapper">${mediaHtml}</div>
@@ -511,20 +310,35 @@
                     <h3 class="card-title">Project ${index < 10 ? '0'+index : index}</h3>
                 </div>
             `;
-            gallery.appendChild(div);
+            
+            // 绑定点击事件打开灯箱
+            div.onclick = () => openLightbox(media);
+
+            container.appendChild(div);
             setTimeout(() => div.classList.add('loaded'), 100);
         }
 
-        initPortfolio();
+        // 🕯️ 灯箱逻辑
+        const lightbox = document.getElementById('lightbox');
+        const lightboxContent = document.getElementById('lightbox-content');
 
-        // 鼠标滚轮横滑逻辑 (PC端)
-        const filterContainer = document.getElementById('filters');
-        filterContainer.addEventListener('wheel', (e) => {
-            if (filterContainer.scrollWidth > filterContainer.clientWidth) {
-                e.preventDefault();
-                filterContainer.scrollLeft += e.deltaY;
+        function openLightbox(media) {
+            let content = '';
+            if (media.type === 'video') {
+                content = `<video src="${media.src}" autoplay loop controls playsinline></video>`;
+            } else {
+                content = `<img src="${media.src}">`;
             }
-        }, { passive: false });
+            lightboxContent.innerHTML = content;
+            lightbox.classList.add('active');
+        }
+
+        function closeLightbox() {
+            lightbox.classList.remove('active');
+            setTimeout(() => lightboxContent.innerHTML = '', 300);
+        }
+
+        initPortfolio();
 
     </script>
 </body>
