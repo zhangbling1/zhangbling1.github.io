@@ -66,29 +66,55 @@
             .nav-icon { height: 24px; } nav { padding: 15px 20px; }
         }
 
-        /* ================== 4. 画廊容器 (无刷新切换) ================== */
-        .galleries-wrapper { width: 100%; max-width: 1600px; padding: 0 40px 100px; box-sizing: border-box; }
+        /* ================== 4. 画廊容器 ================== */
+        .galleries-wrapper { 
+            width: 100%; max-width: 1600px; padding: 0 40px 100px; box-sizing: border-box; 
+            /* 关键修复：让容器支持 flex 布局来实现 order 排序，或者保持 column 布局但接受 order */
+            /* 注意：CSS Columns 布局不支持 order 属性！所以我们要换成 Flex 布局 */
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: flex-start; /* 左对齐 */
+            gap: 30px;
+        }
         
         .gallery-pane {
-            display: none; /* 默认隐藏 */
-            column-count: 4; column-gap: 30px; 
+            display: none; width: 100%;
+            /* 改回 Flex/Grid 以支持 order 排序 */
+            display: none; 
+            /* 内部使用瀑布流布局，但这里我们为了 order 生效，必须用 Flex 配合 Masonry 插件，
+               或者我们牺牲一点纯 CSS 瀑布流的顺序，改用 Grid。
+               为了让你最简单地实现"大号在前"，我们用 Flex 布局。 */
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 30px;
             animation: fadeInPane 0.5s ease;
         }
-        .gallery-pane.active { display: block; }
+        
+        /* 激活状态 */
+        .gallery-pane.active { 
+            display: flex; 
+        }
         
         @keyframes fadeInPane { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        
-        @media (max-width: 1400px) { .gallery-pane { column-count: 3; } }
-        @media (max-width: 1000px) { .gallery-pane { column-count: 2; column-gap: 20px; } }
-        @media (max-width: 600px) { .gallery-pane { column-count: 1; } }
 
         /* 卡片 */
         .photo-card {
-            break-inside: avoid; margin-bottom: 30px; border-radius: 16px; overflow: hidden;
+            /* 重新计算宽度：4列 */
+            width: calc(25% - 23px);
+            margin-bottom: 0; /* Flex gap handles this */
+            border-radius: 16px; overflow: hidden;
             background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.5);
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); transition: all 0.3s ease;
             cursor: zoom-in; opacity: 0; transform: translateY(30px);
+            display: flex; flex-direction: column;
+            height: fit-content; /* 适应内容高度 */
         }
+
+        /* 响应式列数 */
+        @media (max-width: 1400px) { .photo-card { width: calc(33.33% - 20px); } }
+        @media (max-width: 1000px) { .photo-card { width: calc(50% - 15px); } }
+        @media (max-width: 600px) { .photo-card { width: 100%; } }
+
         .photo-card.loaded { opacity: 1; transform: translateY(0); }
         .photo-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15); background: #fff; z-index: 2; }
         .media-wrapper { position: relative; }
@@ -141,7 +167,7 @@
     <div class="content-layer" id="content">
         <div class="hero-section">
             <div class="title-wrapper">
-                <h1><span class="word-digital">Design </span><span class="word-biology">Portfolio.</span></h1>
+                <h1><span class="word-digital">Design</span><span class="word-biology">Portfolio.</span></h1>
                 <p>Check out the latest online display of the portfolio</p>
             </div>
             <div class="filter-wrapper" id="filters"></div>
@@ -172,11 +198,9 @@
             { id: 'Character',   name: '角色原画',  en: 'Character' },
             { id: 'Other',       name: '其他类型',  en: 'Other' },
         ];
+        // 关键：确保支持 webp
         const SUPPORTED_FORMATS = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
         
-        // 排序设置：倒序开始的数字 (例如从 200.jpg 倒着找)
-        const START_INDEX = 200; 
-
         // 🌌 粒子动画引擎
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -195,82 +219,64 @@
         window.onload=()=>{init();animate();setTimeout(()=>{contentLayer.classList.add('visible');},800);};
 
         // =========================================================
-        // 📂 作品集逻辑 (升级版：内存常驻 + 灯箱 + 侦察兵)
+        // 📂 作品集逻辑 (修复版：正序查找+倒序排列)
         // =========================================================
         const filters = document.getElementById('filters');
         const galleriesRoot = document.getElementById('galleries-root');
-        
-        // 状态管理
-        let galleries = {}; // 存储每个分类的 DOM 容器: { 'illustration': divElement, ... }
-        let scoutsLaunched = {}; // 标记是否已经启动过侦察兵: { 'illustration': true, ... }
+        let galleries = {}; 
+        let scoutsLaunched = {}; 
 
         function initPortfolio() {
-            // 1. 生成所有分类的按钮和容器
             const allCats = [{id:'all', name:'全部作品', en:'ALL WORKS'}, ...CATEGORIES];
-            
             allCats.forEach(cat => {
-                // 生成按钮
                 const btn = document.createElement('button');
                 btn.className = `filter-btn ${cat.id === 'all' ? 'active' : ''}`;
                 btn.innerHTML = `<span class="zh">${cat.name}</span><span class="en">${cat.en}</span>`;
                 btn.onclick = () => switchTab(cat.id, btn);
                 filters.appendChild(btn);
 
-                // 生成容器 (默认隐藏)
                 const pane = document.createElement('div');
                 pane.className = `gallery-pane ${cat.id === 'all' ? 'active' : ''}`;
                 pane.id = `pane-${cat.id}`;
                 galleriesRoot.appendChild(pane);
                 galleries[cat.id] = pane;
             });
-
-            // 2. 启动 'all' 分类的加载
             loadCategory('all');
         }
 
-        // 切换 Tab (只控制显示隐藏，不重新加载)
         function switchTab(id, btn) {
-            // UI 更新
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
-            
             document.querySelectorAll('.gallery-pane').forEach(p => p.classList.remove('active'));
             galleries[id].classList.add('active');
-
-            // 只有第一次点的时候才加载
-            if (!scoutsLaunched[id]) {
-                loadCategory(id);
-            }
+            if (!scoutsLaunched[id]) loadCategory(id);
         }
 
-        // 加载逻辑
         function loadCategory(filterId) {
-            scoutsLaunched[filterId] = true; // 标记已启动
-            
+            scoutsLaunched[filterId] = true;
             const targetCats = (filterId === 'all') ? CATEGORIES : CATEGORIES.filter(c => c.id === filterId);
-            
             targetCats.forEach(cat => {
-                // 启动 5 个侦察兵，从 START_INDEX 倒序开始
-                for (let i = 0; i < 5; i++) {
-                    startScout(cat.id, cat.name, START_INDEX - i, galleries[filterId]);
+                // 🚀 改回正序侦察：从 1 开始找
+                for (let i = 1; i <= 5; i++) {
+                    startScout(cat.id, cat.name, i, galleries[filterId]);
                 }
             });
         }
 
-        // 🕵️‍♂️ 侦察兵 (倒序查找)
+        // 🕵️‍♂️ 侦察兵 (正序)
         async function startScout(folder, catName, index, container, errors = 0) {
-            if (errors > 3 || index < 1) return; // 容错退出
+            // 容错：连续失败超过3次，或者索引大得离谱(>2000)，就停止
+            if (errors > 3 || index > 2000) return;
 
             const media = await findMedia(folder, index);
 
             if (media) {
-                // 找到了！渲染卡片
                 renderCard(media, catName, index, container);
-                // 继续找下一个 (倒序)
-                startScout(folder, catName, index - 5, container, 0);
+                // 继续找下一个 (正序 +5)
+                startScout(folder, catName, index + 5, container, 0);
             } else {
-                // 没找到，尝试下一个
-                startScout(folder, catName, index - 5, container, errors + 1);
+                // 没找到，尝试下一个 (正序 +5)
+                startScout(folder, catName, index + 5, container, errors + 1);
             }
         }
 
@@ -294,7 +300,8 @@
         function renderCard(media, catName, index, container) {
             const div = document.createElement('div');
             div.className = 'photo-card';
-            // 倒序排列 (让大号在前)
+            // 🚀 核心：CSS order 设为负数，实现倒序排列！
+            // 越大的数字 (比如 30)，order (-30) 越小，排得越靠前
             div.style.order = -index; 
             
             let mediaHtml = '';
@@ -310,36 +317,24 @@
                     <h3 class="card-title">Project ${index < 10 ? '0'+index : index}</h3>
                 </div>
             `;
-            
-            // 绑定点击事件打开灯箱
             div.onclick = () => openLightbox(media);
-
             container.appendChild(div);
             setTimeout(() => div.classList.add('loaded'), 100);
         }
 
-        // 🕯️ 灯箱逻辑
         const lightbox = document.getElementById('lightbox');
         const lightboxContent = document.getElementById('lightbox-content');
-
         function openLightbox(media) {
-            let content = '';
-            if (media.type === 'video') {
-                content = `<video src="${media.src}" autoplay loop controls playsinline></video>`;
-            } else {
-                content = `<img src="${media.src}">`;
-            }
+            let content = media.type === 'video' ? `<video src="${media.src}" autoplay loop controls playsinline></video>` : `<img src="${media.src}">`;
             lightboxContent.innerHTML = content;
             lightbox.classList.add('active');
         }
-
         function closeLightbox() {
             lightbox.classList.remove('active');
             setTimeout(() => lightboxContent.innerHTML = '', 300);
         }
 
         initPortfolio();
-
     </script>
 </body>
 </html>
