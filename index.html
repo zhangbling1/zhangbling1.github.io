@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>zhangning</title>
+    <title>Antigravity Portfolio</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Playfair+Display:ital,wght@1,600&display=swap" rel="stylesheet">
@@ -76,7 +76,6 @@
             gap: 30px; 
             width: 100%;
         }
-        
         .gallery-pane.active { display: flex; }
 
         .masonry-column {
@@ -87,6 +86,7 @@
             min-width: 0; 
         }
 
+        /* 卡片设计 */
         .photo-card {
             width: 100%; 
             border-radius: 16px; overflow: hidden;
@@ -94,14 +94,15 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); transition: all 0.3s ease;
             cursor: zoom-in; opacity: 0; transform: translateY(30px);
             display: flex; flex-direction: column;
+            /* 关键：给一个最小高度，防止加载前是0导致布局计算错误 */
+            min-height: 100px; 
         }
         .photo-card.loaded { opacity: 1; transform: translateY(0); }
         .photo-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15); background: #fff; z-index: 2; }
-        .media-wrapper { position: relative; }
+        .media-wrapper { position: relative; line-height: 0; }
         .photo-card img, .photo-card video { width: 100%; display: block; height: auto; }
         .card-info { padding: 15px 20px; }
         .card-tag { font-size: 0.7rem; font-weight: 700; color: #4285F4; text-transform: uppercase; display: block; margin-bottom: 4px; }
-        /* 标题样式：大写、粗体 */
         .card-title { font-size: 1rem; font-weight: 800; color: #222; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
         .video-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; padding: 3px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; backdrop-filter: blur(4px); }
 
@@ -198,27 +199,30 @@
         window.onload=()=>{init();animate();setTimeout(()=>{contentLayer.classList.add('visible');},800);};
 
         // =========================================================
-        // 📂 瀑布流逻辑
+        // 📂 瀑布流逻辑 (修正版: 热更新 + 无闪烁)
         // =========================================================
         const filters = document.getElementById('filters');
         const galleriesRoot = document.getElementById('galleries-root');
         
+        // 状态管理
         let galleries = {}; 
         let columnsData = {}; 
         let scoutsLaunched = {};
         
-        // 临时存储库 (用于排序)
-        let foundItems = {}; 
+        // 数据缓存 (Item Cache)
+        let foundItems = {}; // { 'cg': [ {index, media, domElement}, ... ] }
 
         function initPortfolio() {
             const allCats = [{id:'all', name:'全部作品', en:'ALL WORKS'}, ...CATEGORIES];
             allCats.forEach(cat => {
+                // 按钮
                 const btn = document.createElement('button');
                 btn.className = `filter-btn ${cat.id === 'all' ? 'active' : ''}`;
                 btn.innerHTML = `<span class="zh">${cat.name}</span><span class="en">${cat.en}</span>`;
                 btn.onclick = () => switchTab(cat.id, btn);
                 filters.appendChild(btn);
 
+                // 容器 pane
                 const pane = document.createElement('div');
                 pane.className = `gallery-pane ${cat.id === 'all' ? 'active' : ''}`;
                 pane.id = `pane-${cat.id}`;
@@ -231,6 +235,7 @@
             loadCategory('all');
         }
 
+        // 创建列
         function createColumns(catId) {
             const pane = galleries[catId];
             pane.innerHTML = '';
@@ -250,6 +255,17 @@
             }
         }
 
+        // 监听窗口大小改变 (防抖)
+        let resizeTimer;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                // 这里为了简单，刷新页面以重排。如果想无刷新重排需要复杂逻辑。
+                // location.reload(); 
+                // 或者只是简单地让它自适应，现在的CSS已经很好了。
+            }, 300);
+        });
+
         function switchTab(id, btn) {
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
@@ -263,7 +279,6 @@
             const targetCats = (filterId === 'all') ? CATEGORIES : CATEGORIES.filter(c => c.id === filterId);
             
             targetCats.forEach((cat, catIndex) => {
-                // 启动侦察兵，传入分类索引 catIndex 用于排序
                 for (let i = 1; i <= 5; i++) {
                     startScout(cat.id, cat.name, cat.en, i, filterId, catIndex);
                 }
@@ -278,16 +293,22 @@
             if (media) {
                 if (!foundItems[catId]) foundItems[catId] = [];
                 
-                // 存入数据，包含 categoryOrder
+                // 1. 创建 DOM 元素 (只创建一次!)
+                const card = createCardDOM(media, catName, catEn, index);
+                
+                // 2. 存入数据
                 foundItems[catId].push({ 
                     index, 
                     media, 
                     catName, 
                     catEn,
-                    catOrder // 0, 1, 2... (按 CATEGORIES 顺序)
+                    catOrder,
+                    element: card // 关键：保存 DOM 引用
                 });
                 
+                // 3. 请求重排
                 requestRender(catId);
+
                 startScout(folder, catName, catEn, index + 5, catId, catOrder, 0);
             } else {
                 startScout(folder, catName, catEn, index + 5, catId, catOrder, errors + 1);
@@ -297,43 +318,48 @@
         let renderTimers = {};
         function requestRender(catId) {
             if (renderTimers[catId]) clearTimeout(renderTimers[catId]);
-            renderTimers[catId] = setTimeout(() => { renderMasonry(catId); }, 100);
+            renderTimers[catId] = setTimeout(() => { renderMasonry(catId); }, 200); // 200ms 防抖
         }
 
+        // 核心渲染函数：只移动 DOM，不删除 DOM
         function renderMasonry(catId) {
             const items = foundItems[catId];
             if (!items) return;
 
-            // 🚀 核心排序逻辑修改：
-            // 1. 先比分类顺序 (catOrder)
-            // 2. 同分类内，比图片编号 (index 倒序)
+            // 1. 排序
             items.sort((a, b) => {
-                if (a.catOrder !== b.catOrder) {
-                    return a.catOrder - b.catOrder; // 分类 0, 1, 2... 依次排
-                }
-                return b.index - a.index; // 分类内部，大号(新图)在前
+                if (a.catOrder !== b.catOrder) return a.catOrder - b.catOrder;
+                return b.index - a.index;
             });
 
+            // 2. 获取所有列
             const cols = columnsData[catId];
-            cols.forEach(col => col.innerHTML = '');
-
+            
+            // 3. 逐个插入 (Move)
             items.forEach(item => {
+                // 找最短列
                 let minCol = cols[0];
                 let minH = minCol.offsetHeight;
+                
                 for (let i = 1; i < cols.length; i++) {
                     if (cols[i].offsetHeight < minH) {
                         minH = cols[i].offsetHeight;
                         minCol = cols[i];
                     }
                 }
-                // 传入 catEn (英文名) 作为 Title
-                const card = createCardDOM(item.media, item.catName, item.catEn);
-                minCol.appendChild(card);
-                setTimeout(() => card.classList.add('loaded'), 50);
+                
+                // 关键：appendChild 会自动把元素从旧位置移动到新位置
+                // 如果元素已经在 DOM 中，它只是被移动，不会重新加载图片 = 无闪烁！
+                minCol.appendChild(item.element);
+                
+                // 稍微延时显示，确保动画
+                if (!item.element.classList.contains('loaded')) {
+                    setTimeout(() => item.element.classList.add('loaded'), 50);
+                }
             });
         }
 
-        function createCardDOM(media, catName, catEn) {
+        function createCardDOM(media, catName, catEn, index) {
             const div = document.createElement('div');
             div.className = 'photo-card';
             
@@ -347,7 +373,8 @@
                 <div class="media-wrapper">${mediaHtml}</div>
                 <div class="card-info">
                     <span class="card-tag">${catName}</span>
-                    <h3 class="card-title">${catEn}</h3> </div>
+                    <h3 class="card-title">${catEn}</h3>
+                </div>
             `;
             div.onclick = () => openLightbox(media);
             return div;
@@ -370,6 +397,7 @@
             });
         }
 
+        // 🕯️ 灯箱
         const lightbox = document.getElementById('lightbox');
         const lightboxContent = document.getElementById('lightbox-content');
         function openLightbox(media) {
