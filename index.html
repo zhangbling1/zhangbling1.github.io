@@ -3,308 +3,223 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的作品集 | Portfolio</title>
+    <title>Google Antigravity | Portfolio</title>
     <style>
-        /* ================== ✨ 背景特效 ✨ ================== */
-        #particle-canvas {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 0; /* 最底层 */
-            pointer-events: none; /* 鼠标穿透 */
-        }
-
-        /* ================== UI 样式 ================== */
-        body { 
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
-            margin: 0; 
-            background-color: #f0f2f5; /* 稍微深一点的灰，衬托蓝色发光粒子 */
-            color: #333; 
-            overflow-x: hidden;
-        }
+        /* 隐藏滚动条，沉浸式体验 */
+        body { margin: 0; overflow: hidden; background-color: #f8f9fa; font-family: 'Google Sans', sans-serif; }
+        canvas { display: block; }
         
-        header { 
-            position: relative; 
-            z-index: 10; 
-            background: rgba(255, 255, 255, 0.8); /* 更通透一点 */
-            padding: 80px 20px 60px; 
-            text-align: center; 
-            box-shadow: 0 4px 20px rgba(0,0,0,0.05); 
-            backdrop-filter: blur(15px); 
-        }
-        h1 { margin: 0; font-weight: 700; letter-spacing: 1px; font-size: 2.5rem; color: #202124; }
-        p.subtitle { color: #5f6368; font-size: 1rem; margin: 15px 0 40px; font-weight: 300; }
-
-        .filter-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; position: relative; z-index: 20; }
-        .btn { 
-            padding: 10px 28px; 
-            border: 1px solid #dadce0; 
-            background: white; 
-            cursor: pointer; 
-            border-radius: 50px; 
-            font-size: 0.95rem; 
-            font-weight: 500; 
-            transition: all 0.2s ease; 
-            color: #5f6368; 
-        }
-        .btn:hover { background: #f1f3f4; color: #202124; border-color: #dadce0; }
-        .btn.active { background: #1a73e8; color: white; border-color: #1a73e8; box-shadow: 0 4px 12px rgba(26, 115, 232, 0.3); }
-
-        .gallery-container { 
-            position: relative; 
-            z-index: 10; 
-            max-width: 1600px; 
-            margin: 60px auto; 
-            padding: 0 30px; 
-            column-count: 5; 
-            column-gap: 30px; 
-        }
-        
-        @media (max-width: 1400px) { .gallery-container { column-count: 4; } }
-        @media (max-width: 1100px) { .gallery-container { column-count: 3; column-gap: 20px; } }
-        @media (max-width: 768px) { header { padding: 60px 20px 40px; } h1 { font-size: 2rem; } .gallery-container { column-count: 2; padding: 0 15px; column-gap: 15px; margin: 40px auto; } }
-
-        .photo-item { break-inside: avoid; margin-bottom: 30px; border-radius: 16px; overflow: hidden; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); transition: all 0.3s cubic-bezier(.25,.8,.25,1); opacity: 0; transform: translateY(20px); position: relative; }
-        .photo-item:hover { transform: translateY(-5px); box-shadow: 0 14px 28px rgba(0,0,0,0.25), 0 10px 10px rgba(0,0,0,0.22); }
-        .photo-item img, .photo-item video { width: 100%; display: block; object-fit: cover; }
-        .photo-item.loaded { opacity: 1; transform: translateY(0); }
-        .video-badge { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; pointer-events: none; backdrop-filter: blur(4px); }
-        footer { position: relative; z-index: 10; text-align: center; padding: 60px 20px; color: #9aa0a6; font-size: 0.9rem; }
+        /* 你的作品集 UI 层 (保持不变) */
+        .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 10; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+        header { background: rgba(255,255,255,0.8); backdrop-filter: blur(10px); padding: 40px 60px; border-radius: 24px; box-shadow: 0 4px 30px rgba(0,0,0,0.05); text-align: center; pointer-events: auto; transition: transform 0.3s ease; }
+        header:hover { transform: translateY(-5px); }
+        h1 { margin: 0; color: #202124; font-size: 2.5rem; letter-spacing: -0.5px; }
+        p { margin-top: 10px; color: #5f6368; }
+        .btn { margin-top: 20px; padding: 10px 24px; background: #1a73e8; color: white; border: none; border-radius: 50px; font-size: 1rem; cursor: pointer; transition: background 0.2s; }
+        .btn:hover { background: #1557b0; }
     </style>
 </head>
 <body>
 
-    <canvas id="particle-canvas"></canvas>
+    <div class="ui-layer">
+        <header>
+            <h1>My Portfolio</h1>
+            <p>Visual Design & Artworks</p>
+            <button class="btn">Enter Gallery</button>
+        </header>
+    </div>
 
-    <header>
-        <h1>MY PORTFOLIO</h1>
-        <p class="subtitle">Visual Design & Artworks Collection</p>
-        <div class="filter-buttons" id="filters"></div>
-    </header>
-
-    <div class="gallery-container" id="gallery"></div>
-
-    <footer>© 2025 Created by Zhangbling1</footer>
+    <canvas id="canvas"></canvas>
 
     <script>
-        // =========================================================
-        // 🌊 Part A: “水母流体” 粒子特效 (Jellyfish Flow)
-        // =========================================================
-        const canvas = document.getElementById('particle-canvas');
+        /**
+         * 🌊 1:1 复刻版：基于 Poisson Disk Sampling (泊松盘采样)
+         * 参考自上传文件 main-F3FYKJAU.js 中的逻辑
+         */
+        const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+
         let width, height;
-        
-        // 粒子数量：多一点才像流体
-        const PARTICLE_COUNT = 80; 
         let particles = [];
         
-        // 鼠标带一点惯性，这样才平滑
+        // 🐭 鼠标物理参数
         const mouse = { x: -1000, y: -1000 };
-        const targetMouse = { x: -1000, y: -1000 };
+        const target = { x: -1000, y: -1000 };
 
-        // Google Blue & Cyan Colors (更清爽的水母色)
-        const COLORS = [
-            'rgba(66, 133, 244, 0.8)',  // Google Blue
-            'rgba(26, 115, 232, 0.6)',  // Darker Blue
-            'rgba(138, 180, 248, 0.5)', // Light Blue
-            'rgba(66, 133, 244, 0.3)'   // Faint Blue
-        ];
+        // ⚙️ 配置：调整这里可以改变手感
+        const CONFIG = {
+            pointDistance: 25,  // 点与点之间的间距 (控制密度)
+            mouseForce: 1500,   // 鼠标吸引力强度 (越大吸得越紧)
+            friction: 0.94,     // 摩擦力 (0.9 ~ 0.99, 越大越滑)
+            returnForce: 0.04,  // 回弹力 (控制点回到原位的速度)
+            color: '#4285F4'    // Google Blue
+        };
 
+        // -----------------------------------------------------------
+        // 📐 极简版泊松盘采样 (模拟文件中的分布算法)
+        // 目的：让点分布得极其均匀，但又不是死板的网格
+        // -----------------------------------------------------------
+        function generatePoissonPoints(w, h, minDist) {
+            const k = 30; // 最大尝试次数
+            const cellSize = minDist / Math.sqrt(2);
+            const gridW = Math.ceil(w / cellSize);
+            const gridH = Math.ceil(h / cellSize);
+            const grid = new Array(gridW * gridH).fill(-1);
+            const activeList = [];
+            const points = [];
+
+            // 随机添加第一个点
+            const firstPoint = { x: Math.random() * w, y: Math.random() * h };
+            activeList.push(firstPoint);
+            points.push(firstPoint);
+            
+            const col = Math.floor(firstPoint.x / cellSize);
+            const row = Math.floor(firstPoint.y / cellSize);
+            grid[col + row * gridW] = 0; // 索引 0
+
+            while (activeList.length > 0) {
+                const randIndex = Math.floor(Math.random() * activeList.length);
+                const pos = activeList[randIndex];
+                let found = false;
+
+                for (let i = 0; i < k; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const dist = Math.random() * minDist + minDist; // minDist ~ 2*minDist
+                    const newX = pos.x + Math.cos(angle) * dist;
+                    const newY = pos.y + Math.sin(angle) * dist;
+
+                    if (newX >= 0 && newX < w && newY >= 0 && newY < h) {
+                        const newCol = Math.floor(newX / cellSize);
+                        const newRow = Math.floor(newY / cellSize);
+                        let ok = true;
+
+                        // 检查邻居
+                        for (let x = -1; x <= 1; x++) {
+                            for (let y = -1; y <= 1; y++) {
+                                const neighborIndex = (newCol + x) + (newRow + y) * gridW;
+                                const neighborPointIndex = grid[neighborIndex];
+                                if (neighborPointIndex !== undefined && neighborPointIndex !== -1) {
+                                    const neighbor = points[neighborPointIndex];
+                                    const d = Math.hypot(neighbor.x - newX, neighbor.y - newY);
+                                    if (d < minDist) {
+                                        ok = false;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (ok) {
+                            const newPoint = { x: newX, y: newY };
+                            activeList.push(newPoint);
+                            points.push(newPoint);
+                            grid[newCol + newRow * gridW] = points.length - 1;
+                            found = true;
+                            break; // 找到了一个有效点，停止尝试
+                        }
+                    }
+                }
+
+                if (!found) {
+                    activeList.splice(randIndex, 1);
+                }
+            }
+            return points;
+        }
+
+        // -----------------------------------------------------------
+        // 🧪 粒子类
+        // -----------------------------------------------------------
         class Particle {
-            constructor() {
-                this.x = Math.random() * width;
-                this.y = Math.random() * height;
-                // 每个粒子有自己的“性格”（移动速度不同）
-                this.friction = 0.92 + Math.random() * 0.04; // 摩擦力 (0.92 - 0.96)
-                this.vx = 0;
+            constructor(x, y) {
+                this.originX = x; // 原始位置 (Home)
+                this.originY = y;
+                this.x = x;       // 当前位置
+                this.y = y;
+                this.vx = 0;      // 速度
                 this.vy = 0;
-                this.size = Math.random() * 3 + 1;
-                this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
-                
-                // 独有的“摆动”参数，模仿水母触须
-                this.angle = Math.random() * Math.PI * 2;
-                this.swingSpeed = 0.05 + Math.random() * 0.05;
-                this.swingRange = 1 + Math.random() * 2;
+                this.size = Math.random() * 1.5 + 1; // 随机大小 1~2.5
             }
 
             update() {
-                // 1. 追随鼠标逻辑（带弹性的吸引力）
+                // 1. 计算鼠标距离
                 const dx = mouse.x - this.x;
                 const dy = mouse.y - this.y;
-                // 离得越远吸力越大，但不是死板的直线
-                const accel = 0.005 + Math.random() * 0.01; 
+                const distSq = dx * dx + dy * dy;
+
+                // 2. 鼠标吸引力 (距离越近，吸力越大，但有上限)
+                // 这种非线性力场能制造出"水母触须"般的拖尾感
+                let force = 0;
+                if (distSq < 100000) { // 只有靠近鼠标才有反应
+                    force = CONFIG.mouseForce / (distSq + 500); 
+                }
+
+                const angle = Math.atan2(dy, dx);
+                const ax = Math.cos(angle) * force;
+                const ay = Math.sin(angle) * force;
+
+                // 3. 回弹力 (Spring Force) - 让点想回到原位
+                const homeDx = this.originX - this.x;
+                const homeDy = this.originY - this.y;
                 
-                this.vx += dx * accel;
-                this.vy += dy * accel;
+                this.vx += ax + homeDx * CONFIG.returnForce;
+                this.vy += ay + homeDy * CONFIG.returnForce;
 
-                // 2. 加入“水流”摆动 (正弦波叠加)
-                // 这就是“水母感”的来源：它们不会直直地飞，而是扭着飞
-                this.angle += this.swingSpeed;
-                this.vx += Math.cos(this.angle) * 0.2;
-                this.vy += Math.sin(this.angle) * 0.2;
+                // 4. 物理摩擦
+                this.vx *= CONFIG.friction;
+                this.vy *= CONFIG.friction;
 
-                // 3. 物理摩擦
-                this.vx *= this.friction;
-                this.vy *= this.friction;
-
+                // 5. 更新位置
                 this.x += this.vx;
                 this.y += this.vy;
-
-                // 4. 动态大小：跑得快的时候拉长/变小，停下来变大
-                const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
-                this.currentSize = Math.max(0.5, this.size - speed * 0.1);
             }
 
             draw() {
                 ctx.beginPath();
-                ctx.arc(this.x, this.y, this.currentSize, 0, Math.PI * 2);
-                ctx.fillStyle = this.color;
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fillStyle = CONFIG.color;
                 ctx.fill();
             }
         }
 
-        function initCanvas() {
+        function init() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
+            
+            // 使用泊松分布生成点
+            const points = generatePoissonPoints(width, height, CONFIG.pointDistance);
+            
             particles = [];
-            for (let i = 0; i < PARTICLE_COUNT; i++) {
-                particles.push(new Particle());
-            }
+            points.forEach(p => {
+                particles.push(new Particle(p.x, p.y));
+            });
         }
 
         function animate() {
-            // 关键技巧：使用带透明度的 clearRect，制造“拖尾”残影效果
-            // 每一帧不完全擦除上一帧，而是盖一层半透明的白
-            ctx.fillStyle = 'rgba(240, 242, 245, 0.4)'; // 背景色 + 0.4透明度
-            ctx.fillRect(0, 0, width, height);
+            ctx.clearRect(0, 0, width, height);
             
-            // 鼠标平滑插值 (让鼠标移动更丝滑)
-            mouse.x += (targetMouse.x - mouse.x) * 0.1;
-            mouse.y += (targetMouse.y - mouse.y) * 0.1;
+            // 鼠标平滑插值
+            mouse.x += (target.x - mouse.x) * 0.15;
+            mouse.y += (target.y - mouse.y) * 0.15;
 
             particles.forEach(p => {
                 p.update();
                 p.draw();
             });
+
             requestAnimationFrame(animate);
         }
 
-        window.addEventListener('resize', initCanvas);
+        // 事件监听
+        window.addEventListener('resize', init);
         window.addEventListener('mousemove', e => {
-            targetMouse.x = e.clientX;
-            targetMouse.y = e.clientY;
+            target.x = e.clientX;
+            target.y = e.clientY;
             // 初始激活
             if (mouse.x === -1000) { mouse.x = e.clientX; mouse.y = e.clientY; }
         });
 
-        initCanvas();
+        init();
         animate();
-
-
-        // =========================================================
-        // 🖼️ Part B: 全自动作品集逻辑 (保持不变，功能完好)
-        // =========================================================
-        
-        const categories = [
-            { id: 'illustration', name: '商业插画' }, 
-            { id: 'character',    name: '角色设计' },
-            { id: 'scene',        name: '场景概念' },
-            { id: 'sketch',       name: '速写练习' },
-            { id: 'other',        name: '其他摸鱼' },
-        ];
-
-        const supportedFormats = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
-        const gallery = document.getElementById('gallery');
-        const filters = document.getElementById('filters');
-        
-        const CONCURRENCY = 5;
-        const MAX_TOLERANCE = 3;
-        let currentSessionId = 0;
-
-        function initPortfolio() {
-            createButtons();
-            loadCategory('all');
-        }
-
-        function createButtons() {
-            const allBtn = document.createElement('button');
-            allBtn.className = 'btn active';
-            allBtn.innerText = '全部作品';
-            allBtn.onclick = () => { switchFilter('all', allBtn); };
-            filters.appendChild(allBtn);
-
-            categories.forEach(cat => {
-                const btn = document.createElement('button');
-                btn.className = 'btn';
-                btn.innerText = cat.name;
-                btn.onclick = () => { switchFilter(cat.id, btn); };
-                filters.appendChild(btn);
-            });
-        }
-
-        function switchFilter(filterId, activeBtn) {
-            document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-            activeBtn.classList.add('active');
-            currentSessionId++; 
-            loadCategory(filterId);
-        }
-
-        function loadCategory(filterId) {
-            gallery.innerHTML = ''; 
-            let targetCats = (filterId === 'all') ? categories : categories.filter(c => c.id === filterId);
-            targetCats.forEach(cat => {
-                for (let i = 1; i <= CONCURRENCY; i++) {
-                    startScout(cat.id, cat.name, i, currentSessionId, 0);
-                }
-            });
-        }
-
-        async function startScout(folder, catName, index, sessionId, consecutiveErrors) {
-            if (sessionId !== currentSessionId || consecutiveErrors > MAX_TOLERANCE || index > 2000) return;
-            const media = await findMedia(folder, index);
-            if (sessionId !== currentSessionId) return;
-            if (media) {
-                renderCard(media, catName, index);
-                startScout(folder, catName, index + CONCURRENCY, sessionId, 0); 
-            } else {
-                startScout(folder, catName, index + CONCURRENCY, sessionId, consecutiveErrors + 1);
-            }
-        }
-
-        function renderCard(media, catName, index) {
-            const div = document.createElement('div');
-            div.className = 'photo-item';
-            div.style.order = index;
-            if (media.type === 'video') {
-                div.innerHTML = `<video src="${media.src}" autoplay muted loop playsinline></video><div class="video-badge">VIDEO</div>`;
-            } else {
-                div.innerHTML = `<img src="${media.src}" alt="${catName} ${index}" loading="lazy">`;
-            }
-            gallery.appendChild(div);
-            setTimeout(() => div.classList.add('loaded'), 50);
-        }
-
-        function findMedia(folder, index) {
-            return new Promise(async (resolve) => {
-                for (const ext of supportedFormats) {
-                    const src = `images/${folder}/${index}${ext}`;
-                    try {
-                        const response = await fetch(src, { method: 'HEAD' });
-                        if (response.ok) {
-                            const isVideo = ext === '.mp4' || ext === '.mov';
-                            resolve({ src: src, type: isVideo ? 'video' : 'image' });
-                            return; 
-                        }
-                    } catch (e) {}
-                }
-                resolve(null); 
-            });
-        }
-
-        initPortfolio();
-
     </script>
 </body>
 </html>
