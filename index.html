@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Google Antigravity | Precise Physics</title>
+    <title>Google Antigravity | Radial Flow</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #f8f9fa; font-family: 'Google Sans', sans-serif; }
         canvas { display: block; position: fixed; top: 0; left: 0; z-index: 0; }
@@ -14,7 +14,7 @@
         h1 { margin: 0; color: #1f1f1f; font-size: 3.5rem; letter-spacing: -1.5px; font-weight: 600; }
         p.subtitle { margin-top: 10px; color: #5f6368; font-size: 1.1rem; }
         
-        .gallery-container { display: none; } /* 隐藏原来的画廊 */
+        .gallery-container { display: none; }
     </style>
 </head>
 <body>
@@ -24,7 +24,7 @@
     <div class="ui-layer">
         <header>
             <h1>Antigravity</h1>
-            <p class="subtitle">Experience the new way to build</p>
+            <p class="subtitle">Pure Radial Diffusion</p>
         </header>
     </div>
 
@@ -32,35 +32,39 @@
 
     <script>
         /**
-         * 🌊 Google Antigravity V4: Critical Damping (临界阻尼)
-         * 彻底消除"果冻"回弹，模拟高粘度流体/磁流体手感。
+         * 🌊 Google Antigravity V5: Pure Radial Diffusion (纯圆形扩散)
+         * 核心目标：消除所有"震颤"，实现完美的圆形推开效果。
          */
         
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         
-        // ⚙️ 核心物理参数 (调教手感的关键)
+        // ⚙️ 参数配置 (调教手感)
         const CONFIG = {
-            pointDist: 28,       // 点间距 (Poisson Disk 密度)
+            // 粒子分布
+            pointDist: 25,       // 点间距 (控制密度)
+            
+            // 圆形扩散参数
+            cursorRadius: 180,   // 扩散圆的大小 (鼠标影响半径)
+            pushStrength: 60,    // 推力强度 (把点推开多远)
+            
+            // 物理手感 (去震颤的关键)
+            friction: 0.9,       // 阻尼 (0.9 很顺滑，不会抖)
+            returnSpeed: 0.05,   // 回位速度 (越小越慢，像粘稠液体)
+            
+            // 视觉
             color: '#4285F4',    // Google Blue
-            
-            // 🔥 拒绝果冻的核心参数 🔥
-            mouseRadius: 200,    // 鼠标影响范围
-            mouseForce: 0.15,    // 推开的力度
-            friction: 0.85,      // 强阻尼 (0.9是滑，0.8是粘)
-            returnSpeed: 0.08,   // 回位速度 (越小越慢，但也越稳)
-            
-            // 视觉微调
-            baseSize: 1.6,       // 粒子基础大小
-            maxSize: 3.5         // 粒子受力时放大的最大尺寸
+            baseSize: 1.5
         };
 
         let width, height;
         let particles = [];
-        const mouse = { x: -5000, y: -5000 }; // 初始放到屏幕外
+        // 鼠标位置 (初始在屏幕外)
+        const mouse = { x: -5000, y: -5000 }; 
 
         // -----------------------------------------------------------
-        // 📐 Poisson Disk Sampling (泊松盘采样算法) - 还原 main.js 逻辑
+        // 📐 Poisson Disk Sampling (泊松盘采样)
+        // 保持这个算法，因为你喜欢这种均匀的分布
         // -----------------------------------------------------------
         function generatePoissonPoints(w, h, r) {
             const k = 30; 
@@ -71,7 +75,6 @@
             const active = [];
             const p = [];
 
-            // 初始点
             const x0 = Math.random() * w;
             const y0 = Math.random() * h;
             const i0 = Math.floor(x0 / cellSize);
@@ -101,9 +104,8 @@
                         for (let xOff = -1; xOff <= 1; xOff++) {
                             for (let yOff = -1; yOff <= 1; yOff++) {
                                 const idx = (col + xOff) + (row + yOff) * gridW;
-                                const neighborIdx = grid[idx];
-                                if (neighborIdx !== undefined && neighborIdx !== -1) {
-                                    const neighbor = p[neighborIdx];
+                                if (idx >= 0 && idx < grid.length && grid[idx] !== -1) {
+                                    const neighbor = p[grid[idx]];
                                     const d = (newX - neighbor.x) ** 2 + (newY - neighbor.y) ** 2;
                                     if (d < r * r) ok = false;
                                 }
@@ -126,81 +128,73 @@
         }
 
         // -----------------------------------------------------------
-        // 🧪 粒子逻辑
+        // 🧪 粒子逻辑 (纯净版)
         // -----------------------------------------------------------
         class Particle {
             constructor(x, y) {
-                this.ox = x; // 原始位置 (Origin)
-                this.oy = y;
-                this.x = x;  // 当前位置
+                this.originX = x; // 家
+                this.originY = y;
+                this.x = x;       // 当前位置
                 this.y = y;
-                this.vx = 0; // 速度
-                this.vy = 0;
-                this.s = CONFIG.baseSize; // 尺寸
+                this.vx = 0;      // 速度 X
+                this.vy = 0;      // 速度 Y
             }
 
             update() {
-                // 1. 鼠标排斥逻辑
+                // 1. 计算与鼠标的距离
                 const dx = this.x - mouse.x;
                 const dy = this.y - mouse.y;
-                let dist = Math.sqrt(dx * dx + dy * dy);
-                
-                // 限制 dist 防止除以0
-                if (dist < 1) dist = 1;
+                const distance = Math.sqrt(dx * dx + dy * dy);
 
-                let force = 0;
-                let angle = 0;
+                // 2. 圆形扩散逻辑 (Radial Push)
+                // 没有任何随机数，没有任何噪声 -> 彻底消除"震颤"
+                if (distance < CONFIG.cursorRadius) {
+                    const angle = Math.atan2(dy, dx);
+                    // 力度计算：越近越强，平滑衰减
+                    const force = (CONFIG.cursorRadius - distance) / CONFIG.cursorRadius; 
+                    const push = force * CONFIG.pushStrength * 0.1; // 0.1 是个系数，调整反应灵敏度
 
-                // 只有在范围内才受力
-                if (dist < CONFIG.mouseRadius) {
-                    // 力的计算：越近越强，二次方衰减 (干脆有力)
-                    force = (1 - dist / CONFIG.mouseRadius) * CONFIG.mouseForce * 10;
-                    angle = Math.atan2(dy, dx);
-                    
-                    // 施加斥力
-                    this.vx += Math.cos(angle) * force;
-                    this.vy += Math.sin(angle) * force;
+                    this.vx += Math.cos(angle) * push;
+                    this.vy += Math.sin(angle) * push;
                 }
 
-                // 2. 回归逻辑 (这是消除果冻感的关键)
-                // 不使用弹簧(Hooke's Law)，改用线性插值逼近 (Lerp-like approach)
-                // 这种力会让粒子"死"在原点，而不是绕着原点震荡
-                this.vx += (this.ox - this.x) * CONFIG.returnSpeed;
-                this.vy += (this.oy - this.y) * CONFIG.returnSpeed;
+                // 3. 回家逻辑 (Linear Interpolation for Smoothness)
+                // 简单的线性回归，最稳、最不抖
+                this.vx += (this.originX - this.x) * CONFIG.returnSpeed;
+                this.vy += (this.originY - this.y) * CONFIG.returnSpeed;
 
-                // 3. 强力阻尼
+                // 4. 物理摩擦
                 this.vx *= CONFIG.friction;
                 this.vy *= CONFIG.friction;
 
-                // 4. 更新位置
+                // 5. 应用移动
                 this.x += this.vx;
                 this.y += this.vy;
-
-                // 5. 动态大小：被推开时变大一点点
-                const speed = Math.abs(this.vx) + Math.abs(this.vy);
-                const targetSize = CONFIG.baseSize + Math.min(speed * 0.5, CONFIG.maxSize);
-                this.s += (targetSize - this.s) * 0.1; // 大小变化的平滑过渡
             }
 
             draw() {
                 ctx.beginPath();
-                ctx.arc(this.x, this.y, this.s, 0, Math.PI * 2);
+                // 动态计算大小：离家越远(受力越大)，粒子稍微变大一点点，增加视觉反馈
+                const displacement = Math.abs(this.x - this.originX) + Math.abs(this.y - this.originY);
+                const size = CONFIG.baseSize + Math.min(displacement * 0.1, 2);
                 
-                // 颜色透明度随速度变化，动起来更亮
-                const alpha = 0.4 + Math.min((Math.abs(this.vx) + Math.abs(this.vy)) * 0.2, 0.6);
+                ctx.arc(this.x, this.y, size, 0, Math.PI * 2);
+                
+                // 颜色处理：受力时变深蓝，静止时浅蓝
+                // 模拟 Google 那个深浅变化的质感
+                const alpha = 0.4 + Math.min(displacement * 0.05, 0.6);
                 ctx.fillStyle = `rgba(66, 133, 244, ${alpha})`;
                 ctx.fill();
             }
         }
 
         // -----------------------------------------------------------
-        // 🎬 主程序
+        // 🎬 动画主控
         // -----------------------------------------------------------
         function init() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
             
-            // 使用泊松盘采样生成点
             const points = generatePoissonPoints(width, height, CONFIG.pointDist);
             
             particles = [];
@@ -212,10 +206,10 @@
         function animate() {
             ctx.clearRect(0, 0, width, height);
             
-            particles.forEach(p => {
-                p.update();
-                p.draw();
-            });
+            for (let i = 0; i < particles.length; i++) {
+                particles[i].update();
+                particles[i].draw();
+            }
 
             requestAnimationFrame(animate);
         }
@@ -226,7 +220,7 @@
             mouse.y = e.clientY;
         });
         
-        // 鼠标离开时把干扰源移走
+        // 鼠标移出时，重置鼠标位置，让粒子归位
         window.addEventListener('mouseleave', () => {
             mouse.x = -5000;
             mouse.y = -5000;
@@ -235,11 +229,9 @@
         init();
         animate();
         
-        
         // =========================================================
         // 🖼️ 业务逻辑：自动生成分类按钮 (保留你的需求)
         // =========================================================
-        // 这里可以继续放你之前的作品集加载逻辑...
         const categories = [
             { id: 'illustration', name: 'Commercial Illustration' }, 
             { id: 'character',    name: 'Character Design' },
@@ -247,7 +239,8 @@
             { id: 'sketch',       name: 'Sketches & Doodles' },
             { id: 'other',        name: 'Others' },
         ];
-        // ... (其余逻辑省略，为了保持代码整洁，你可以把之前的逻辑贴回来)
+        
+        // ... (你需要的话，我可以把之前的作品集加载代码再贴一遍，但为了代码清晰，这里先保证特效完美)
 
     </script>
 </body>
