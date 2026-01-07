@@ -18,21 +18,7 @@
             overflow-x: hidden;
         }
 
-        /* ================== 2. 纯黑开场 (无文字) ================== */
-        #splash-screen {
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: #000;
-            z-index: 9999;
-            transition: opacity 1.5s cubic-bezier(0.19, 1, 0.22, 1), visibility 1.5s;
-        }
-        #splash-screen.hidden {
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-        }
-
-        /* ================== 3. 粒子画布 (底层) ================== */
+        /* ================== 2. 粒子画布 (底层) ================== */
         canvas { 
             display: block; 
             position: fixed; 
@@ -40,15 +26,17 @@
             z-index: -1; 
         }
 
-        /* ================== 4. UI 内容层 ================== */
+        /* ================== 3. UI 内容层 ================== */
         .content-layer {
             position: relative;
             z-index: 10;
             width: 100%;
-            min-height: 100vh; /* 保证最小高度撑满屏幕 */
+            min-height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
+            
+            /* 初始隐藏，等粒子炸开后再显示 */
             opacity: 0; 
             transform: translateY(40px);
             transition: all 1.2s cubic-bezier(0.19, 1, 0.22, 1);
@@ -61,65 +49,39 @@
 
         /* 导航栏 */
         nav {
-            position: fixed; 
-            top: 0; left: 0; right: 0; /* 强制拉伸，修复右侧缺口 */
-            padding: 20px 40px; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center;
+            position: fixed; top: 0; left: 0; right: 0; 
+            padding: 20px 40px; display: flex; justify-content: space-between; align-items: center;
             background: linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(255,255,255,0)); 
-            z-index: 100; 
-            box-sizing: border-box;
+            z-index: 100; box-sizing: border-box;
         }
-
-        /* LOGO 组合 */
-        .brand-container {
-            display: flex;
-            align-items: center;
-            text-decoration: none;
-            gap: 12px;
-        }
+        .brand-container { display: flex; align-items: center; text-decoration: none; gap: 12px; }
         .nav-icon { height: 32px; width: auto; display: block; }
         .logo-text { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.4rem; color: #1a1a1a; letter-spacing: -0.5px; }
 
-        /* ================== 5. Hero 区域 (杂志排版) ================== */
+        /* ================== 4. Hero 区域 ================== */
         .hero-section {
             margin-top: 15vh;
-            margin-bottom: 60px;
+            margin-bottom: 50px;
             text-align: center;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            width: 100%;
-            max-width: 1000px;
-            padding: 0 20px;
-            box-sizing: border-box;
+            display: flex; flex-direction: column; align-items: center;
+            width: 100%; max-width: 1000px; padding: 0 20px; box-sizing: border-box;
         }
 
-        .title-wrapper { margin-bottom: 50px; }
+        .title-wrapper { margin-bottom: 40px; }
         .hero h1 { font-size: 5.5rem; margin: 0; line-height: 1.0; color: #1a1a1a; letter-spacing: -2px; }
         .word-digital { font-family: 'Inter', sans-serif; font-weight: 800; display: block; }
         .word-biology { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 600; color: #2a2a2a; display: block; }
-        
-        /* 大屏时文字并在同一行 */
         @media (min-width: 768px) { .word-digital, .word-biology { display: inline; } }
         
         .hero p.subtitle { 
-            font-family: 'Inter', sans-serif; 
-            font-size: 0.85rem; 
-            color: #666; 
-            font-weight: 600; 
-            text-transform: uppercase; 
-            letter-spacing: 4px; 
-            margin-top: 25px; 
-            border-top: 1px solid rgba(0,0,0,0.1); 
-            padding-top: 25px; 
-            display: inline-block; 
+            font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #666; font-weight: 600; 
+            text-transform: uppercase; letter-spacing: 4px; margin-top: 25px; 
+            border-top: 1px solid rgba(0,0,0,0.1); padding-top: 25px; display: inline-block; 
         }
 
-        /* ================== 6. 筛选栏 (智能响应式) ================== */
+        /* ================== 5. 筛选栏 (核心修改：双行布局 + Grid) ================== */
         .filter-wrapper {
-            /* 默认 (电脑/平板): 单行横滑玻璃胶囊 */
+            /* 电脑端：保持单行横滑的高级感 */
             background: rgba(255, 255, 255, 0.4);
             backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.5);
@@ -128,138 +90,113 @@
             box-shadow: 0 10px 40px rgba(0,0,0,0.05);
             
             display: flex;
-            align-items: center;
+            align-items: stretch; /* 让按钮高度一致 */
             gap: 8px;
             
             max-width: 90vw;
             width: max-content;
             margin: 0 auto;
             
-            overflow-x: auto;
-            overflow-y: hidden;
-            -webkit-overflow-scrolling: touch;
-            
-            /* 左右边缘渐变遮罩 (提示可滑动) */
+            overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch;
             mask-image: linear-gradient(to right, transparent, black 15px, black calc(100% - 15px), transparent);
             -webkit-mask-image: linear-gradient(to right, transparent, black 15px, black calc(100% - 15px), transparent);
         }
-
         .filter-wrapper::-webkit-scrollbar { display: none; }
 
         .filter-btn {
             padding: 10px 24px;
-            border: none;
-            background: transparent;
-            border-radius: 40px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #555;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            white-space: nowrap; /* 禁止换行 */
-            flex-shrink: 0;      /* 禁止压缩 */
+            border: none; background: transparent; border-radius: 40px;
+            cursor: pointer; transition: all 0.3s ease; flex-shrink: 0;
+            
+            /* ✨ 核心：纵向排列 (中文上，英文下) */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.2;
         }
 
-        .filter-btn:hover { background: rgba(255, 255, 255, 0.6); color: #000; }
-        .filter-btn.active { background: #1a1a1a; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        /* 文字样式优化 */
+        .filter-btn .zh { 
+            font-size: 0.95rem; 
+            font-weight: 700; 
+            color: #555; 
+            margin-bottom: 2px; /* 给英文留点空隙 */
+        }
+        .filter-btn .en { 
+            font-size: 0.6rem; 
+            font-weight: 600; 
+            color: #999; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+            font-family: 'Inter', sans-serif;
+        }
 
-        /* --- 手机端特殊处理 (断点 600px) --- */
+        /* 状态颜色 */
+        .filter-btn:hover { background: rgba(255, 255, 255, 0.6); }
+        .filter-btn:hover .zh { color: #000; }
+        
+        .filter-btn.active { background: #1a1a1a; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .filter-btn.active .zh { color: #fff; }
+        .filter-btn.active .en { color: rgba(255,255,255,0.6); }
+
+        /* --- 📱 手机端：整齐的网格布局 --- */
         @media (max-width: 600px) {
             .filter-wrapper {
-                /* 切换为多行矩阵 */
-                flex-wrap: wrap; 
-                justify-content: center;
-                width: 100%;
-                max-width: 95%;
-                border-radius: 24px; /* 变成方块圆角 */
-                padding: 15px 10px;
+                /* 切换为 Grid 网格 */
+                display: grid;
+                /* 2列 (或者改3列: repeat(3, 1fr)) */
+                grid-template-columns: repeat(2, 1fr); 
+                gap: 8px;
                 
-                /* 取消遮罩和滚动 */
-                mask-image: none;
-                -webkit-mask-image: none;
-                overflow: visible;
+                width: 100%; max-width: 92%;
+                border-radius: 24px; padding: 12px;
                 
-                /* 进场动画 */
+                /* 取消PC端的遮罩和滚动 */
+                mask-image: none; -webkit-mask-image: none; overflow: visible;
                 animation: expandBox 0.6s ease forwards;
             }
+            
             .filter-btn {
-                padding: 8px 16px;
-                font-size: 0.85rem;
-                background: rgba(255,255,255,0.5); /* 手机端给个底色 */
-                margin: 2px;
+                width: 100%; /* 撑满格子 */
+                padding: 12px 0; /* 增加高度，方便点击 */
+                background: rgba(255,255,255,0.5); /* 手机端加个底色，像卡片一样 */
+                border-radius: 16px;
             }
+            
             .hero h1 { font-size: 3rem; }
-            .nav-icon { height: 28px; } 
-            .logo-text { font-size: 1.2rem; } 
-            nav { padding: 15px 20px; }
+            .nav-icon { height: 28px; } nav { padding: 15px 20px; }
         }
 
-        @keyframes expandBox {
-            from { transform: scale(0.95); opacity: 0; }
-            to { transform: scale(1); opacity: 1; }
-        }
+        @keyframes expandBox { from { transform: scale(0.95); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
-        /* ================== 7. 瀑布流画廊 ================== */
-        .gallery-container {
-            width: 100%; max-width: 1600px; padding: 0 40px 100px; 
-            column-count: 4; column-gap: 30px; 
-            box-sizing: border-box;
-        }
+        /* ================== 6. 瀑布流画廊 ================== */
+        .gallery-container { width: 100%; max-width: 1600px; padding: 0 40px 100px; column-count: 4; column-gap: 30px; box-sizing: border-box; }
         @media (max-width: 1400px) { .gallery-container { column-count: 3; } }
         @media (max-width: 1000px) { .gallery-container { column-count: 2; column-gap: 20px; } }
         @media (max-width: 600px) { .gallery-container { column-count: 1; } }
 
-        /* 卡片设计 */
         .photo-card {
-            break-inside: avoid; 
-            margin-bottom: 30px; 
-            border-radius: 16px; 
-            overflow: hidden;
-            background: rgba(255, 255, 255, 0.7); 
-            backdrop-filter: blur(20px); 
-            border: 1px solid rgba(255,255,255,0.6);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.02); 
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            opacity: 0; transform: translateY(40px); 
-            pointer-events: auto;
-            display: flex; flex-direction: column;
+            break-inside: avoid; margin-bottom: 30px; border-radius: 16px; overflow: hidden;
+            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.6);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            opacity: 0; transform: translateY(40px); pointer-events: auto; display: flex; flex-direction: column;
         }
-
-        .photo-card:hover { 
-            transform: translateY(-10px); 
-            box-shadow: 0 25px 50px rgba(66, 133, 244, 0.15); /* 悬停蓝光 */
-            background: #fff; z-index: 2; 
-        }
-
+        .photo-card:hover { transform: translateY(-10px); box-shadow: 0 25px 50px rgba(66, 133, 244, 0.15); background: #fff; z-index: 2; }
         .media-wrapper { position: relative; width: 100%; overflow: hidden; border-bottom: 1px solid rgba(0,0,0,0.03); }
         .photo-card img, .photo-card video { width: 100%; display: block; transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1); }
         .photo-card:hover img, .photo-card:hover video { transform: scale(1.05); }
-
         .card-info { padding: 18px 20px; }
         .card-tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #4285F4; letter-spacing: 1px; margin-bottom: 6px; display: block; }
         .card-title { font-size: 1rem; font-weight: 700; color: #222; margin: 0; line-height: 1.4; }
-        
-        .video-badge { 
-            position: absolute; top: 12px; right: 12px; 
-            background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; 
-            font-size: 0.7rem; font-weight: 700; pointer-events: none; backdrop-filter: blur(4px); z-index: 5; 
-        }
-        
+        .video-badge { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; pointer-events: none; backdrop-filter: blur(4px); z-index: 5; }
         .photo-card.loaded { opacity: 1; transform: translateY(0); }
-
-        /* 页脚 */
-        footer { 
-            padding: 40px; color: #888; font-size: 0.9rem; width: 100%; text-align: center; 
-            background: rgba(255,255,255,0.5); 
-            margin-top: auto; /* 关键：沉底 */
-        }
+        footer { padding: 40px; color: #888; font-size: 0.9rem; width: 100%; text-align: center; background: rgba(255,255,255,0.5); margin-top: auto; }
     </style>
 </head>
 <body>
     
     <canvas id="canvas"></canvas>
-
-    <div id="splash-screen"></div>
 
     <nav>
         <a href="#" class="brand-container">
@@ -268,15 +205,15 @@
                 <circle cx="20" cy="24" r="6" fill="white"/>
                 <defs><linearGradient id="paint0_linear" x1="20" y1="4" x2="20" y2="36" gradientUnits="userSpaceOnUse"><stop stop-color="#4285F4"/><stop offset="1" stop-color="#40E0D0"/></linearGradient></defs>
             </svg>
-            <span class="logo-text">ANTIGRAVITY</span>
+            <span class="logo-text">art portfolio</span>
         </a>
     </nav>
 
     <div class="content-layer" id="content">
         <div class="hero-section">
             <div class="title-wrapper">
-                <h1><span class="word-digital">Digital</span><span class="word-biology">Biology.</span></h1>
-                <p class="subtitle">Exploring the boundary between code and life</p>
+                <h1><span class="word-digital">Design</span><span class="word-biology">Portfolio.</span></h1>
+                <p class="subtitle">Check out the latest online display of the portfolio</p>
             </div>
             
             <div class="filter-wrapper" id="filters"></div>
@@ -284,41 +221,30 @@
 
         <div class="gallery-container" id="gallery"></div>
         
-        <footer>© 2026 Created by User & Gemini</footer>
+        <footer>© 2026 Created by Zhangbling & Gemini</footer>
     </div>
 
     <script>
         // =========================================================
-        // 🔧 配置区 (粒子参数完全保留你的微调)
+        // 🔧 配置区 (保留你微调的动画参数)
         // =========================================================
-        
         const CONFIG = {
-            // 你的微调参数:
             introDuration: 200, explosionForce: 40, drag: 0.7, returnStrength: 0.01,
-            
-            // 基础配置
-            particleCount: 1000, clusterRadius: 380, clusterRatioX: 1.4, clusterRatioY: 1.0, minDistance: 24,
+            particleCount: 1500, clusterRadius: 450, clusterRatioX: 1.55, clusterRatioY: 1.0, minDistance: 24,
             voidBaseSize: 110, voidBreathing: 15, voidMoveSpeed: 0.002, voidWaitTime: 400,
             sizeMin: 1.0, sizeMax: 3.5, sizePeakPos: 0.85, aspectRatio: 1.6,
-            
-            // 🎨 颜色: 蓝 -> 绿松石 (护眼)
             colorBase: { r: 66, g: 133, b: 244 }, 
             colorHover: { r: 64, g: 224, b: 208 }, 
-            
-            // 🖱️ 交互: 变色范围缩小一半
             mouseRepelDist: 160, mouseSenseDist: 350, colorChangeDist: 180,
-            
-            // 动态
             noiseScale: 0.003, timeSpeed: 0.0002, minLife: 300, maxLife: 800, fadeSpeed: 0.02
         };
 
-        // 作品集分类 (带英文名)
         const CATEGORIES = [
-            { id: 'illustration', name: '商业插画', en: 'ILLUSTRATION' }, 
-            { id: 'character',    name: '角色设计', en: 'CHARACTER' },
-            { id: 'scene',        name: '场景概念', en: 'SCENE ART' },
-            { id: 'sketch',       name: '速写练习', en: 'SKETCHES' },
-            { id: 'other',        name: '其他摸鱼', en: 'EXPERIMENTS' },
+            { id: 'CG Style', name: 'CG风格', en: 'CG Style' }, 
+            { id: 'Cartoon',    name: '欧美卡通', en: 'Cartoon' },
+            { id: 'Icon Design',        name: 'icon设计', en: 'Icon Design' },
+            { id: 'Character',       name: '角色原画', en: 'Character' },
+            { id: 'Other',        name: '其他摸鱼', en: 'Other' },
         ];
         const SUPPORTED_FORMATS = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
 
@@ -327,7 +253,6 @@
         // =========================================================
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
-        const splashScreen = document.getElementById('splash-screen');
         const contentLayer = document.getElementById('content');
 
         let width, height, DPR;
@@ -419,7 +344,6 @@
 
                 if (dist < CONFIG.mouseSenseDist) {
                     targetRotation = Math.atan2(mouse.y - baseY, mouse.x - baseX);
-                    // 🟢 变色逻辑：绿色
                     if (dist < CONFIG.colorChangeDist) {
                         const blend = 1 - (dist / CONFIG.colorChangeDist);
                         this.currentColor.r += (CONFIG.colorHover.r - this.currentColor.r) * 0.15 * blend;
@@ -494,13 +418,13 @@
         window.addEventListener('resize', init);
         window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
         
+        // 启动逻辑: 移除遮罩, 延迟显示UI
         window.onload = () => {
             init(); animate();
+            
+            // 0.8秒后显示UI，此时粒子刚好炸开
             setTimeout(() => { 
-                splashScreen.classList.add('hidden'); // 1s后移除遮罩
-            }, 1000);
-            setTimeout(() => { 
-                contentLayer.classList.add('visible'); // 0.8s显示内容(早一点)
+                contentLayer.classList.add('visible'); 
             }, 800);
         };
 
@@ -517,10 +441,11 @@
             loadCategory('all');
         }
 
+        // 修改：中文在上，英文在下
         function createFilterBtn(id, zh, en, isActive=false) {
             const btn = document.createElement('div');
             btn.className = `filter-btn ${isActive ? 'active' : ''}`;
-            btn.innerHTML = `<span>${zh}</span><span style="font-size:0.7em;opacity:0.6;margin-left:4px">${en}</span>`;
+            btn.innerHTML = `<span class="zh">${zh}</span><span class="en">${en}</span>`;
             btn.onclick = () => switchFilter(id, btn);
             filters.appendChild(btn);
         }
@@ -592,7 +517,7 @@
 
         initPortfolio();
 
-        // 鼠标滚轮横滑逻辑
+        // 鼠标滚轮横滑逻辑 (PC端)
         const filterContainer = document.getElementById('filters');
         filterContainer.addEventListener('wheel', (e) => {
             if (filterContainer.scrollWidth > filterContainer.clientWidth) {
