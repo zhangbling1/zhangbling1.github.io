@@ -66,7 +66,7 @@
             .nav-icon { height: 24px; } nav { padding: 15px 20px; }
         }
 
-        /* ================== 4. 瀑布流布局 ================== */
+        /* ================== 4. 瀑布流核心布局 ================== */
         .galleries-wrapper { width: 100%; max-width: 1600px; padding: 0 40px 100px; box-sizing: border-box; }
         
         .gallery-pane {
@@ -86,32 +86,35 @@
             min-width: 0; 
         }
 
-        /* 卡片容器 */
+        /* 卡片设计 */
         .photo-card {
             width: 100%; 
             border-radius: 16px; overflow: hidden;
-            background: rgba(255, 255, 255, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.5);
+            background: rgba(255, 255, 255, 0.8); /* 稍微实一点的背景 */
+            backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.6);
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
             transition: transform 0.3s ease, box-shadow 0.3s ease;
             cursor: zoom-in; 
             
-            /* 🚀 关键：初始状态透明，但占据空间 */
+            /* 初始状态：淡入动画 */
             opacity: 0; 
-            transform: translateY(20px);
-            animation: cardAppear 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            transform: translateY(30px);
+            animation: cardFadeIn 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+            
+            display: flex; flex-direction: column;
         }
 
-        @keyframes cardAppear {
+        @keyframes cardFadeIn {
             to { opacity: 1; transform: translateY(0); }
         }
 
         .photo-card:hover { transform: translateY(-8px); box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15); background: #fff; z-index: 2; }
         
-        /* 媒体容器：固定比例，防止跳动 */
+        /* 媒体容器：在这里锁定宽高比！不要锁死整个卡片 */
         .media-wrapper { 
             position: relative; 
             width: 100%; 
-            background: rgba(0,0,0,0.03); /* 图片没出来时的灰色占位背景 */
+            background: rgba(0,0,0,0.05); /* 加载前的灰色占位 */
         }
         
         .photo-card img, .photo-card video { 
@@ -121,9 +124,12 @@
             object-fit: cover; 
         }
 
-        .card-info { padding: 15px 20px; }
+        .card-info { 
+            padding: 16px 20px; 
+            background: rgba(255,255,255,0.4);
+        }
         .card-tag { font-size: 0.7rem; font-weight: 700; color: #4285F4; text-transform: uppercase; display: block; margin-bottom: 4px; }
-        .card-title { font-size: 1rem; font-weight: 800; color: #222; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card-title { font-size: 0.95rem; font-weight: 800; color: #222; margin: 0; text-transform: uppercase; letter-spacing: 0.5px; }
         .video-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; padding: 3px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; backdrop-filter: blur(4px); z-index: 5; }
 
         /* ================== 5. 灯箱 (Lightbox) ================== */
@@ -219,16 +225,18 @@
         window.onload=()=>{init();animate();setTimeout(()=>{contentLayer.classList.add('visible');},800);};
 
         // =========================================================
-        // 📂 瀑布流逻辑 (修正版: 预加载+零闪烁)
+        // 📂 瀑布流逻辑 (修正版: 预加载+零闪烁+稳定)
         // =========================================================
         const filters = document.getElementById('filters');
         const galleriesRoot = document.getElementById('galleries-root');
         
-        // 状态管理
         let galleries = {}; 
         let columnsData = {}; 
         let scoutsLaunched = {};
-        let foundItems = {}; // { 'cg': [ {index, media, ratio}, ... ] }
+        
+        // 🚀 新增：待处理队列
+        // 我们不直接渲染，而是先把找到的图片放进队列，每隔一小段时间批量处理
+        let pendingItems = {}; // { 'cg': [item, item...] }
 
         function initPortfolio() {
             const allCats = [{id:'all', name:'全部作品', en:'ALL WORKS'}, ...CATEGORIES];
@@ -249,6 +257,9 @@
             });
 
             loadCategory('all');
+            
+            // 🚀 启动队列处理器 (每200ms处理一次新图片)
+            setInterval(processQueue, 200);
         }
 
         function createColumns(catId) {
@@ -271,11 +282,11 @@
         }
 
         window.addEventListener('resize', () => {
-            // 简单重载以适配列数变化 (防抖)
+            // 防抖重载
             clearTimeout(window.resizeTimer);
             window.resizeTimer = setTimeout(() => {
-                // 生产环境建议做无刷新列重排，这里简化为刷新保证布局正确
-                // location.reload(); 
+                // 如果需要动态调整列数，可以这里写重排逻辑
+                // 为了极致稳定，目前不自动重排，除非刷新
             }, 500);
         });
 
@@ -298,12 +309,12 @@
             });
         }
 
-        // 🚀 新增：图片预加载工具
+        // 🚀 预加载图片获取尺寸 (Promise)
         function preloadImage(url) {
             return new Promise((resolve) => {
                 const img = new Image();
-                img.onload = () => resolve({ width: img.width, height: img.height, ratio: img.width / img.height });
-                img.onerror = () => resolve(null); // 即使失败也返回，防止阻塞
+                img.onload = () => resolve({ ratio: img.width / img.height });
+                img.onerror = () => resolve(null);
                 img.src = url;
             });
         }
@@ -311,24 +322,23 @@
         async function startScout(folder, catName, catEn, index, catId, catOrder, errors = 0) {
             if (errors > 3 || index > 2000) return;
 
-            // 1. 只是检查文件是否存在 (Head Request)
+            // 1. 检查文件是否存在
             const mediaInfo = await findMedia(folder, index);
 
             if (mediaInfo) {
-                if (!foundItems[catId]) foundItems[catId] = [];
-                
-                // 2. 🚀 关键改进：等待图片真正加载完，获取尺寸
-                let dimensions = { ratio: 1.6 }; // 默认比例
+                // 2. 🚀 必须等待尺寸！这是防抖动的核心
+                let dimensions = { ratio: 1.6 }; 
                 if (mediaInfo.type === 'image') {
                     const loadedDim = await preloadImage(mediaInfo.src);
                     if (loadedDim) dimensions = loadedDim;
                 } else {
-                    // 视频无法预加载尺寸，使用默认或固定比例
-                    dimensions = { ratio: 1.77 }; // 16:9
+                    dimensions = { ratio: 1.77 }; // 视频默认 16:9
                 }
 
-                // 3. 准备数据对象
-                foundItems[catId].push({ 
+                // 3. 放入队列，不直接渲染
+                if (!pendingItems[catId]) pendingItems[catId] = [];
+                
+                pendingItems[catId].push({ 
                     index, 
                     media: mediaInfo, 
                     catName, 
@@ -336,9 +346,6 @@
                     catOrder,
                     ratio: dimensions.ratio
                 });
-                
-                // 4. 请求渲染 (有了尺寸，排版绝对稳)
-                requestRender(catId);
 
                 startScout(folder, catName, catEn, index + 5, catId, catOrder, 0);
             } else {
@@ -346,61 +353,50 @@
             }
         }
 
-        let renderTimers = {};
-        function requestRender(catId) {
-            if (renderTimers[catId]) clearTimeout(renderTimers[catId]);
-            renderTimers[catId] = setTimeout(() => { renderMasonry(catId); }, 150); // 稍微增加延迟，积攒更多图片一起渲染
-        }
+        // 🚀 队列处理器：定期把新图片“种”下去，绝不拔起旧图片
+        function processQueue() {
+            for (let catId in pendingItems) {
+                const items = pendingItems[catId];
+                if (items.length === 0) continue;
 
-        function renderMasonry(catId) {
-            const items = foundItems[catId];
-            if (!items) return;
+                // 1. 简单排序 (倒序：大号在前)
+                // 注意：因为我们是每200ms处理一波，所以其实是“分批有序”
+                items.sort((a, b) => {
+                    if (a.catOrder !== b.catOrder) return a.catOrder - b.catOrder;
+                    return b.index - a.index; // 倒序
+                });
 
-            // 排序
-            items.sort((a, b) => {
-                if (a.catOrder !== b.catOrder) return a.catOrder - b.catOrder;
-                return b.index - a.index;
-            });
+                // 2. 获取当前列
+                const cols = columnsData[catId];
+                if (!cols) continue;
 
-            const cols = columnsData[catId];
-            
-            // 为了防止重复添加，我们先清空列? 不，这样会闪烁。
-            // 正确做法：Diff 或者重新分配。
-            // 简单且稳健的做法：如果 item 还没渲染过，就添加。
-            // 但如果因为排序变化，顺序变了怎么办？
-            // 为了绝对的稳定排列，这里采用“全量清空重排”策略，
-            // 但因为图片已经 loaded 且有 aspect-ratio 占位，视觉上不会闪烁。
-            
-            cols.forEach(col => col.innerHTML = '');
-
-            items.forEach(item => {
-                // 找最短列
-                let minCol = cols[0];
-                // 🚀 关键：不仅仅比较 offsetHeight (因为新插入的还没渲染完可能是0)
-                // 我们需要维护一个虚拟高度数组，或者强制浏览器重排(损耗性能)
-                // 这里我们相信 offsetHeight，但因为我们在内存中已经预加载了图片，
-                // 并且给卡片设置了 aspect-ratio，所以高度是可预测的。
-                
-                let minH = minCol.offsetHeight;
-                for (let i = 1; i < cols.length; i++) {
-                    if (cols[i].offsetHeight < minH) {
-                        minH = cols[i].offsetHeight;
-                        minCol = cols[i];
+                // 3. 逐个插入最短列
+                items.forEach(item => {
+                    let minCol = cols[0];
+                    let minH = minCol.offsetHeight;
+                    
+                    for (let i = 1; i < cols.length; i++) {
+                        if (cols[i].offsetHeight < minH) {
+                            minH = cols[i].offsetHeight;
+                            minCol = cols[i];
+                        }
                     }
-                }
-                
-                const card = createCardDOM(item);
-                minCol.appendChild(card);
-            });
+                    
+                    const card = createCardDOM(item);
+                    minCol.appendChild(card); // 🟢 只是追加，不影响前面的
+                });
+
+                // 4. 清空已处理的队列
+                pendingItems[catId] = [];
+            }
         }
 
         function createCardDOM(item) {
             const div = document.createElement('div');
             div.className = 'photo-card';
             
-            // 🚀 核心：设置宽高比占位，防止布局抖动
-            // 浏览器会根据宽度自动计算出高度，占好坑位
-            div.style.aspectRatio = `${item.ratio}`;
+            // ❌ 不要给整个卡片设比例，会导致文字被挤掉
+            // ✅ 只在 media-wrapper 上设比例
 
             let mediaHtml = '';
             if (item.media.type === 'video') {
