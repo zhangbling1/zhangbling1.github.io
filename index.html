@@ -5,22 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>我的作品集 | Portfolio</title>
     <style>
-        /* ================== ✨ 特效画布 (背景) ✨ ================== */
+        /* ================== ✨ 背景特效 ✨ ================== */
         #particle-canvas {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            z-index: 0;
-            pointer-events: none;
+            z-index: 0; /* 最底层 */
+            pointer-events: none; /* 鼠标穿透 */
         }
 
-        /* ================== 页面 UI 样式 ================== */
+        /* ================== UI 样式 ================== */
         body { 
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; 
             margin: 0; 
-            background-color: #f8f9fa; 
+            background-color: #f0f2f5; /* 稍微深一点的灰，衬托蓝色发光粒子 */
             color: #333; 
             overflow-x: hidden;
         }
@@ -28,11 +28,11 @@
         header { 
             position: relative; 
             z-index: 10; 
-            background: rgba(255, 255, 255, 0.85); 
+            background: rgba(255, 255, 255, 0.8); /* 更通透一点 */
             padding: 80px 20px 60px; 
             text-align: center; 
             box-shadow: 0 4px 20px rgba(0,0,0,0.05); 
-            backdrop-filter: blur(10px); 
+            backdrop-filter: blur(15px); 
         }
         h1 { margin: 0; font-weight: 700; letter-spacing: 1px; font-size: 2.5rem; color: #202124; }
         p.subtitle { color: #5f6368; font-size: 1rem; margin: 15px 0 40px; font-weight: 300; }
@@ -90,121 +90,123 @@
 
     <script>
         // =========================================================
-        // 🌊 Part A: 修复版 Google 粒子特效
+        // 🌊 Part A: “水母流体” 粒子特效 (Jellyfish Flow)
         // =========================================================
         const canvas = document.getElementById('particle-canvas');
         const ctx = canvas.getContext('2d');
-        
         let width, height;
+        
+        // 粒子数量：多一点才像流体
+        const PARTICLE_COUNT = 80; 
         let particles = [];
-        const COLOR_RGB = "66, 133, 244"; // Google Blue
-        const mouse = { x: -5000, y: -5000 }; // 初始放到屏幕外
+        
+        // 鼠标带一点惯性，这样才平滑
+        const mouse = { x: -1000, y: -1000 };
+        const targetMouse = { x: -1000, y: -1000 };
 
-        // ⚙️ 特效参数
-        const CONFIG = {
-            spacing: 25,       // 网格间距 (越小越密集)
-            mouseRadius: 200,  // 鼠标影响范围
-            pushStrength: 80,  // 推力强度
-            baseSize: 1.2,     // 粒子大小
-            twinkleSpeed: 0.002 // 闪烁速度
-        };
+        // Google Blue & Cyan Colors (更清爽的水母色)
+        const COLORS = [
+            'rgba(66, 133, 244, 0.8)',  // Google Blue
+            'rgba(26, 115, 232, 0.6)',  // Darker Blue
+            'rgba(138, 180, 248, 0.5)', // Light Blue
+            'rgba(66, 133, 244, 0.3)'   // Faint Blue
+        ];
 
         class Particle {
-            constructor(x, y) {
-                this.baseX = x; // 锚点 X (回家的位置)
-                this.baseY = y; // 锚点 Y
-                this.x = x;     // 当前 X
-                this.y = y;     // 当前 Y
+            constructor() {
+                this.x = Math.random() * width;
+                this.y = Math.random() * height;
+                // 每个粒子有自己的“性格”（移动速度不同）
+                this.friction = 0.92 + Math.random() * 0.04; // 摩擦力 (0.92 - 0.96)
+                this.vx = 0;
+                this.vy = 0;
+                this.size = Math.random() * 3 + 1;
+                this.color = COLORS[Math.floor(Math.random() * COLORS.length)];
                 
-                // 随机偏移，让闪烁不是同时亮同时暗，而是有波浪感
-                this.density = (Math.random() * 30) + 1;
-                this.offset = Math.random() * 100; 
+                // 独有的“摆动”参数，模仿水母触须
+                this.angle = Math.random() * Math.PI * 2;
+                this.swingSpeed = 0.05 + Math.random() * 0.05;
+                this.swingRange = 1 + Math.random() * 2;
             }
 
-            update(time) {
-                // 1. 计算鼠标推力 (不再是空心环，而是实心推球)
-                let dx = mouse.x - this.x;
-                let dy = mouse.y - this.y;
-                let distance = Math.sqrt(dx * dx + dy * dy);
-                let forceDirectionX = dx / distance;
-                let forceDirectionY = dy / distance;
-                let maxDistance = CONFIG.mouseRadius;
+            update() {
+                // 1. 追随鼠标逻辑（带弹性的吸引力）
+                const dx = mouse.x - this.x;
+                const dy = mouse.y - this.y;
+                // 离得越远吸力越大，但不是死板的直线
+                const accel = 0.005 + Math.random() * 0.01; 
                 
-                // 计算排斥力：距离越近，推力越大
-                let force = (maxDistance - distance) / maxDistance;
-                let directionX = forceDirectionX * force * CONFIG.pushStrength;
-                let directionY = forceDirectionY * force * CONFIG.pushStrength;
+                this.vx += dx * accel;
+                this.vy += dy * accel;
 
-                if (distance < maxDistance) {
-                    // 如果在鼠标范围内，被推开
-                    this.x -= directionX;
-                    this.y -= directionY;
-                } else {
-                    // 如果鼠标走了，慢慢回到原位 (弹性归位)
-                    if (this.x !== this.baseX) {
-                        let dx = this.x - this.baseX;
-                        this.x -= dx / 10;
-                    }
-                    if (this.y !== this.baseY) {
-                        let dy = this.y - this.baseY;
-                        this.y -= dy / 10;
-                    }
-                }
+                // 2. 加入“水流”摆动 (正弦波叠加)
+                // 这就是“水母感”的来源：它们不会直直地飞，而是扭着飞
+                this.angle += this.swingSpeed;
+                this.vx += Math.cos(this.angle) * 0.2;
+                this.vy += Math.sin(this.angle) * 0.2;
 
-                // 2. 绘制粒子 + 呼吸闪烁
-                // 使用正弦波 Math.sin 实现规律的忽明忽暗
-                // time + this.x * 0.01 这种写法能让闪烁形成一种“扫过”屏幕的波浪感
-                const opacity = 0.2 + (Math.sin(time * CONFIG.twinkleSpeed + this.x * 0.01 + this.y * 0.01) + 1) / 2 * 0.5;
-                
-                ctx.fillStyle = `rgba(${COLOR_RGB}, ${opacity})`;
+                // 3. 物理摩擦
+                this.vx *= this.friction;
+                this.vy *= this.friction;
+
+                this.x += this.vx;
+                this.y += this.vy;
+
+                // 4. 动态大小：跑得快的时候拉长/变小，停下来变大
+                const speed = Math.sqrt(this.vx*this.vx + this.vy*this.vy);
+                this.currentSize = Math.max(0.5, this.size - speed * 0.1);
+            }
+
+            draw() {
                 ctx.beginPath();
-                ctx.arc(this.x, this.y, CONFIG.baseSize, 0, Math.PI * 2);
+                ctx.arc(this.x, this.y, this.currentSize, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
                 ctx.fill();
             }
         }
 
-        function initParticles() {
+        function initCanvas() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
             particles = [];
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push(new Particle());
+            }
+        }
+
+        function animate() {
+            // 关键技巧：使用带透明度的 clearRect，制造“拖尾”残影效果
+            // 每一帧不完全擦除上一帧，而是盖一层半透明的白
+            ctx.fillStyle = 'rgba(240, 242, 245, 0.4)'; // 背景色 + 0.4透明度
+            ctx.fillRect(0, 0, width, height);
             
-            // 生成整齐的网格
-            for (let y = 0; y < height; y += CONFIG.spacing) {
-                for (let x = 0; x < width; x += CONFIG.spacing) {
-                    particles.push(new Particle(x, y));
-                }
-            }
+            // 鼠标平滑插值 (让鼠标移动更丝滑)
+            mouse.x += (targetMouse.x - mouse.x) * 0.1;
+            mouse.y += (targetMouse.y - mouse.y) * 0.1;
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+            requestAnimationFrame(animate);
         }
 
-        let time = 0;
-        function animateParticles() {
-            ctx.clearRect(0, 0, width, height);
-            time += 1;
-            for (let i = 0; i < particles.length; i++) {
-                particles[i].update(time);
-            }
-            requestAnimationFrame(animateParticles);
-        }
-
-        window.addEventListener('resize', initParticles);
+        window.addEventListener('resize', initCanvas);
         window.addEventListener('mousemove', e => {
-            mouse.x = e.clientX;
-            mouse.y = e.clientY;
+            targetMouse.x = e.clientX;
+            targetMouse.y = e.clientY;
+            // 初始激活
+            if (mouse.x === -1000) { mouse.x = e.clientX; mouse.y = e.clientY; }
         });
+
+        initCanvas();
+        animate();
+
+
+        // =========================================================
+        // 🖼️ Part B: 全自动作品集逻辑 (保持不变，功能完好)
+        // =========================================================
         
-        // 鼠标离开时放到远处
-        window.addEventListener('mouseout', () => {
-            mouse.x = -5000;
-            mouse.y = -5000;
-        });
-
-        initParticles();
-        animateParticles();
-
-
-        // =========================================================
-        // 🖼️ Part B: 全自动作品集逻辑 (保持不变)
-        // =========================================================
         const categories = [
             { id: 'illustration', name: '商业插画' }, 
             { id: 'character',    name: '角色设计' },
@@ -216,21 +218,28 @@
         const supportedFormats = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
         const gallery = document.getElementById('gallery');
         const filters = document.getElementById('filters');
-        const CONCURRENCY = 5; 
-        const MAX_TOLERANCE = 3; 
+        
+        const CONCURRENCY = 5;
+        const MAX_TOLERANCE = 3;
         let currentSessionId = 0;
 
-        function initPortfolio() { createButtons(); loadCategory('all'); }
+        function initPortfolio() {
+            createButtons();
+            loadCategory('all');
+        }
 
         function createButtons() {
             const allBtn = document.createElement('button');
-            allBtn.className = 'btn active'; allBtn.innerText = '全部作品';
-            allBtn.onclick = () => switchFilter('all', allBtn);
+            allBtn.className = 'btn active';
+            allBtn.innerText = '全部作品';
+            allBtn.onclick = () => { switchFilter('all', allBtn); };
             filters.appendChild(allBtn);
+
             categories.forEach(cat => {
                 const btn = document.createElement('button');
-                btn.className = 'btn'; btn.innerText = cat.name;
-                btn.onclick = () => switchFilter(cat.id, btn);
+                btn.className = 'btn';
+                btn.innerText = cat.name;
+                btn.onclick = () => { switchFilter(cat.id, btn); };
                 filters.appendChild(btn);
             });
         }
@@ -238,14 +247,17 @@
         function switchFilter(filterId, activeBtn) {
             document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
             activeBtn.classList.add('active');
-            currentSessionId++; loadCategory(filterId);
+            currentSessionId++; 
+            loadCategory(filterId);
         }
 
         function loadCategory(filterId) {
             gallery.innerHTML = ''; 
             let targetCats = (filterId === 'all') ? categories : categories.filter(c => c.id === filterId);
             targetCats.forEach(cat => {
-                for (let i = 1; i <= CONCURRENCY; i++) { startScout(cat.id, cat.name, i, currentSessionId, 0); }
+                for (let i = 1; i <= CONCURRENCY; i++) {
+                    startScout(cat.id, cat.name, i, currentSessionId, 0);
+                }
             });
         }
 
@@ -263,7 +275,8 @@
 
         function renderCard(media, catName, index) {
             const div = document.createElement('div');
-            div.className = 'photo-item'; div.style.order = index;
+            div.className = 'photo-item';
+            div.style.order = index;
             if (media.type === 'video') {
                 div.innerHTML = `<video src="${media.src}" autoplay muted loop playsinline></video><div class="video-badge">VIDEO</div>`;
             } else {
@@ -281,7 +294,8 @@
                         const response = await fetch(src, { method: 'HEAD' });
                         if (response.ok) {
                             const isVideo = ext === '.mp4' || ext === '.mov';
-                            resolve({ src: src, type: isVideo ? 'video' : 'image' }); return; 
+                            resolve({ src: src, type: isVideo ? 'video' : 'image' });
+                            return; 
                         }
                     } catch (e) {}
                 }
@@ -290,6 +304,7 @@
         }
 
         initPortfolio();
+
     </script>
 </body>
 </html>
