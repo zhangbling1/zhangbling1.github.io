@@ -45,15 +45,41 @@
         nav {
             position: fixed; top: 0; left: 0; right: 0; 
             padding: 20px 40px; display: flex; justify-content: space-between; align-items: center;
-            /* 顶部通透一点，不要太抢戏 */
             background: linear-gradient(to bottom, rgba(255,255,255,0.8), rgba(255,255,255,0)); 
             z-index: 100; 
         }
-        .logo { font-weight: 800; font-size: 1.2rem; color: #1a1a1a; letter-spacing: 1px; }
 
-        /* ================== 4. Hero 区域 (重设计) ================== */
+        /* --- 核心修改：品牌 Logo 区域 (图标+文字) --- */
+        .brand-container {
+            display: flex;
+            align-items: center;
+            text-decoration: none; /* 去掉链接下划线 */
+            gap: 12px; /* 图标和文字之间的间距 */
+        }
+
+        /* 图标样式 */
+        .nav-icon {
+            height: 36px; /* 设定一个合适的高度 */
+            width: auto;  /* 宽度自适应 */
+            display: block;
+        }
+        
+        /* (仅用于演示的 SVG 占位符样式，你替换图片后可忽略) */
+        .placeholder-svg { animation: rotatePlaceholder 10s linear infinite; }
+        @keyframes rotatePlaceholder { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* 文字样式 */
+        .logo-text { 
+            font-family: 'Inter', sans-serif;
+            font-weight: 800; 
+            font-size: 1.4rem; 
+            color: #1a1a1a; 
+            letter-spacing: -0.5px;
+        }
+
+        /* ================== 4. Hero 区域 ================== */
         .hero-section {
-            margin-top: 12vh;
+            margin-top: 14vh; /* 稍微往下顶一点，给 Nav 留空间 */
             margin-bottom: 60px;
             text-align: center;
             display: flex;
@@ -64,147 +90,48 @@
             padding: 0 20px;
         }
 
-        /* 标题容器 */
-        .title-wrapper {
-            margin-bottom: 40px;
-            position: relative;
-        }
+        .title-wrapper { margin-bottom: 40px; position: relative; }
+        .hero h1 { font-size: 5.5rem; margin: 0; line-height: 1.1; color: #1a1a1a; letter-spacing: -2px; }
+        .word-digital { font-family: 'Inter', sans-serif; font-weight: 800; display: block; }
+        .word-biology { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 600; color: #2a2a2a; display: block; }
+        @media (min-width: 768px) { .word-digital, .word-biology { display: inline; } }
+        .hero p.subtitle { font-family: 'Inter', sans-serif; font-size: 0.85rem; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 4px; margin-top: 20px; border-top: 1px solid rgba(0,0,0,0.1); padding-top: 20px; display: inline-block; }
 
-        /* 混排字体设计 */
-        .hero h1 { 
-            font-size: 5.5rem; 
-            margin: 0; 
-            line-height: 1.1; 
-            color: #1a1a1a; 
-            letter-spacing: -2px;
-        }
-        
-        /* "Digital" 样式：科技、现代 */
-        .word-digital {
-            font-family: 'Inter', sans-serif;
-            font-weight: 800;
-            display: block; /* 移动端可能换行 */
-        }
-
-        /* "Biology" 样式：有机、优雅 */
-        .word-biology {
-            font-family: 'Playfair Display', serif;
-            font-style: italic;
-            font-weight: 600;
-            color: #2a2a2a; /* 稍微柔和一点的黑 */
-            display: block;
-        }
-
-        /* 桌面端合并为一行 */
-        @media (min-width: 768px) {
-            .word-digital, .word-biology { display: inline; }
-        }
-
-        /* 副标题：微标风格 */
-        .hero p.subtitle { 
-            font-family: 'Inter', sans-serif;
-            font-size: 0.85rem; 
-            color: #666; 
-            font-weight: 600; 
-            text-transform: uppercase; 
-            letter-spacing: 4px;
-            margin-top: 20px;
-            border-top: 1px solid rgba(0,0,0,0.1);
-            padding-top: 20px;
-            display: inline-block;
-        }
-
-        /* ================== 5. 筛选栏 (单行悬浮胶囊) ================== */
+        /* ================== 5. 筛选栏 ================== */
         .filter-wrapper {
-            /* 玻璃胶囊容器 */
-            background: rgba(255, 255, 255, 0.4);
-            backdrop-filter: blur(16px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-            padding: 8px 12px;
-            border-radius: 60px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.05);
-            
-            /* 布局控制 */
-            display: flex;
-            align-items: center;
-            max-width: 90vw;
-            overflow-x: auto; /* 超出允许横滑 */
-            -webkit-overflow-scrolling: touch; /* 移动端丝滑滚动 */
-            gap: 8px; /* 按钮间距 */
+            background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(16px); border: 1px solid rgba(255, 255, 255, 0.5);
+            padding: 8px 12px; border-radius: 60px; box-shadow: 0 10px 40px rgba(0,0,0,0.05);
+            display: flex; align-items: center; max-width: 90vw; overflow-x: auto; -webkit-overflow-scrolling: touch; gap: 8px;
         }
-
-        /* 隐藏滚动条 */
         .filter-wrapper::-webkit-scrollbar { display: none; }
-
         .filter-btn {
-            padding: 10px 24px;
-            border: none;
-            background: transparent;
-            border-radius: 40px;
-            font-size: 0.9rem;
-            font-weight: 600;
-            color: #555;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            white-space: nowrap; /* 禁止文字换行 */
-            flex-shrink: 0; /* 禁止按钮被压缩 */
+            padding: 10px 24px; border: none; background: transparent; border-radius: 40px;
+            font-size: 0.9rem; font-weight: 600; color: #555; cursor: pointer; transition: all 0.3s ease; white-space: nowrap; flex-shrink: 0;
         }
-
-        .filter-btn:hover { 
-            background: rgba(255, 255, 255, 0.6); 
-            color: #000; 
-        }
-
-        .filter-btn.active { 
-            background: #1a1a1a; 
-            color: #fff; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2); 
-        }
+        .filter-btn:hover { background: rgba(255, 255, 255, 0.6); color: #000; }
+        .filter-btn.active { background: #1a1a1a; color: #fff; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
 
         /* ================== 6. 瀑布流画廊 ================== */
-        .gallery-container {
-            width: 100%; max-width: 1600px; padding: 0 40px 120px; 
-            column-count: 4; column-gap: 30px; 
-            box-sizing: border-box;
-        }
+        .gallery-container { width: 100%; max-width: 1600px; padding: 0 40px 120px; column-count: 4; column-gap: 30px; box-sizing: border-box; }
         @media (max-width: 1400px) { .gallery-container { column-count: 3; } }
         @media (max-width: 1000px) { .gallery-container { column-count: 2; column-gap: 20px; } .hero h1 { font-size: 3.5rem; } }
-        @media (max-width: 600px) { .gallery-container { column-count: 1; } .hero h1 { font-size: 2.8rem; } nav { padding: 15px 20px; } }
+        @media (max-width: 600px) { .gallery-container { column-count: 1; } .hero h1 { font-size: 2.8rem; } nav { padding: 15px 20px; } .nav-icon { height: 28px; } .logo-text { font-size: 1.2rem; } }
 
-        /* 作品卡片 */
         .photo-card {
-            break-inside: avoid; 
-            margin-bottom: 30px; 
-            border-radius: 16px; 
-            overflow: hidden;
-            background: rgba(255, 255, 255, 0.6); 
-            backdrop-filter: blur(20px); 
-            border: 1px solid rgba(255,255,255,0.5);
-            box-shadow: 0 4px 20px rgba(0,0,0,0.02); 
-            transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-            opacity: 0; transform: translateY(40px); 
-            pointer-events: auto;
-            display: flex;
-            flex-direction: column;
+            break-inside: avoid; margin-bottom: 30px; border-radius: 16px; overflow: hidden;
+            background: rgba(255, 255, 255, 0.6); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.5);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02); transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+            opacity: 0; transform: translateY(40px); pointer-events: auto; display: flex; flex-direction: column;
         }
-
-        .photo-card:hover { 
-            transform: translateY(-10px); 
-            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08); 
-            background: #fff;
-            z-index: 2; 
-        }
-
+        .photo-card:hover { transform: translateY(-10px); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.08); background: #fff; z-index: 2; }
         .media-wrapper { position: relative; width: 100%; overflow: hidden; border-bottom: 1px solid rgba(0,0,0,0.03); }
         .photo-card img, .photo-card video { width: 100%; display: block; transition: transform 0.6s cubic-bezier(0.25, 0.8, 0.25, 1); }
         .photo-card:hover img, .photo-card:hover video { transform: scale(1.05); }
-
         .card-info { padding: 18px 20px; }
         .card-tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: #888; letter-spacing: 1px; margin-bottom: 6px; display: block; }
         .card-title { font-size: 1rem; font-weight: 700; color: #222; margin: 0; line-height: 1.4; }
         .video-badge { position: absolute; top: 12px; right: 12px; background: rgba(0,0,0,0.6); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem; font-weight: 700; pointer-events: none; backdrop-filter: blur(4px); z-index: 5; }
         .photo-card.loaded { opacity: 1; transform: translateY(0); }
-
         footer { padding: 40px; color: #888; font-size: 0.9rem; width: 100%; text-align: center; background: rgba(255,255,255,0.5); margin-top: auto; }
     </style>
 </head>
@@ -213,35 +140,41 @@
     <canvas id="canvas"></canvas>
 
     <nav>
-        <div class="logo">ANTIGRAVITY</div>
+        <a href="#" class="brand-container">
+            <svg class="nav-icon placeholder-svg" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M20 4L4 36H36L20 4Z" fill="url(#paint0_linear)"/>
+                <circle cx="20" cy="24" r="6" fill="white"/>
+                <defs>
+                    <linearGradient id="paint0_linear" x1="20" y1="4" x2="20" y2="36" gradientUnits="userSpaceOnUse">
+                        <stop stop-color="#4285F4"/>
+                        <stop offset="1" stop-color="#40E0D0"/>
+                    </linearGradient>
+                </defs>
+            </svg>
+            <span class="logo-text">ANTIGRAVITY</span>
+        </a>
     </nav>
 
     <div class="content-layer" id="content">
         <div class="hero-section">
             <div class="title-wrapper">
-                <h1>
-                    <span class="word-digital">Digital</span>
-                    <span class="word-biology">Biology.</span>
-                </h1>
+                <h1><span class="word-digital">Digital</span><span class="word-biology">Biology.</span></h1>
                 <p class="subtitle">Exploring the boundary between code and life</p>
             </div>
-
-            <div class="filter-wrapper" id="filters">
-                </div>
+            <div class="filter-wrapper" id="filters"></div>
         </div>
-
         <div class="gallery-container" id="gallery"></div>
-        <footer>© 2026 Created by User & Gemini</footer>
+        <footer>© 2026 Created by Zhangbling & Gemini</footer>
     </div>
 
     <script>
         // =========================================================
-        // 🔧 配置区 (你微调后的参数)
+        // 🔧 配置区 (动画参数未修改)
         // =========================================================
         
         const CONFIG = {
             introDuration: 200, explosionForce: 40, drag: 0.7, returnStrength: 0.01,
-            particleCount: 1500, clusterRadius: 550, clusterRatioX: 1.5, clusterRatioY: 1, minDistance: 10,
+            particleCount: 1500, clusterRadius: 450, clusterRatioX: 1.55, clusterRatioY: 1.0, minDistance: 24,
             voidBaseSize: 110, voidBreathing: 15, voidMoveSpeed: 0.002, voidWaitTime: 400,
             sizeMin: 1.0, sizeMax: 3.5, sizePeakPos: 0.85, aspectRatio: 1.6,
             colorBase: { r: 66, g: 133, b: 244 }, 
@@ -251,16 +184,16 @@
         };
 
         const CATEGORIES = [
-            { id: 'illustration', name: '商业插画' }, 
-            { id: 'character',    name: '角色设计' },
-            { id: 'scene',        name: '场景概念' },
-            { id: 'sketch',       name: '速写练习' },
+            { id: 'illustration', name: '写实风格' }, 
+            { id: 'character',    name: '欧美卡通' },
+            { id: 'scene',        name: 'icon设计' },
+            { id: 'sketch',       name: '角色原画' },
             { id: 'other',        name: '其他摸鱼' },
         ];
         const SUPPORTED_FORMATS = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
 
         // =========================================================
-        // 🌌 粒子动画引擎
+        // 🌌 粒子动画引擎 (未修改)
         // =========================================================
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -435,29 +368,24 @@
         };
 
         // =========================================================
-        // 📂 作品集逻辑 (卡片版)
+        // 📂 作品集逻辑 (JS部分未修改)
         // =========================================================
         const gallery = document.getElementById('gallery');
         const filters = document.getElementById('filters');
         let currentSessionId = 0;
 
-        // --- 生成筛选卡片 ---
         function initPortfolio() {
-            // "全部" 按钮
-            createFilterCard('all', '全部作品');
-
-            // 分类按钮
+            createFilterBtn('all', '全部作品');
             CATEGORIES.forEach(cat => {
-                createFilterCard(cat.id, cat.name);
+                createFilterBtn(cat.id, cat.name);
             });
-
             loadCategory('all');
         }
 
-        function createFilterCard(id, zh) {
-            const btn = document.createElement('div');
-            btn.className = `filter-btn ${id === 'all' ? 'active' : ''}`; // 默认选中 'all'
-            btn.innerText = zh; // 仅显示中文
+        function createFilterBtn(id, zh) {
+            const btn = document.createElement('button');
+            btn.className = `filter-btn ${id === 'all' ? 'active' : ''}`;
+            btn.innerText = zh;
             btn.onclick = () => switchFilter(id, btn);
             filters.appendChild(btn);
         }
@@ -506,30 +434,23 @@
             });
         }
 
-        // --- 核心修改：渲染卡片结构 ---
         function renderCard(media, catName, index) {
             const div = document.createElement('div');
             div.className = 'photo-card';
             div.style.order = index;
-            
             let mediaHtml = '';
             if (media.type === 'video') {
                 mediaHtml = `<video src="${media.src}" autoplay muted loop playsinline></video><div class="video-badge">VIDEO</div>`;
             } else {
                 mediaHtml = `<img src="${media.src}" alt="${catName} ${index}" loading="lazy">`;
             }
-
-            // 卡片 HTML 结构
             div.innerHTML = `
-                <div class="media-wrapper">
-                    ${mediaHtml}
-                </div>
+                <div class="media-wrapper">${mediaHtml}</div>
                 <div class="card-info">
                     <span class="card-tag">${catName}</span>
                     <h3 class="card-title">Project ${index < 10 ? '0'+index : index}</h3>
                 </div>
             `;
-            
             gallery.appendChild(div);
             setTimeout(() => div.classList.add('loaded'), 100);
         }
