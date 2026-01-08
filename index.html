@@ -11,13 +11,15 @@
     <style>
         /* ================== 1. 基础重置 ================== */
         body { margin: 0; background-color: #f0f2f5; font-family: 'Inter', sans-serif; color: #1f1f1f; overflow-x: hidden; }
+        
+        /* 粒子画布 */
         canvas { display: block; position: fixed; top: 0; left: 0; z-index: -1; }
 
         /* ================== 2. UI 框架 ================== */
         .content-layer {
             position: relative; z-index: 10; width: 100%; min-height: 100vh;
             display: flex; flex-direction: column; align-items: center;
-            /* ⚠️ 强制显示，防止白屏 */
+            /* 保持显示，防止脚本错误导致白屏 */
             opacity: 1; 
         }
 
@@ -68,41 +70,42 @@
 
         /* ================== 4. 瀑布流容器 ================== */
         .galleries-wrapper { width: 100%; max-width: 1600px; padding: 0 40px 100px; box-sizing: border-box; }
-        .gallery-container { display: flex; align-items: flex-start; justify-content: center; gap: 30px; width: 100%; }
-        .masonry-column { flex: 1; display: flex; flex-direction: column; gap: 30px; min-width: 0; }
+        
+        .gallery-pane {
+            display: none; 
+            align-items: flex-start;
+            justify-content: center;
+            gap: 30px; 
+            width: 100%;
+        }
+        .gallery-pane.active { display: flex; }
 
-        /* 卡片设计 - 优化动效 */
+        .masonry-column {
+            flex: 1; display: flex; flex-direction: column; gap: 30px; min-width: 0;
+        }
+
+        /* 卡片设计 */
         .photo-card {
             width: 100%; border-radius: 16px; overflow: hidden;
             background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.6);
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
-            /* 只对 transform 和 shadow 做过渡，防止卡顿 */
-            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s ease;
+            
+            /* 动画优化：只针对阴影和位移 */
+            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
             cursor: pointer; display: flex; flex-direction: column; position: relative;
-            /* 初始透明 */
-            opacity: 0; transform: translateY(30px);
+            
+            opacity: 0; 
+            transform: translateY(30px);
+            animation: cardEnter 0.6s ease forwards;
         }
 
-        /* 卡片悬停：轻微上浮，不缩放 */
-        .photo-card:hover { 
-            transform: translateY(-6px); 
-            box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15); 
-            background: #fff; z-index: 2; 
-        }
+        @keyframes cardEnter { to { opacity: 1; transform: translateY(0); } }
+
+        .photo-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(66, 133, 244, 0.12); background: #fff; z-index: 2; }
         
-        .media-wrapper { 
-            position: relative; width: 100%; background: rgba(0,0,0,0.05); overflow: hidden; 
-            min-height: 100px; /* 最小高度占位 */
-        }
-        
-        .photo-card img, .photo-card video { 
-            width: 100%; height: 100%; display: block; object-fit: cover; 
-            /* 图片内部放大动效 */
-            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); 
-        }
-        
-        /* 悬停时：图片内部缓慢放大 */
-        .photo-card:hover img, .photo-card:hover video { transform: scale(1.06); }
+        .media-wrapper { position: relative; width: 100%; background: rgba(0,0,0,0.05); overflow: hidden; }
+        .photo-card img, .photo-card video { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform 0.6s ease; }
+        .photo-card:hover img, .photo-card:hover video { transform: scale(1.05); }
 
         .card-info { padding: 16px 20px; background: rgba(255,255,255,0.4); }
         .card-tag { font-size: 0.7rem; font-weight: 700; color: #4285F4; text-transform: uppercase; display: block; margin-bottom: 4px; }
@@ -123,7 +126,6 @@
 <body>
     
     <canvas id="canvas"></canvas>
-
     <div id="lightbox" onclick="closeLightbox()"><div class="close-btn">&times;</div><div id="lightbox-content"></div></div>
 
     <nav>
@@ -146,24 +148,21 @@
             <div class="filter-wrapper" id="filters"></div>
         </div>
 
-        <div class="galleries-wrapper">
-            <div class="gallery-container" id="gallery-container"></div>
-        </div>
-        
+        <div class="galleries-wrapper" id="galleries-root"></div>
         <footer>© 2026 Created by Zhangbling & Gemini</footer>
     </div>
 
     <script>
         // =========================================================================
-        // 🔧 自定义标题配置
+        // 📝 【自定义标题区】
         // =========================================================================
         const CUSTOM_TITLES = {
             'CG Style/1.jpg': '黑暗之魂同人',
-            'CG Style/2.jpg': '赛博朋克设定',
-            // 'Cartoon/5.webp': '快乐小镇设定',  <-- 对应你的文件名
+            'Cartoon/5.png': '小镇全家福',
+            // '文件夹/文件名.后缀': '标题'
         };
 
-        // 🟢 分类配置 (顺序决定显示顺序)
+        // 🔧 基础配置：【排序的核心】就是这个列表的顺序
         const CATEGORIES = [
             { id: 'CG Style',    name: 'CG风格',    en: 'CG Style' }, 
             { id: 'Cartoon',     name: '欧美卡通',  en: 'Cartoon' },
@@ -171,12 +170,10 @@
             { id: 'Character',   name: '角色原画',  en: 'Character' },
             { id: 'Other',       name: '其他类型',  en: 'Other' },
         ];
-
-        // 支持的文件格式 (包含了你截图里的 webp)
-        const SUPPORTED_FORMATS = ['.webp', '.png', '.jpg', '.jpeg', '.gif', '.mp4', '.mov'];
-        const MAX_SEARCH = 200; // 最多找多少张，设大一点以防万一
-
-        // 粒子参数 (保持不动)
+        
+        const SUPPORTED_FORMATS = ['.mp4', '.mov', '.gif', '.webp', '.jpg', '.png', '.jpeg'];
+        
+        // 🔧 粒子参数 (保留特效)
         const CONFIG = {
             introDuration: 200, explosionForce: 40, drag: 0.7, returnStrength: 0.01,
             particleCount: 1500, clusterRadius: 450, clusterRatioX: 1.55, clusterRatioY: 1.0, minDistance: 24,
@@ -187,25 +184,24 @@
             noiseScale: 0.003, timeSpeed: 0.0002, minLife: 300, maxLife: 800, fadeSpeed: 0.02
         };
 
-        // =========================================================================
+        // -------------------------------------------------------------------------
         // 🚀 核心逻辑
-        // =========================================================================
+        // -------------------------------------------------------------------------
         const filters = document.getElementById('filters');
-        const galleryContainer = document.getElementById('gallery-container');
+        const galleriesRoot = document.getElementById('galleries-root');
         const lightbox = document.getElementById('lightbox');
         const lightboxContent = document.getElementById('lightbox-content');
-        
-        let activeColumns = []; // 存储当前屏幕上的列 DOM
-        let activeColumnHeights = []; // 存储当前列的虚拟高度
-        let pendingItems = {}; // 待处理图片队列 { 'CG Style': [item, item...] }
+        let columnHeights = [];
+        let columnsDOM = [];
+        let pendingItems = {}; // 待处理图片队列
 
         function initPortfolio() {
             createFilterBtn('all', '全部作品', 'ALL WORKS', true);
             CATEGORIES.forEach(cat => createFilterBtn(cat.id, cat.name, cat.en));
             loadCategory('all');
             
-            // 启动定时器，每 150ms 处理一次新图片 (消灭闪烁的核心)
-            setInterval(processQueue, 150);
+            // 启动队列处理
+            setInterval(processQueue, 200);
         }
 
         function createFilterBtn(id, zh, en, isActive=false) {
@@ -223,39 +219,39 @@
         }
 
         function loadCategory(filterId) {
-            // 1. 清空当前容器
-            galleryContainer.innerHTML = '';
-            activeColumns = [];
-            activeColumnHeights = [];
-            pendingItems = {}; // 清空待处理队列
+            galleriesRoot.innerHTML = ''; 
+            columnHeights = []; columnsDOM = [];
+            pendingItems = {};
 
-            // 2. 响应式创建列
+            // 1. 【修改点】列数逻辑：电脑端强制4列，手机端强制1列
             let colCount = 4;
             const w = window.innerWidth;
-            if (w <= 600) colCount = 1;
-            else if (w <= 1000) colCount = 2;
-            else if (w <= 1400) colCount = 3;
+            if (w <= 600) {
+                colCount = 1; // 手机
+            } else if (w <= 1000) {
+                colCount = 2; // 平板
+            }
+            // 超过1000px的全部都是4列 (包括笔记本和台式机)
 
             for (let i = 0; i < colCount; i++) {
                 const col = document.createElement('div');
                 col.className = 'masonry-column';
-                galleryContainer.appendChild(col);
-                activeColumns.push(col);
-                activeColumnHeights.push(0);
+                galleriesRoot.appendChild(col);
+                columnsDOM.push(col);
+                columnHeights.push(0);
             }
 
-            // 3. 启动侦察兵
+            // 2. 启动侦察兵
             const targetCats = (filterId === 'all') ? CATEGORIES : CATEGORIES.filter(c => c.id === filterId);
             
             targetCats.forEach((cat, catIndex) => {
-                // catIndex 用于在“全部作品”中排序 (0, 1, 2...)
+                // catIndex 决定了该分类的排序位置 (0, 1, 2...)
                 for (let i = 1; i <= 5; i++) {
                     startScout(cat.id, cat.name, cat.en, i, filterId, catIndex);
                 }
             });
         }
 
-        // 预加载获取尺寸 (防止排版塌陷)
         function preloadImage(url) {
             return new Promise((resolve) => {
                 const img = new Image();
@@ -265,89 +261,85 @@
             });
         }
 
-        // 自动找图 (Auto-Pilot)
         async function startScout(folder, catName, catEn, index, catId, catOrder, errors = 0) {
-            if (errors > 3 || index > MAX_SEARCH) return;
+            // 最多找200张，或者连续失败3次
+            if (errors > 3 || index > 200) return;
 
             const mediaInfo = await findMedia(folder, index);
 
             if (mediaInfo) {
-                // 找到了！先获取尺寸
-                let dimensions = { ratio: 1.6 }; // 默认
+                let dimensions = { ratio: 1.6 }; 
                 if (mediaInfo.type === 'image') {
                     const loadedDim = await preloadImage(mediaInfo.src);
                     if (loadedDim) dimensions = loadedDim;
                 } else {
-                    dimensions = { ratio: 1.77 }; // 视频
+                    dimensions = { ratio: 1.77 }; 
                 }
 
-                // 加入待处理队列
                 if (!pendingItems[catId]) pendingItems[catId] = [];
                 
                 const fileKey = `${folder}/${index}${mediaInfo.ext}`;
                 const customTitle = CUSTOM_TITLES[fileKey];
 
-                pendingItems[catId].push({
-                    index,
-                    media: mediaInfo,
-                    catName,
-                    displayTitle: customTitle || catEn,
-                    catOrder,
+                pendingItems[catId].push({ 
+                    index, 
+                    media: mediaInfo, 
+                    catName, 
+                    displayTitle: customTitle || catEn, 
+                    catOrder, 
                     ratio: dimensions.ratio
                 });
 
                 // 继续找下一张
                 startScout(folder, catName, catEn, index + 5, catId, catOrder, 0);
             } else {
-                // 没找到，尝试下一个
                 startScout(folder, catName, catEn, index + 5, catId, catOrder, errors + 1);
             }
         }
 
-        // 队列处理 (排序 + 渲染)
+        // 【修改点】排序与渲染逻辑
         function processQueue() {
-            // 合并所有队列里的图 (针对“全部作品”视图)
-            let allPending = [];
-            for (let key in pendingItems) {
-                allPending = allPending.concat(pendingItems[key]);
-            }
-            if (allPending.length === 0) return;
+            // 这里我们按照 CATEGORIES 的顺序来处理 pendingItems
+            // 确保“全部作品”里，CG 的图都在 Cartoon 的图前面
+            CATEGORIES.forEach(cat => {
+                const catId = cat.id; // e.g., "CG Style"
+                const items = pendingItems[catId]; // 获取该分类下的所有待处理图片
 
-            // 🌟 排序：优先按分类顺序，然后按文件名(大号在前)
-            allPending.sort((a, b) => {
-                if (a.catOrder !== b.catOrder) return a.catOrder - b.catOrder;
-                return b.index - a.index; 
+                if (!items || items.length === 0) return;
+
+                // 同分类内部：按文件名数字排序 (小的在前，或者大的在前，看你喜好)
+                items.sort((a, b) => a.index - b.index); 
+
+                // 渲染该分类的所有图片
+                items.forEach(item => {
+                    // 找最短列
+                    let minIndex = 0;
+                    for (let i = 1; i < columnHeights.length; i++) {
+                        if (columnHeights[i] < columnHeights[minIndex]) minIndex = i;
+                    }
+                    
+                    const card = createCardDOM(item);
+                    if (columnsDOM[minIndex]) {
+                        columnsDOM[minIndex].appendChild(card);
+                        columnHeights[minIndex] += (1 / item.ratio);
+                        
+                        setTimeout(() => {
+                            card.style.opacity = 1;
+                            card.style.transform = 'translateY(0)';
+                        }, 50);
+                    }
+                });
+
+                // 清空该分类的队列
+                pendingItems[catId] = [];
             });
-
-            // 渲染并插入到最短列
-            allPending.forEach(item => {
-                // 找最短列
-                let minIndex = 0;
-                for (let i = 1; i < activeColumnHeights.length; i++) {
-                    if (activeColumnHeights[i] < activeColumnHeights[minIndex]) minIndex = i;
-                }
-
-                // 创建卡片
-                const card = createCardDOM(item);
-                activeColumns[minIndex].appendChild(card); // 插到屏幕上
-
-                // 更新高度
-                activeColumnHeights[minIndex] += (1 / item.ratio);
-
-                // 进场动画
-                setTimeout(() => {
-                    card.style.opacity = 1;
-                    card.style.transform = 'translateY(0)';
-                }, 50);
-            });
-
-            // 清空队列
-            pendingItems = {};
         }
 
         function createCardDOM(item) {
             const div = document.createElement('div');
             div.className = 'photo-card';
+            div.style.opacity = 0;
+            div.style.transform = 'translateY(30px)';
             
             let mediaHtml = '';
             if (item.media.type === 'video') {
@@ -385,7 +377,7 @@
             });
         }
 
-        // 灯箱 & 杂项
+        // 灯箱
         function openLightbox(media) {
             let content = media.type === 'video' ? `<video src="${media.src}" autoplay loop controls playsinline></video>` : `<img src="${media.src}">`;
             lightboxContent.innerHTML = content;
@@ -395,13 +387,19 @@
             lightbox.classList.remove('active');
             setTimeout(() => lightboxContent.innerHTML = '', 300);
         }
+
+        // 窗口重置
+        let resizeTimer;
         window.addEventListener('resize', () => {
-            const activeBtn = document.querySelector('.filter-btn.active');
-            if (activeBtn) setTimeout(() => activeBtn.click(), 500);
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                const activeBtn = document.querySelector('.filter-btn.active');
+                if (activeBtn) activeBtn.click();
+            }, 300);
         });
 
         // 粒子动画 (完整版)
-        const contentLayer = document.querySelector('.content-layer');
+        const contentLayer = document.getElementById('content');
         let width, height, DPR;
         let particles = [];
         const mouse = { x: -5000, y: -5000 };
@@ -409,7 +407,7 @@
         function init(){DPR=window.devicePixelRatio||1;width=window.innerWidth;height=window.innerHeight;canvas.width=width*DPR;canvas.height=height*DPR;canvas.style.width=width+'px';canvas.style.height=height+'px';ctx.scale(DPR,DPR);particles=[];for(let i=0;i<CONFIG.particleCount*3;i++){if(particles.length>=CONFIG.particleCount)break;const a=Math.random()*Math.PI*2;const r=Math.sqrt(Math.random())*CONFIG.clusterRadius;const x=width/2+Math.cos(a)*r*CONFIG.clusterRatioX;const y=height/2+Math.sin(a)*r*CONFIG.clusterRatioY;let ok=true;for(let p of particles){const dx=p.homeX-x;const dy=p.homeY-y;if(dx*dx+dy*dy<CONFIG.minDistance*CONFIG.minDistance){ok=false;break;}}if(ok)particles.push(new BioParticle(x,y));}GhostVoid.init();}
         function animate(){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.scale(DPR,DPR);frameCount++;GhostVoid.update(frameCount);const ex=frameCount<200;particles.forEach(p=>{p.update(frameCount,ex);p.draw();});requestAnimationFrame(animate);}
         window.addEventListener('resize',init);window.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
-        window.onload=()=>{init();animate();initPortfolio();};
+        window.onload=()=>{init();animate();setTimeout(()=>{contentLayer.classList.add('visible');},800);initPortfolio();};
     </script>
 </body>
 </html>
