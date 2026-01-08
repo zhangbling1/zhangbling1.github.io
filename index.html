@@ -11,42 +11,57 @@
     <style>
         /* ================== 1. 基础重置 ================== */
         body { margin: 0; background-color: #f0f2f5; font-family: 'Inter', sans-serif; color: #1f1f1f; overflow-x: hidden; }
-        
-        /* 粒子画布 */
         canvas { display: block; position: fixed; top: 0; left: 0; z-index: -1; }
 
         /* ================== 2. UI 框架 ================== */
         .content-layer {
             position: relative; z-index: 10; width: 100%; min-height: 100vh;
             display: flex; flex-direction: column; align-items: center;
-            opacity: 1; /* 强制显示 */
+            opacity: 1; 
         }
 
-        /* 导航 */
+        /* 顶部导航 (固定) */
         nav {
-            position: fixed; top: 0; left: 0; right: 0; padding: 20px 40px;
+            position: fixed; top: 0; left: 0; right: 0; height: 72px; padding: 0 40px;
             display: flex; justify-content: space-between; align-items: center;
-            background: linear-gradient(to bottom, rgba(255,255,255,0.95), rgba(255,255,255,0));
+            background: rgba(255,255,255,0.9); backdrop-filter: blur(10px);
             z-index: 100;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
         }
         .brand-container { display: flex; align-items: center; gap: 12px; text-decoration: none; }
         .nav-icon { height: 32px; width: auto; }
         .logo-text { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.4rem; color: #1a1a1a; letter-spacing: -0.5px; text-transform: uppercase; }
 
-        /* Hero */
-        .hero-section { margin-top: 15vh; margin-bottom: 40px; text-align: center; }
+        /* Hero 区域 */
+        .hero-section { margin-top: 18vh; margin-bottom: 30px; text-align: center; }
         .title-wrapper h1 { font-size: 5.5rem; line-height: 1.0; margin: 0 0 10px 0; color: #1a1a1a; letter-spacing: -2px; }
         .word-digital { font-family: 'Inter', sans-serif; font-weight: 800; }
         .word-biology { font-family: 'Playfair Display', serif; font-style: italic; font-weight: 600; }
         .hero-section p { font-size: 0.9rem; color: #666; letter-spacing: 1px; margin-top: 20px; }
 
-        /* 筛选栏 */
+        /* ================== 3. 筛选栏 (吸顶核心修复) ================== */
+        .filter-container {
+            /* 关键：使用 sticky 实现吸顶 */
+            position: sticky;
+            top: 72px; /* 这里的数值要等于导航栏的高度 */
+            z-index: 90;
+            width: 100%;
+            padding: 15px 0;
+            background: rgba(240, 242, 245, 0.95); /* 接近背景色，带一点透明 */
+            backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            transition: all 0.3s ease;
+            /* 加个下划线阴影，更有层次感 */
+            box-shadow: 0 1px 0px rgba(0,0,0,0.05); 
+        }
+
         .filter-wrapper {
             display: flex; gap: 8px; justify-content: center;
-            background: rgba(255,255,255,0.5); backdrop-filter: blur(10px);
-            padding: 6px; border-radius: 50px; margin-top: 40px;
+            background: rgba(255,255,255,0.6); 
+            padding: 6px; border-radius: 50px;
             border: 1px solid rgba(255,255,255,0.6);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.03);
             flex-wrap: wrap;
         }
         .filter-btn {
@@ -63,16 +78,16 @@
         @media (max-width: 600px) {
             .hero-section { padding: 0 20px; margin-top: 12vh; }
             .title-wrapper h1 { font-size: 3rem; }
-            .filter-wrapper { display: grid; grid-template-columns: repeat(3, 1fr); border-radius: 20px; padding: 10px; width: 90%; }
-            .filter-btn { padding: 8px 0; background: rgba(255,255,255,0.5); width: 100%; }
-            .nav-icon { height: 24px; } nav { padding: 15px 20px; }
+            .filter-container { top: 60px; padding: 10px 0; } /* 手机端导航可能变矮，这里微调 */
+            nav { padding: 0 20px; height: 60px; }
+            .filter-wrapper { display: grid; grid-template-columns: repeat(3, 1fr); width: 90%; border-radius: 20px; padding: 5px; }
+            .filter-btn { padding: 8px 0; width: 100%; }
         }
 
         /* ================== 4. 瀑布流容器 ================== */
         .galleries-wrapper { 
-            width: 100%; max-width: 1600px; padding: 0 40px 100px; box-sizing: border-box; 
-            display: flex; 
-            align-items: flex-start; justify-content: center; gap: 30px;
+            width: 100%; max-width: 1600px; padding: 20px 40px 100px; box-sizing: border-box; 
+            display: flex; align-items: flex-start; justify-content: center; gap: 30px;
             min-height: 50vh; 
         }
         .masonry-column {
@@ -84,24 +99,23 @@
             width: 100%; border-radius: 16px; overflow: hidden;
             background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.6);
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
-            transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.3s ease;
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
             cursor: pointer; display: flex; flex-direction: column; position: relative;
             
-            /* 进场动画：只有第一次创建时会播，后面移动时不会闪 */
+            /* 进场动画 */
             opacity: 0; animation: cardEnter 0.5s ease forwards;
         }
-        @keyframes cardEnter { to { opacity: 1; transform: translateY(0); } }
+        @keyframes cardEnter { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
 
         .photo-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15); background: #fff; z-index: 2; }
-        
         .media-wrapper { position: relative; width: 100%; background: rgba(0,0,0,0.05); overflow: hidden; }
-        .photo-card img, .photo-card video { width: 100%; height: auto; display: block; transition: transform 0.5s ease; }
+        .photo-card img, .photo-card video { width: 100%; height: auto; display: block; transition: transform 0.6s ease; }
         .photo-card:hover img, .photo-card:hover video { transform: scale(1.05); }
 
         .card-info { padding: 16px 20px; background: rgba(255,255,255,0.4); }
         .card-tag { font-size: 0.7rem; font-weight: 700; color: #4285F4; text-transform: uppercase; display: block; margin-bottom: 4px; }
         .card-title { font-size: 0.95rem; font-weight: 800; color: #222; margin: 0; letter-spacing: 0.5px; text-transform: uppercase; }
-        .video-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; padding: 3px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; backdrop-filter: blur(4px); z-index: 5; }
+        .video-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; padding: 3px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; backdrop-filter: blur(4px); z-index: 5; pointer-events: none;}
 
         /* 灯箱 */
         #lightbox { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; backdrop-filter: blur(10px); }
@@ -135,6 +149,9 @@
                 <h1><span class="word-digital">Design</span><span class="word-biology">Portfolio.</span></h1>
                 <p>Check out the latest online display of the portfolio</p>
             </div>
+        </div>
+
+        <div class="filter-container">
             <div class="filter-wrapper" id="filters"></div>
         </div>
 
@@ -154,11 +171,11 @@
             { id: 'Other',       name: '其他类型',  en: 'Other' },
         ];
 
-        // 尝试加载的格式
+        // ⚠️ 扩展名检测逻辑 (视频必须放在后面，但代码会优先检测)
         const EXTENSIONS = ['.webp', '.jpg', '.png', '.jpeg', '.gif', '.mp4', '.mov']; 
         const MAX_GUESS = 200; // 每个分类最大扫描数
 
-        // 自定义标题 (可选)
+        // 自定义标题
         const CUSTOM_TITLES = {
             'CG Style/1.jpg': '黑暗之魂同人',
             'Cartoon/5.webp': '快乐小镇',
@@ -176,16 +193,16 @@
         };
 
         // -----------------------------------------------------------
-        // 🚀 核心逻辑 (无闪烁防抖版)
+        // 🚀 核心逻辑
         // -----------------------------------------------------------
         const filters = document.getElementById('filters');
         const galleriesRoot = document.getElementById('galleries-root');
         const lightbox = document.getElementById('lightbox');
         const lightboxContent = document.getElementById('lightbox-content');
         
-        let loadedItems = []; // 存储所有图片数据
+        let loadedItems = []; 
         let currentFilter = 'all';
-        let columnsDOM = []; // 存储列的 DOM 引用
+        let columnsDOM = []; 
 
         function initPortfolio() {
             createFilterBtn('all', '全部作品', 'ALL WORKS', true);
@@ -203,7 +220,12 @@
                 document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
                 btn.classList.add('active');
                 currentFilter = id;
-                renderLayout(); // 切换分类时重新排布
+                renderLayout(); 
+                // 切换时自动吸顶 (如果滚得太远的话)
+                const filterTop = document.querySelector('.filter-container').offsetTop;
+                if(window.scrollY > filterTop) {
+                    window.scrollTo({ top: filterTop - 80, behavior: 'smooth' });
+                }
             };
             filters.appendChild(btn);
         }
@@ -212,7 +234,7 @@
             galleriesRoot.innerHTML = '';
             columnsDOM = [];
             
-            // ⚠️ 强制列数逻辑
+            // 强制列数逻辑
             let colCount = 4; // 电脑 > 1000px
             const w = window.innerWidth;
             if (w <= 600) colCount = 1; 
@@ -227,50 +249,68 @@
         }
 
         function startBlindScan() {
-            createColumns(); // 先建好列
+            createColumns(); 
 
             CATEGORIES.forEach((cat, catIndex) => {
                 for (let i = 1; i <= MAX_GUESS; i++) {
                     EXTENSIONS.forEach(ext => {
                         const src = `images/${cat.id}/${i}${ext}`;
-                        tryLoadImage(src, cat, i, ext, catIndex);
+                        // 智能判断是图片还是视频
+                        if (ext === '.mp4' || ext === '.mov') {
+                            tryLoadVideo(src, cat, i, ext, catIndex);
+                        } else {
+                            tryLoadImage(src, cat, i, ext, catIndex);
+                        }
                     });
                 }
             });
         }
 
+        // 🌟 视频加载器 (修复 MP4 不显示的问题)
+        function tryLoadVideo(src, cat, index, ext, catOrder) {
+            const video = document.createElement('video');
+            video.src = src;
+            video.preload = 'metadata'; // 只加载元数据，快
+            
+            video.onloadedmetadata = function() {
+                // 加载成功！
+                addItem(src, cat, index, ext, catOrder, this.videoWidth, this.videoHeight);
+            };
+            video.onerror = function() { /* 失败忽略 */ };
+        }
+
+        // 图片加载器
         function tryLoadImage(src, cat, index, ext, catOrder) {
             const img = new Image();
             img.src = src;
             
             img.onload = function() {
-                const fileKey = `${cat.id}/${index}${ext}`;
-                const customTitle = CUSTOM_TITLES[fileKey];
-                
-                // 1. 创建数据对象
-                const item = {
-                    src: src,
-                    catId: cat.id,
-                    catName: cat.name,
-                    title: customTitle || `${cat.en} ${index}`,
-                    width: this.width,
-                    height: this.height,
-                    ratio: this.width / this.height,
-                    catOrder: catOrder,
-                    index: index,
-                    dom: null // 先占位
-                };
-
-                // 2. 立即创建 DOM 节点 (只创建一次，以后只移动不销毁)
-                item.dom = createCardDOM(item);
-
-                // 3. 存入总表
-                loadedItems.push(item);
-
-                // 4. 触发防抖重排
-                requestLayout();
+                addItem(src, cat, index, ext, catOrder, this.width, this.height);
             };
-            img.onerror = function() {};
+            img.onerror = function() { /* 失败忽略 */ };
+        }
+
+        // 统一添加数据
+        function addItem(src, cat, index, ext, catOrder, width, height) {
+            const fileKey = `${cat.id}/${index}${ext}`;
+            const customTitle = CUSTOM_TITLES[fileKey];
+            
+            const item = {
+                src: src,
+                catId: cat.id,
+                catName: cat.name,
+                title: customTitle || `${cat.en} ${index}`,
+                width: width,
+                height: height,
+                ratio: width / height,
+                catOrder: catOrder,
+                index: index,
+                dom: null 
+            };
+
+            item.dom = createCardDOM(item);
+            loadedItems.push(item);
+            requestLayout();
         }
 
         let layoutTimer = null;
@@ -279,46 +319,40 @@
             layoutTimer = setTimeout(renderLayout, 100);
         }
 
-        // 🌟 核心：无闪烁重排 (Move, Don't Destroy)
+        // 渲染布局
         function renderLayout() {
-            // 1. 筛选
             let items = (currentFilter === 'all') 
                 ? loadedItems 
                 : loadedItems.filter(item => item.catId === currentFilter);
 
-            // 2. 排序 (正序：1, 2, 3...)
+            // 排序: 正序 (1, 2, 3...)
             items.sort((a, b) => {
                 if (currentFilter === 'all') {
                     if (a.catOrder !== b.catOrder) return a.catOrder - b.catOrder;
                 }
-                return a.index - b.index; // 👈 修正为正序
+                return a.index - b.index; 
             });
 
-            // 3. 隐藏所有不该显示的
             loadedItems.forEach(item => {
                 if (!items.includes(item) && item.dom.parentNode) {
-                    item.dom.remove(); // 暂时移除，下次需要时再加回来
+                    item.dom.remove(); 
                 }
             });
 
-            // 4. 智能分发 (只移动 DOM，不销毁)
-            let colHeights = new Array(columnsDOM.length).fill(0); // 记录当前各列高度
+            let colHeights = new Array(columnsDOM.length).fill(0); 
 
             items.forEach(item => {
-                // 找最短列
                 let minIndex = 0;
                 for (let i = 1; i < colHeights.length; i++) {
                     if (colHeights[i] < colHeights[minIndex]) minIndex = i;
                 }
 
-                // 关键：把 DOM 移动到那一列 (如果已经在里面，浏览器会自动处理，不闪烁)
                 columnsDOM[minIndex].appendChild(item.dom);
                 
-                // 确保显示
+                // 强制触发重绘，防止不显示
                 item.dom.style.opacity = 1;
                 item.dom.style.transform = 'translateY(0)';
 
-                // 更新高度记录
                 colHeights[minIndex] += (1 / item.ratio);
             });
         }
@@ -342,6 +376,18 @@
                 </div>
             `;
             div.onclick = () => openLightbox(item.src, isVideo);
+            
+            // 视频卡片鼠标悬停控制
+            if(isVideo) {
+                div.onmouseenter = () => {
+                    const v = div.querySelector('video');
+                    if(v) v.play();
+                }
+                div.onmouseleave = () => {
+                    const v = div.querySelector('video');
+                    // if(v) v.pause(); // 可选：移出暂停
+                }
+            }
             return div;
         }
 
@@ -358,7 +404,6 @@
             setTimeout(() => lightboxContent.innerHTML = '', 300);
         }
 
-        // 窗口重置
         let resizeTimer2;
         window.addEventListener('resize', () => {
             clearTimeout(resizeTimer2);
@@ -368,9 +413,7 @@
             }, 300);
         });
 
-        // =========================================================
-        // 🌌 粒子动画引擎 (完整版)
-        // =========================================================
+        // 粒子动画 (完整版)
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         let width, height, DPR;
