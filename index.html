@@ -13,7 +13,6 @@
         body { margin: 0; background-color: #f0f2f5; font-family: 'Inter', sans-serif; color: #1f1f1f; overflow-x: hidden; }
         canvas { display: block; position: fixed; top: 0; left: 0; z-index: -1; }
 
-        /* ================== 2. UI 框架 ================== */
         .content-layer {
             position: relative; z-index: 10; width: 100%; min-height: 100vh;
             display: flex; flex-direction: column; align-items: center;
@@ -80,28 +79,34 @@
         }
         .masonry-column { flex: 1; display: flex; flex-direction: column; gap: 30px; min-width: 0; }
 
-        /* ================== 卡片设计 (增加发光特效) ================== */
+        /* ================== 卡片设计 (无闪烁版) ================== */
         .photo-card {
             width: 100%; border-radius: 16px; overflow: hidden;
             background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); 
-            border: 1px solid rgba(255,255,255,0.6); /* 初始边框 */
+            border: 1px solid rgba(255,255,255,0.6);
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
             
-            /* ⚡️ 增加 border-color 的过渡，让发光更柔和 */
-            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease;
+            /* 交互动画 */
+            transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, opacity 0.5s ease;
             cursor: pointer; display: flex; flex-direction: column; position: relative;
             
-            opacity: 0; animation: cardEnter 0.5s ease forwards;
+            /* 初始状态：透明，但不使用 animation */
+            opacity: 0; 
+            transform: translateY(20px);
         }
-        @keyframes cardEnter { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* 进场类名：JS 加载完后加上这个类，让它慢慢显示 */
+        .photo-card.reveal {
+            opacity: 1;
+            transform: translateY(0);
+        }
 
         .photo-card:hover { 
             transform: translateY(-5px); 
-            /* ⚡️ 悬停时：加深阴影 + 增加蓝色外发光 (0 0 20px) */
+            /* 发光特效 */
             box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15), 0 0 20px rgba(66, 133, 244, 0.25); 
             background: #fff; 
             z-index: 2;
-            /* ⚡️ 悬停时：边框变蓝 */
             border-color: rgba(66, 133, 244, 0.6);
         }
         
@@ -168,9 +173,10 @@
             { id: 'Other',       name: '其他类型',  en: 'Other' },
         ];
 
-        // 扩展名检测逻辑
+        // 文件格式 (顺序优化)
         const EXTENSIONS = ['.webp', '.jpg', '.png', '.jpeg', '.gif', '.mp4', '.mov']; 
-        const MAX_GUESS = 200; 
+        const MAX_SEARCH = 300; // 每个分类最大扫描数
+        const MAX_ERRORS = 10;  // 连续失败多少次后停止扫描 (智能防卡)
 
         // 自定义标题
         const CUSTOM_TITLES = {
@@ -190,7 +196,7 @@
         };
 
         // -----------------------------------------------------------
-        // 🚀 核心逻辑
+        // 🚀 核心逻辑 (智能顺序加载 + 视频修复 + 防抖)
         // -----------------------------------------------------------
         const filters = document.getElementById('filters');
         const galleriesRoot = document.getElementById('galleries-root');
@@ -204,7 +210,11 @@
         function initPortfolio() {
             createFilterBtn('all', '全部作品', 'ALL WORKS', true);
             CATEGORIES.forEach(cat => createFilterBtn(cat.id, cat.name, cat.en));
-            startBlindScan();
+            
+            // 启动智能侦察兵
+            CATEGORIES.forEach((cat, index) => {
+                smartScout(cat, 1, index, 0);
+            });
         }
 
         function createFilterBtn(id, zh, en, isActive=false) {
@@ -216,6 +226,7 @@
                 btn.classList.add('active');
                 currentFilter = id;
                 renderLayout(); 
+                // 吸顶回滚
                 const filterTop = document.querySelector('.filter-container').offsetTop;
                 if(window.scrollY > filterTop) {
                     window.scrollTo({ top: filterTop - 80, behavior: 'smooth' });
@@ -228,7 +239,7 @@
             galleriesRoot.innerHTML = '';
             columnsDOM = [];
             
-            let colCount = 4; 
+            let colCount = 4; // 电脑 4 列
             const w = window.innerWidth;
             if (w <= 600) colCount = 1; 
             else if (w <= 1000) colCount = 2; 
@@ -241,57 +252,57 @@
             }
         }
 
-        function startBlindScan() {
-            createColumns(); 
-            CATEGORIES.forEach((cat, catIndex) => {
-                for (let i = 1; i <= MAX_GUESS; i++) {
-                    EXTENSIONS.forEach(ext => {
-                        const src = `images/${cat.id}/${i}${ext}`;
-                        if (ext === '.mp4' || ext === '.mov') {
-                            tryLoadVideo(src, cat, i, ext, catIndex);
-                        } else {
-                            tryLoadImage(src, cat, i, ext, catIndex);
-                        }
-                    });
-                }
+        // 🧠 智能侦察兵：递归找图，找到一张才找下一张，不占网速
+        async function smartScout(cat, index, catOrder, errors) {
+            if (errors > MAX_ERRORS || index > MAX_SEARCH) return;
+
+            // 并行检测所有后缀 (但只限当前index)
+            let found = false;
+            
+            const checkPromises = EXTENSIONS.map(ext => {
+                return new Promise(resolve => {
+                    const src = `images/${cat.id}/${index}${ext}`;
+                    const isVideo = ext === '.mp4' || ext === '.mov';
+                    
+                    if (isVideo) {
+                        const video = document.createElement('video');
+                        video.src = src;
+                        video.muted = true; 
+                        video.playsInline = true;
+                        video.preload = 'auto'; // 强制加载视频元数据
+                        video.onloadedmetadata = () => {
+                            resolve({ success: true, src, w: video.videoWidth || 1600, h: video.videoHeight || 900 });
+                            video.src = ""; // 释放
+                        };
+                        video.onerror = () => resolve({ success: false });
+                    } else {
+                        const img = new Image();
+                        img.src = src;
+                        img.onload = () => resolve({ success: true, src, w: img.width, h: img.height });
+                        img.onerror = () => resolve({ success: false });
+                    }
+                });
             });
+
+            // 等待最先返回的有效结果
+            // 我们不能用 Promise.race，因为可能第一个返回的是失败。
+            // 我们要等所有都结束，看有没有成功的。
+            const results = await Promise.all(checkPromises);
+            const valid = results.find(r => r.success);
+
+            if (valid) {
+                // 找到了！添加并显示
+                addItem(valid.src, cat, index, catOrder, valid.w, valid.h);
+                // 递归找下一张，重置错误计数
+                smartScout(cat, index + 1, catOrder, 0);
+            } else {
+                // 这张没找到，继续找下一张，错误计数+1
+                smartScout(cat, index + 1, catOrder, errors + 1);
+            }
         }
 
-        // 强力视频加载器
-        function tryLoadVideo(src, cat, index, ext, catOrder) {
-            const video = document.createElement('video');
-            video.src = src;
-            video.muted = true; 
-            video.playsInline = true;
-            video.preload = 'auto'; 
-
-            const onLoaded = function() {
-                if(video.hasLoaded) return; 
-                video.hasLoaded = true;
-                const w = this.videoWidth || 1600;
-                const h = this.videoHeight || 900;
-                addItem(src, cat, index, ext, catOrder, w, h);
-                video.src = "";
-                video.load();
-            };
-
-            video.onloadedmetadata = onLoaded;
-            video.onloadeddata = onLoaded;
-            video.oncanplay = onLoaded;
-            video.onerror = function() { /* 失败忽略 */ };
-            video.load(); 
-        }
-
-        function tryLoadImage(src, cat, index, ext, catOrder) {
-            const img = new Image();
-            img.src = src;
-            img.onload = function() {
-                addItem(src, cat, index, ext, catOrder, this.width, this.height);
-            };
-            img.onerror = function() { /* 失败忽略 */ };
-        }
-
-        function addItem(src, cat, index, ext, catOrder, width, height) {
+        function addItem(src, cat, index, catOrder, width, height) {
+            const ext = src.substring(src.lastIndexOf('.'));
             const fileKey = `${cat.id}/${index}${ext}`;
             const customTitle = CUSTOM_TITLES[fileKey];
             
@@ -316,14 +327,18 @@
         let layoutTimer = null;
         function requestLayout() {
             if (layoutTimer) clearTimeout(layoutTimer);
-            layoutTimer = setTimeout(renderLayout, 100);
+            layoutTimer = setTimeout(renderLayout, 50); // 防抖
         }
 
+        // 🌟 核心：无闪烁重排 (Diff Algorithm)
         function renderLayout() {
+            if (columnsDOM.length === 0) createColumns();
+
             let items = (currentFilter === 'all') 
                 ? loadedItems 
                 : loadedItems.filter(item => item.catId === currentFilter);
 
+            // 排序: 正序 (1, 2, 3...)
             items.sort((a, b) => {
                 if (currentFilter === 'all') {
                     if (a.catOrder !== b.catOrder) return a.catOrder - b.catOrder;
@@ -331,6 +346,7 @@
                 return a.index - b.index; 
             });
 
+            // 移除不该显示的
             loadedItems.forEach(item => {
                 if (!items.includes(item) && item.dom.parentNode) {
                     item.dom.remove(); 
@@ -340,14 +356,20 @@
             let colHeights = new Array(columnsDOM.length).fill(0); 
 
             items.forEach(item => {
+                // 找最短列
                 let minIndex = 0;
                 for (let i = 1; i < colHeights.length; i++) {
                     if (colHeights[i] < colHeights[minIndex]) minIndex = i;
                 }
 
-                columnsDOM[minIndex].appendChild(item.dom);
-                item.dom.style.opacity = 1;
-                item.dom.style.transform = 'translateY(0)';
+                // 🌟 关键：只有当它不在这一列时，才移动它！防止闪烁！
+                const targetCol = columnsDOM[minIndex];
+                if (item.dom.parentNode !== targetCol) {
+                    targetCol.appendChild(item.dom);
+                    // 进场特效
+                    setTimeout(() => item.dom.classList.add('reveal'), 10);
+                }
+
                 colHeights[minIndex] += (1 / item.ratio);
             });
         }
@@ -411,7 +433,6 @@
         function getSpatialSize(n){const d=Math.max(0,Math.min(1,n));const p=CONFIG.sizePeakPos;if(d<p)return CONFIG.sizeMin+Math.pow(d/p,1.5)*(CONFIG.sizeMax-CONFIG.sizeMin);return CONFIG.sizeMin+(1-Math.pow((d-p)/(1-p),0.6))*(CONFIG.sizeMax-CONFIG.sizeMin);}
         const GhostVoid={x:0,y:0,targetX:0,targetY:0,timer:0,currentRadius:0,init(){this.pickNewTarget();this.x=this.targetX;this.y=this.targetY;},pickNewTarget(){const a=Math.random()*Math.PI*2;const r=CONFIG.clusterRadius*(0.7+Math.random()*0.4);this.targetX=Math.cos(a)*r*CONFIG.clusterRatioX;this.targetY=Math.sin(a)*r*CONFIG.clusterRatioY;this.timer=CONFIG.voidWaitTime+Math.random()*200;},update(t){this.timer--;if(this.timer<0)this.pickNewTarget();this.x+=(this.targetX-this.x)*CONFIG.voidMoveSpeed;this.y+=(this.targetY-this.y)*CONFIG.voidMoveSpeed;this.currentRadius=CONFIG.voidBaseSize+Math.sin(t*0.01)*CONFIG.voidBreathing;}};
         class BioParticle{constructor(x,y){this.homeX=x;this.homeY=y;this.layer=Math.random();const dx=this.homeX-width/2;const dy=this.homeY-height/2;const a=CONFIG.clusterRadius*CONFIG.clusterRatioX;const b=CONFIG.clusterRadius*CONFIG.clusterRatioY;const n=Math.sqrt((dx*dx)/(a*a)+(dy*dy)/(b*b));this.baseGeneSize=getSpatialSize(n);this.x=width/2;this.y=height/2;const an=Math.atan2(this.homeY-height/2,this.homeX-width/2);const f=CONFIG.explosionForce*(0.5+Math.random()*1.0);this.vx=Math.cos(an)*f;this.vy=Math.sin(an)*f;this.rotation=0;this.phase=Math.random()*Math.PI*2;this.resetLife(true);this.currentColor={...CONFIG.colorBase};}resetLife(i=false){this.life=i?Math.random():0;this.lifeSpeed=1/(CONFIG.minLife+Math.random()*(CONFIG.maxLife-CONFIG.minLife));}update(t,e){if(e){this.vx*=CONFIG.drag;this.vy*=CONFIG.drag;const dhx=this.homeX-this.x;const dhy=this.homeY-this.y;this.vx+=dhx*CONFIG.returnStrength;this.vy+=dhy*CONFIG.returnStrength;this.x+=this.vx;this.y+=this.vy;this.rotation=Math.atan2(this.vy,this.vx);this.currentSize=this.baseGeneSize;this.currentAlpha=0.5;return;}this.life+=this.lifeSpeed;if(this.life>1+CONFIG.fadeSpeed*2)this.resetLife();let lf=1;if(this.life<0.2)lf=this.life/0.2;else if(this.life>0.8)lf=1-(this.life-0.8)/0.2;if(lf<0)lf=0;const rx=this.homeX-width/2;const ry=this.homeY-height/2;const dxv=rx-GhostVoid.x;const dyv=ry-GhostVoid.y;const dtv=Math.sqrt(dxv*dxv+dyv*dyv);const en=Simplex.noise3D(this.ox*0.01,this.oy*0.01,t*CONFIG.timeSpeed*2)*20;const evr=GhostVoid.currentRadius+en;if(dtv<evr)lf*=0;else if(dtv<evr+30)lf*=(dtv-evr)/30;const ns=Simplex.noise3D(this.homeX*0.003,this.homeY*0.003,t*CONFIG.timeSpeed);const ang=ns*Math.PI*2;const w=2+this.baseGeneSize;let bx=this.homeX+Math.cos(ang)*w;let by=this.homeY+Math.sin(ang)*w;const dx=bx-mouse.x;const dy=by-mouse.y;const d=Math.sqrt(dx*dx+dy*dy);let px=0,py=0;let ta=ang;if(d<CONFIG.mouseSenseDist){ta=Math.atan2(mouse.y-by,mouse.x-bx);if(d<CONFIG.colorChangeDist){const b=1-(d/CONFIG.colorChangeDist);this.currentColor.r+=(CONFIG.colorHover.r-this.currentColor.r)*0.15*b;this.currentColor.g+=(CONFIG.colorHover.g-this.currentColor.g)*0.15*b;this.currentColor.b+=(CONFIG.colorHover.b-this.currentColor.b)*0.15*b;}else{this.currentColor.r+=(CONFIG.colorBase.r-this.currentColor.r)*0.05;this.currentColor.g+=(CONFIG.colorBase.g-this.currentColor.g)*0.05;this.currentColor.b+=(CONFIG.colorBase.b-this.currentColor.b)*0.05;}if(d<CONFIG.mouseRepelDist){const dxc=this.homeX-width/2;const dyc=this.homeY-height/2;const s=Math.min(1,Math.max(0,(Math.sqrt(dxc*dxc+dyc*dyc)-100)/200));const f=Math.pow((CONFIG.mouseRepelDist-d)/CONFIG.mouseRepelDist,2)*50*s;px=Math.cos(Math.atan2(dy,dx))*f;py=Math.sin(Math.atan2(dy,dx))*f;}}else{this.currentColor.r+=(CONFIG.colorBase.r-this.currentColor.r)*0.05;this.currentColor.g+=(CONFIG.colorBase.g-this.currentColor.g)*0.05;this.currentColor.b+=(CONFIG.colorBase.b-this.currentColor.b)*0.05;}let df=ta-this.rotation;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;this.rotation+=df*0.1;this.x+=(bx+px-this.x)*0.1;this.y+=(by+py-this.y)*0.1;this.currentSize=this.baseGeneSize*(1+Math.sin(t*0.05+this.phase)*0.1)*lf;const af=(this.baseGeneSize-CONFIG.sizeMin)/(CONFIG.sizeMax-CONFIG.sizeMin);this.currentAlpha=(0.3+af*0.6)*lf;}draw(){if(this.currentSize<0.2)return;ctx.save();ctx.translate(this.x,this.y);ctx.rotate(this.rotation);const w=this.currentSize;ctx.fillStyle=`rgba(${this.currentColor.r},${this.currentColor.g},${this.currentColor.b},${this.currentAlpha})`;ctx.beginPath();ctx.arc(-w*CONFIG.aspectRatio/4,0,w/2,Math.PI*0.5,Math.PI*1.5);ctx.arc(w*CONFIG.aspectRatio/4,0,w/2,Math.PI*1.5,Math.PI*0.5);ctx.closePath();ctx.fill();ctx.restore();}}
-        
         function init(){DPR=window.devicePixelRatio||1;width=window.innerWidth;height=window.innerHeight;canvas.width=width*DPR;canvas.height=height*DPR;canvas.style.width=width+'px';canvas.style.height=height+'px';ctx.scale(DPR,DPR);particles=[];for(let i=0;i<CONFIG.particleCount*3;i++){if(particles.length>=CONFIG.particleCount)break;const a=Math.random()*Math.PI*2;const r=Math.sqrt(Math.random())*CONFIG.clusterRadius;const x=width/2+Math.cos(a)*r*CONFIG.clusterRatioX;const y=height/2+Math.sin(a)*r*CONFIG.clusterRatioY;let ok=true;for(let p of particles){const dx=p.homeX-x;const dy=p.homeY-y;if(dx*dx+dy*dy<CONFIG.minDistance*CONFIG.minDistance){ok=false;break;}}if(ok)particles.push(new BioParticle(x,y));}GhostVoid.init();}
         function animate(){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.scale(DPR,DPR);frameCount++;GhostVoid.update(frameCount);const ex=frameCount<200;particles.forEach(p=>{p.update(frameCount,ex);p.draw();});requestAnimationFrame(animate);}
         
