@@ -11,21 +11,13 @@
     <style>
         /* ================== 1. 基础重置 ================== */
         body { margin: 0; background-color: #f0f2f5; font-family: 'Inter', sans-serif; color: #1f1f1f; overflow-x: hidden; }
-        
-        /* 🌌 粒子画布 */
-        canvas { 
-            display: block; 
-            position: fixed; 
-            top: 0; left: 0; 
-            z-index: -1; /* 放在最底层 */
-            pointer-events: none; /* 鼠标穿透，不影响点击 */
-        }
+        canvas { display: block; position: fixed; top: 0; left: 0; z-index: -1; }
 
         /* ================== 2. UI 框架 ================== */
         .content-layer {
             position: relative; z-index: 10; width: 100%; min-height: 100vh;
             display: flex; flex-direction: column; align-items: center;
-            /* 移除 opacity: 0，防止脚本报错时白屏 */
+            /* ⚠️ 强制显示，防止白屏 */
             opacity: 1; 
         }
 
@@ -76,30 +68,41 @@
 
         /* ================== 4. 瀑布流容器 ================== */
         .galleries-wrapper { width: 100%; max-width: 1600px; padding: 0 40px 100px; box-sizing: border-box; }
-        .gallery-pane { display: none; align-items: flex-start; justify-content: center; gap: 30px; width: 100%; }
-        .gallery-pane.active { display: flex; }
+        .gallery-container { display: flex; align-items: flex-start; justify-content: center; gap: 30px; width: 100%; }
         .masonry-column { flex: 1; display: flex; flex-direction: column; gap: 30px; min-width: 0; }
 
-        /* 卡片设计 */
+        /* 卡片设计 - 优化动效 */
         .photo-card {
             width: 100%; border-radius: 16px; overflow: hidden;
             background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.6);
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
-            /* 优化动效：只做阴影变化，防止跳动 */
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            /* 只对 transform 和 shadow 做过渡，防止卡顿 */
+            transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.4s ease;
             cursor: pointer; display: flex; flex-direction: column; position: relative;
-            
-            opacity: 0; animation: cardEnter 0.6s ease forwards;
+            /* 初始透明 */
+            opacity: 0; transform: translateY(30px);
         }
-        @keyframes cardEnter { to { opacity: 1; transform: translateY(0); } }
 
-        /* 悬停：轻微上浮 */
-        .photo-card:hover { transform: translateY(-5px); box-shadow: 0 20px 40px rgba(66, 133, 244, 0.12); background: #fff; z-index: 2; }
+        /* 卡片悬停：轻微上浮，不缩放 */
+        .photo-card:hover { 
+            transform: translateY(-6px); 
+            box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15); 
+            background: #fff; z-index: 2; 
+        }
         
-        .media-wrapper { position: relative; width: 100%; background: rgba(0,0,0,0.05); overflow: hidden; min-height: 150px; }
-        .photo-card img, .photo-card video { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform 0.6s ease; }
-        /* 图片放大 */
-        .photo-card:hover img, .photo-card:hover video { transform: scale(1.05); }
+        .media-wrapper { 
+            position: relative; width: 100%; background: rgba(0,0,0,0.05); overflow: hidden; 
+            min-height: 100px; /* 最小高度占位 */
+        }
+        
+        .photo-card img, .photo-card video { 
+            width: 100%; height: 100%; display: block; object-fit: cover; 
+            /* 图片内部放大动效 */
+            transition: transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); 
+        }
+        
+        /* 悬停时：图片内部缓慢放大 */
+        .photo-card:hover img, .photo-card:hover video { transform: scale(1.06); }
 
         .card-info { padding: 16px 20px; background: rgba(255,255,255,0.4); }
         .card-tag { font-size: 0.7rem; font-weight: 700; color: #4285F4; text-transform: uppercase; display: block; margin-bottom: 4px; }
@@ -120,6 +123,7 @@
 <body>
     
     <canvas id="canvas"></canvas>
+
     <div id="lightbox" onclick="closeLightbox()"><div class="close-btn">&times;</div><div id="lightbox-content"></div></div>
 
     <nav>
@@ -142,23 +146,24 @@
             <div class="filter-wrapper" id="filters"></div>
         </div>
 
-        <div class="galleries-wrapper" id="galleries-root"></div>
+        <div class="galleries-wrapper">
+            <div class="gallery-container" id="gallery-container"></div>
+        </div>
+        
         <footer>© 2026 Created by Zhangbling & Gemini</footer>
     </div>
 
     <script>
         // =========================================================================
-        // 🔧 配置区
+        // 🔧 自定义标题配置
         // =========================================================================
-        
-        // 1. 自定义标题配置 (想改名就在这里写)
         const CUSTOM_TITLES = {
             'CG Style/1.jpg': '黑暗之魂同人',
-            'Cartoon/5.png': '小镇全家福',
-            // '文件夹/文件名.后缀': '标题'
+            'CG Style/2.jpg': '赛博朋克设定',
+            // 'Cartoon/5.webp': '快乐小镇设定',  <-- 对应你的文件名
         };
 
-        // 2. 分类配置
+        // 🟢 分类配置 (顺序决定显示顺序)
         const CATEGORIES = [
             { id: 'CG Style',    name: 'CG风格',    en: 'CG Style' }, 
             { id: 'Cartoon',     name: '欧美卡通',  en: 'Cartoon' },
@@ -167,10 +172,11 @@
             { id: 'Other',       name: '其他类型',  en: 'Other' },
         ];
 
+        // 支持的文件格式 (包含了你截图里的 webp)
         const SUPPORTED_FORMATS = ['.webp', '.png', '.jpg', '.jpeg', '.gif', '.mp4', '.mov'];
-        const MAX_SEARCH_COUNT = 100; // 每个分类最多找多少张图 (改大了可以找更多)
+        const MAX_SEARCH = 200; // 最多找多少张，设大一点以防万一
 
-        // 粒子参数
+        // 粒子参数 (保持不动)
         const CONFIG = {
             introDuration: 200, explosionForce: 40, drag: 0.7, returnStrength: 0.01,
             particleCount: 1500, clusterRadius: 450, clusterRatioX: 1.55, clusterRatioY: 1.0, minDistance: 24,
@@ -185,22 +191,20 @@
         // 🚀 核心逻辑
         // =========================================================================
         const filters = document.getElementById('filters');
-        const galleriesRoot = document.getElementById('galleries-root');
+        const galleryContainer = document.getElementById('gallery-container');
         const lightbox = document.getElementById('lightbox');
         const lightboxContent = document.getElementById('lightbox-content');
         
-        // 状态管理
-        let columnHeights = [];
-        let columnsDOM = [];
-        let pendingItems = {}; 
-        let scoutsLaunched = {};
+        let activeColumns = []; // 存储当前屏幕上的列 DOM
+        let activeColumnHeights = []; // 存储当前列的虚拟高度
+        let pendingItems = {}; // 待处理图片队列 { 'CG Style': [item, item...] }
 
         function initPortfolio() {
             createFilterBtn('all', '全部作品', 'ALL WORKS', true);
             CATEGORIES.forEach(cat => createFilterBtn(cat.id, cat.name, cat.en));
             loadCategory('all');
             
-            // 启动队列处理 (解决闪烁的关键)
+            // 启动定时器，每 150ms 处理一次新图片 (消灭闪烁的核心)
             setInterval(processQueue, 150);
         }
 
@@ -219,11 +223,13 @@
         }
 
         function loadCategory(filterId) {
-            galleriesRoot.innerHTML = ''; 
-            columnHeights = []; columnsDOM = [];
-            pendingItems = {};
+            // 1. 清空当前容器
+            galleryContainer.innerHTML = '';
+            activeColumns = [];
+            activeColumnHeights = [];
+            pendingItems = {}; // 清空待处理队列
 
-            // 1. 创建列
+            // 2. 响应式创建列
             let colCount = 4;
             const w = window.innerWidth;
             if (w <= 600) colCount = 1;
@@ -233,24 +239,23 @@
             for (let i = 0; i < colCount; i++) {
                 const col = document.createElement('div');
                 col.className = 'masonry-column';
-                galleriesRoot.appendChild(col);
-                columnsDOM.push(col);
-                columnHeights.push(0);
+                galleryContainer.appendChild(col);
+                activeColumns.push(col);
+                activeColumnHeights.push(0);
             }
 
-            // 2. 启动侦察兵
+            // 3. 启动侦察兵
             const targetCats = (filterId === 'all') ? CATEGORIES : CATEGORIES.filter(c => c.id === filterId);
             
             targetCats.forEach((cat, catIndex) => {
-                // 如果是切换回来，不需要重新fetch，这里为了简化直接重新跑
-                // 启动 5 个并发侦察
+                // catIndex 用于在“全部作品”中排序 (0, 1, 2...)
                 for (let i = 1; i <= 5; i++) {
                     startScout(cat.id, cat.name, cat.en, i, filterId, catIndex);
                 }
             });
         }
 
-        // 🚀 预加载图片获取尺寸
+        // 预加载获取尺寸 (防止排版塌陷)
         function preloadImage(url) {
             return new Promise((resolve) => {
                 const img = new Image();
@@ -260,15 +265,15 @@
             });
         }
 
+        // 自动找图 (Auto-Pilot)
         async function startScout(folder, catName, catEn, index, catId, catOrder, errors = 0) {
-            // 自动寻找，直到 MAX_SEARCH_COUNT 或者 连续3次失败
-            if (errors > 3 || index > MAX_SEARCH_COUNT) return;
+            if (errors > 3 || index > MAX_SEARCH) return;
 
             const mediaInfo = await findMedia(folder, index);
 
             if (mediaInfo) {
-                // 找到了！先预加载尺寸，防止排版错乱
-                let dimensions = { ratio: 1.6 }; 
+                // 找到了！先获取尺寸
+                let dimensions = { ratio: 1.6 }; // 默认
                 if (mediaInfo.type === 'image') {
                     const loadedDim = await preloadImage(mediaInfo.src);
                     if (loadedDim) dimensions = loadedDim;
@@ -276,22 +281,22 @@
                     dimensions = { ratio: 1.77 }; // 视频
                 }
 
+                // 加入待处理队列
                 if (!pendingItems[catId]) pendingItems[catId] = [];
                 
-                // 匹配自定义标题
                 const fileKey = `${folder}/${index}${mediaInfo.ext}`;
                 const customTitle = CUSTOM_TITLES[fileKey];
 
-                pendingItems[catId].push({ 
-                    index, 
-                    media: mediaInfo, 
-                    catName, 
-                    displayTitle: customTitle || catEn, 
-                    catOrder, 
+                pendingItems[catId].push({
+                    index,
+                    media: mediaInfo,
+                    catName,
+                    displayTitle: customTitle || catEn,
+                    catOrder,
                     ratio: dimensions.ratio
                 });
 
-                // 继续找
+                // 继续找下一张
                 startScout(folder, catName, catEn, index + 5, catId, catOrder, 0);
             } else {
                 // 没找到，尝试下一个
@@ -299,49 +304,50 @@
             }
         }
 
+        // 队列处理 (排序 + 渲染)
         function processQueue() {
-            // 只处理当前激活的分类（简化逻辑）
-            // 实际应用中可以处理所有，但为了性能只处理 pendingItems
-            for (let catId in pendingItems) {
-                const items = pendingItems[catId];
-                if (items.length === 0) continue;
-
-                // 排序：分类优先 -> 大号在前
-                items.sort((a, b) => {
-                    if (a.catOrder !== b.catOrder) return a.catOrder - b.catOrder;
-                    return b.index - a.index; // 倒序
-                });
-
-                // 分发到最短列
-                items.forEach(item => {
-                    // 找最短
-                    let minIndex = 0;
-                    for (let i = 1; i < columnHeights.length; i++) {
-                        if (columnHeights[i] < columnHeights[minIndex]) minIndex = i;
-                    }
-                    
-                    const card = createCardDOM(item);
-                    if (columnsDOM[minIndex]) {
-                        columnsDOM[minIndex].appendChild(card);
-                        columnHeights[minIndex] += (1 / item.ratio);
-                        
-                        // 进场动画
-                        setTimeout(() => {
-                            card.style.opacity = 1;
-                            card.style.transform = 'translateY(0)';
-                        }, 50);
-                    }
-                });
-
-                pendingItems[catId] = [];
+            // 合并所有队列里的图 (针对“全部作品”视图)
+            let allPending = [];
+            for (let key in pendingItems) {
+                allPending = allPending.concat(pendingItems[key]);
             }
+            if (allPending.length === 0) return;
+
+            // 🌟 排序：优先按分类顺序，然后按文件名(大号在前)
+            allPending.sort((a, b) => {
+                if (a.catOrder !== b.catOrder) return a.catOrder - b.catOrder;
+                return b.index - a.index; 
+            });
+
+            // 渲染并插入到最短列
+            allPending.forEach(item => {
+                // 找最短列
+                let minIndex = 0;
+                for (let i = 1; i < activeColumnHeights.length; i++) {
+                    if (activeColumnHeights[i] < activeColumnHeights[minIndex]) minIndex = i;
+                }
+
+                // 创建卡片
+                const card = createCardDOM(item);
+                activeColumns[minIndex].appendChild(card); // 插到屏幕上
+
+                // 更新高度
+                activeColumnHeights[minIndex] += (1 / item.ratio);
+
+                // 进场动画
+                setTimeout(() => {
+                    card.style.opacity = 1;
+                    card.style.transform = 'translateY(0)';
+                }, 50);
+            });
+
+            // 清空队列
+            pendingItems = {};
         }
 
         function createCardDOM(item) {
             const div = document.createElement('div');
             div.className = 'photo-card';
-            div.style.opacity = 0;
-            div.style.transform = 'translateY(30px)';
             
             let mediaHtml = '';
             if (item.media.type === 'video') {
@@ -379,7 +385,7 @@
             });
         }
 
-        // 灯箱
+        // 灯箱 & 杂项
         function openLightbox(media) {
             let content = media.type === 'video' ? `<video src="${media.src}" autoplay loop controls playsinline></video>` : `<img src="${media.src}">`;
             lightboxContent.innerHTML = content;
@@ -389,26 +395,17 @@
             lightbox.classList.remove('active');
             setTimeout(() => lightboxContent.innerHTML = '', 300);
         }
-
-        // 窗口重置
-        let resizeTimer;
         window.addEventListener('resize', () => {
-            clearTimeout(resizeTimer);
-            resizeTimer = setTimeout(() => {
-                const activeBtn = document.querySelector('.filter-btn.active');
-                if (activeBtn) activeBtn.click();
-            }, 300);
+            const activeBtn = document.querySelector('.filter-btn.active');
+            if (activeBtn) setTimeout(() => activeBtn.click(), 500);
         });
 
-        // 粒子动画 (恢复完整版)
-        const contentLayer = document.getElementById('content');
+        // 粒子动画 (完整版)
+        const contentLayer = document.querySelector('.content-layer');
         let width, height, DPR;
         let particles = [];
         const mouse = { x: -5000, y: -5000 };
         const Simplex=(function(){const p=new Uint8Array([151,160,137,91,90,15,131,13,201,95,96,53,194,233,7,225,140,36,103,30,69,142,8,99,37,240,21,10,23,190,6,148,247,120,234,75,0,26,197,62,94,252,219,203,117,35,11,32,57,177,33,88,237,149,56,87,174,20,125,136,171,168,68,175,74,165,71,134,139,48,27,166,77,146,158,231,83,111,229,122,60,211,133,230,220,105,92,41,55,46,245,40,244,102,143,54,65,25,63,161,1,216,80,73,209,76,132,187,208,89,18,169,200,196,135,130,116,188,159,86,164,100,109,198,173,186,3,64,52,217,226,250,124,123,5,202,38,147,118,126,255,82,85,212,207,206,59,227,47,16,58,17,182,189,28,42,223,183,170,213,119,248,152,2,44,154,163,70,221,153,101,155,167,43,172,9,129,22,39,253,19,98,108,110,79,113,224,232,178,185,112,104,218,246,97,228,251,34,242,193,238,210,144,12,191,179,162,241,81,51,145,235,249,14,239,107,49,192,214,31,181,199,106,157,184,84,204,176,115,121,50,45,127,4,150,254,138,236,205,93,222,114,67,29,24,72,243,141,128,195,78,66,215,61,156,180]);const perm=new Uint8Array(512);for(let i=0;i<512;i++)perm[i]=p[i&255];const grad3=[[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];return{noise3D:(x,y,z)=>{let n0,n1,n2,n3;const F3=1.0/3.0,s=(x+y+z)*F3,i=Math.floor(x+s),j=Math.floor(y+s),k=Math.floor(z+s);const G3=1.0/6.0,t=(i+j+k)*G3,X0=i-t,Y0=j-t,Z0=k-t,x0=x-X0,y0=y-Y0,z0=z-Z0;let i1,j1,k1,i2,j2,k2;if(x0>=y0){if(y0>=z0){i1=1;j1=0;k1=0;i2=1;j2=1;k2=0;}else if(x0>=z0){i1=1;j1=0;k1=0;i2=1;j2=0;k2=1;}else{i1=0;j1=0;k1=1;i2=1;j2=0;k2=1;}}else{if(y0<z0){i1=0;j1=0;k1=1;i2=0;j2=1;k2=1;}else if(x0<z0){i1=0;j1=1;k1=0;i2=0;j2=1;k2=1;}else{i1=0;j1=1;k1=0;i2=1;j2=1;k2=0;}}const x1=x0-i1+G3,y1=y0-j1+G3,z1=z0-k1+G3,x2=x0-i2+2.0*G3,y2=y0-j2+2.0*G3,z2=z0-k2+2.0*G3,x3=x0-1.0+3.0*G3,y3=y0-1.0+3.0*G3,z3=z0-1.0+3.0*G3;const ii=i&255,jj=j&255,kk=k&255;const gi0=perm[ii+perm[jj+perm[kk]]]%12,gi1=perm[ii+i1+perm[jj+j1+perm[kk+k1]]]%12,gi2=perm[ii+i2+perm[jj+j2+perm[kk+k2]]]%12,gi3=perm[ii+1+perm[jj+1+perm[kk+1]]]%12;let t0=0.6-x0*x0-y0*y0-z0*z0;if(t0<0)n0=0.0;else{t0*=t0;n0=t0*t0*(grad3[gi0][0]*x0+grad3[gi0][1]*y0+grad3[gi0][2]*z0);}let t1=0.6-x1*x1-y1*y1-z1*z1;if(t1<0)n1=0.0;else{t1*=t1;n1=t1*t1*(grad3[gi1][0]*x1+grad3[gi1][1]*y1+grad3[gi1][2]*z1);}let t2=0.6-x2*x2-y2*y2-z2*z2;if(t2<0)n2=0.0;else{t2*=t2;n2=t2*t2*(grad3[gi2][0]*x2+grad3[gi2][1]*y2+grad3[gi2][2]*z2);}let t3=0.6-x3*x3-y3*y3-z3*z3;if(t3<0)n3=0.0;else{t3*=t3;n3=t3*t3*(grad3[gi3][0]*x3+grad3[gi3][1]*y3+grad3[gi3][2]*z3);}return 32.0*(n0+n1+n2+n3);}}})();
-        function getSpatialSize(n){const d=Math.max(0,Math.min(1,n));const p=CONFIG.sizePeakPos;if(d<p)return CONFIG.sizeMin+Math.pow(d/p,1.5)*(CONFIG.sizeMax-CONFIG.sizeMin);return CONFIG.sizeMin+(1-Math.pow((d-p)/(1-p),0.6))*(CONFIG.sizeMax-CONFIG.sizeMin);}
-        const GhostVoid={x:0,y:0,targetX:0,targetY:0,timer:0,currentRadius:0,init(){this.pickNewTarget();this.x=this.targetX;this.y=this.targetY;},pickNewTarget(){const a=Math.random()*Math.PI*2;const r=CONFIG.clusterRadius*(0.7+Math.random()*0.4);this.targetX=Math.cos(a)*r*CONFIG.clusterRatioX;this.targetY=Math.sin(a)*r*CONFIG.clusterRatioY;this.timer=CONFIG.voidWaitTime+Math.random()*200;},update(t){this.timer--;if(this.timer<0)this.pickNewTarget();this.x+=(this.targetX-this.x)*CONFIG.voidMoveSpeed;this.y+=(this.targetY-this.y)*CONFIG.voidMoveSpeed;this.currentRadius=CONFIG.voidBaseSize+Math.sin(t*0.01)*CONFIG.voidBreathing;}};
-        class BioParticle{constructor(x,y){this.homeX=x;this.homeY=y;this.layer=Math.random();const dx=this.homeX-width/2;const dy=this.homeY-height/2;const a=CONFIG.clusterRadius*CONFIG.clusterRatioX;const b=CONFIG.clusterRadius*CONFIG.clusterRatioY;const n=Math.sqrt((dx*dx)/(a*a)+(dy*dy)/(b*b));this.baseGeneSize=getSpatialSize(n);this.x=width/2;this.y=height/2;const an=Math.atan2(this.homeY-height/2,this.homeX-width/2);const f=CONFIG.explosionForce*(0.5+Math.random()*1.0);this.vx=Math.cos(an)*f;this.vy=Math.sin(an)*f;this.rotation=0;this.phase=Math.random()*Math.PI*2;this.resetLife(true);this.currentColor={...CONFIG.colorBase};}resetLife(i=false){this.life=i?Math.random():0;this.lifeSpeed=1/(CONFIG.minLife+Math.random()*(CONFIG.maxLife-CONFIG.minLife));}update(t,e){if(e){this.vx*=CONFIG.drag;this.vy*=CONFIG.drag;const dhx=this.homeX-this.x;const dhy=this.homeY-this.y;this.vx+=dhx*CONFIG.returnStrength;this.vy+=dhy*CONFIG.returnStrength;this.x+=this.vx;this.y+=this.vy;this.rotation=Math.atan2(this.vy,this.vx);this.currentSize=this.baseGeneSize;this.currentAlpha=0.5;return;}this.life+=this.lifeSpeed;if(this.life>1+CONFIG.fadeSpeed*2)this.resetLife();let lf=1;if(this.life<0.2)lf=this.life/0.2;else if(this.life>0.8)lf=1-(this.life-0.8)/0.2;if(lf<0)lf=0;const rx=this.homeX-width/2;const ry=this.homeY-height/2;const dxv=rx-GhostVoid.x;const dyv=ry-GhostVoid.y;const dtv=Math.sqrt(dxv*dxv+dyv*dyv);const en=Simplex.noise3D(this.ox*0.01,this.oy*0.01,t*CONFIG.timeSpeed*2)*20;const evr=GhostVoid.currentRadius+en;if(dtv<evr)lf*=0;else if(dtv<evr+30)lf*=(dtv-evr)/30;const ns=Simplex.noise3D(this.homeX*0.003,this.homeY*0.003,t*CONFIG.timeSpeed);const ang=ns*Math.PI*2;const w=2+this.baseGeneSize;let bx=this.homeX+Math.cos(ang)*w;let by=this.homeY+Math.sin(ang)*w;const dx=bx-mouse.x;const dy=by-mouse.y;const d=Math.sqrt(dx*dx+dy*dy);let px=0,py=0;let ta=ang;if(d<CONFIG.mouseSenseDist){ta=Math.atan2(mouse.y-by,mouse.x-bx);if(d<CONFIG.colorChangeDist){const b=1-(d/CONFIG.colorChangeDist);this.currentColor.r+=(CONFIG.colorHover.r-this.currentColor.r)*0.15*b;this.currentColor.g+=(CONFIG.colorHover.g-this.currentColor.g)*0.15*b;this.currentColor.b+=(CONFIG.colorHover.b-this.currentColor.b)*0.15*b;}else{this.currentColor.r+=(CONFIG.colorBase.r-this.currentColor.r)*0.05;this.currentColor.g+=(CONFIG.colorBase.g-this.currentColor.g)*0.05;this.currentColor.b+=(CONFIG.colorBase.b-this.currentColor.b)*0.05;}if(d<CONFIG.mouseRepelDist){const dxc=this.homeX-width/2;const dyc=this.homeY-height/2;const s=Math.min(1,Math.max(0,(Math.sqrt(dxc*dxc+dyc*dyc)-100)/200));const f=Math.pow((CONFIG.mouseRepelDist-d)/CONFIG.mouseRepelDist,2)*50*s;px=Math.cos(Math.atan2(dy,dx))*f;py=Math.sin(Math.atan2(dy,dx))*f;}}else{this.currentColor.r+=(CONFIG.colorBase.r-this.currentColor.r)*0.05;this.currentColor.g+=(CONFIG.colorBase.g-this.currentColor.g)*0.05;this.currentColor.b+=(CONFIG.colorBase.b-this.currentColor.b)*0.05;}let df=ta-this.rotation;while(df>Math.PI)df-=Math.PI*2;while(df<-Math.PI)df+=Math.PI*2;this.rotation+=df*0.1;this.x+=(bx+px-this.x)*0.1;this.y+=(by+py-this.y)*0.1;this.currentSize=this.baseGeneSize*(1+Math.sin(t*0.05+this.phase)*0.1)*lf;const af=(this.baseGeneSize-CONFIG.sizeMin)/(CONFIG.sizeMax-CONFIG.sizeMin);this.currentAlpha=(0.3+af*0.6)*lf;}draw(){if(this.currentSize<0.2)return;ctx.save();ctx.translate(this.x,this.y);ctx.rotate(this.rotation);const w=this.currentSize;ctx.fillStyle=`rgba(${this.currentColor.r},${this.currentColor.g},${this.currentColor.b},${this.currentAlpha})`;ctx.beginPath();ctx.arc(-w*CONFIG.aspectRatio/4,0,w/2,Math.PI*0.5,Math.PI*1.5);ctx.arc(w*CONFIG.aspectRatio/4,0,w/2,Math.PI*1.5,Math.PI*0.5);ctx.closePath();ctx.fill();ctx.restore();}}
         function init(){DPR=window.devicePixelRatio||1;width=window.innerWidth;height=window.innerHeight;canvas.width=width*DPR;canvas.height=height*DPR;canvas.style.width=width+'px';canvas.style.height=height+'px';ctx.scale(DPR,DPR);particles=[];for(let i=0;i<CONFIG.particleCount*3;i++){if(particles.length>=CONFIG.particleCount)break;const a=Math.random()*Math.PI*2;const r=Math.sqrt(Math.random())*CONFIG.clusterRadius;const x=width/2+Math.cos(a)*r*CONFIG.clusterRatioX;const y=height/2+Math.sin(a)*r*CONFIG.clusterRatioY;let ok=true;for(let p of particles){const dx=p.homeX-x;const dy=p.homeY-y;if(dx*dx+dy*dy<CONFIG.minDistance*CONFIG.minDistance){ok=false;break;}}if(ok)particles.push(new BioParticle(x,y));}GhostVoid.init();}
         function animate(){ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,canvas.width,canvas.height);ctx.scale(DPR,DPR);frameCount++;GhostVoid.update(frameCount);const ex=frameCount<200;particles.forEach(p=>{p.update(frameCount,ex);p.draw();});requestAnimationFrame(animate);}
         window.addEventListener('resize',init);window.addEventListener('mousemove',e=>{mouse.x=e.clientX;mouse.y=e.clientY;});
