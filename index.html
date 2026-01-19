@@ -208,46 +208,61 @@
             <div class="resume-container">
                 <div class="resume-header">
                     <h1>张宁</h1>
-                    <p>资深 CG 艺术家 / 视觉设计师</p>
+                    <p>/平面设计师/视觉设计师/AI美术</p>
                 </div>
 
                 <div class="resume-section">
                     <h2>个人简介 / About Me</h2>
                     <div class="resume-item">
-                        <p>拥有 5 年以上数字艺术设计经验，专注于角色原画与 CG 插画创作。擅长多种美术风格，具备扎实的美术功底和优秀的设计审美。</p>
+                        <p>毕业于内蒙古农业大学视觉传达系，从事游戏的宣传图视觉设计和部分游戏原画设计，也从事过动漫行业的宣发工作，会使用3D软件辅助平面设计，还有会一些视频剪辑软件基础操作：AE,PR,达芬奇,剪映等。经常使用AI美术工具制作设计，例如：stable diffusion-comfyui-webui,midjourney,Nano banana,gpt/Sora image,即梦等。。</p>
                     </div>
                 </div>
 
                 <div class="resume-section">
                     <h2>工作经历 / Experience</h2>
                     <div class="resume-item">
-                        <h3>高级原画设计师 - 某某科技有限公司</h3>
-                        <div class="meta">2021 - 至今 | 北京</div>
-                        <p>负责核心项目的角色设定与宣发图绘制，主导美术风格的迭代与优化。</p>
+                        <h3>AI美术 - 极客创游</h3>
+                        <div class="meta">2025.2 - 2026.1 | 北京</div>
+                        <p>负责项目的游戏内礼包图设计，部分角色和怪物设定与宣发图绘制，图表绘制，负责礼包图的美术风格迭代与优化。设计和优化comfyui工作流，用AI工具辅助开发工作用到的小程序用以提高生产效率。</p>
                     </div>
                     <div class="resume-item">
-                        <h3>视觉设计师 - 某某创意工作室</h3>
-                        <div class="meta">2019 - 2021 | 上海</div>
-                        <p>参与多款独立游戏的视觉开发，负责 UI 设计与场景概念图。</p>
+                        <h3>视觉设计师 - 万达游戏</h3>
+                        <div class="meta">2024.6 - 2024.12 | 北京</div>
+                        <p>负责动漫影视海报设计，AI工作流制作。</p>
+                    </div>                    
+                    <div class="resume-item">
+                        <h3>视觉设计师 - 明日世界</h3>
+                        <div class="meta">2023.7 - 2024.1 | 北京</div>
+                        <p>负责A3影之刃、我叫MT、哆啦A梦飞车、驯龙高手项目的平面设计工作。</p>
                     </div>
+                    <div class="resume-item">
+                        <h3>视觉设计师 - 英雄互娱</h3>
+                        <div class="meta">2021.7 - 2023.5 | 北京</div>
+                        <p>在英雄游戏组担任游戏平面设计师职位，工作内容主要是平面设计，也会涉及到视频剪辑，视频动态贴片制作，网页设计，游戏开发所用的素材绘制和制作。学习了三渲二的制作，用 maya 和 UE 等 3D 软件为二维平面设计渲染素材。在工作中了解了游戏运营中的数据分析等。</p>
+                    </div>  
+                    <div class="resume-item">
+                        <h3>视觉设计师 - 爱普优邦</h3>
+                        <div class="meta">2019 - 2021.4 | 北京</div>
+                        <p>在职期间担任游戏平面设计师，主要工作是游戏的商店图、banner、落地页制作。以及游戏素材的绘制。</p>
+                    </div>   
                 </div>
 
                 <div class="resume-section">
                     <h2>专业技能 / Skills</h2>
                     <div class="skills-grid">
                         <span class="skill-tag">Photoshop</span>
-                        <span class="skill-tag">Blender</span>
-                        <span class="skill-tag">Illustrator</span>
+                        <span class="skill-tag">Comfyui</span>
+                        <span class="skill-tag">Nano banana</span>
                         <span class="skill-tag">Midjourney</span>
-                        <span class="skill-tag">角色设计</span>
-                        <span class="skill-tag">场景概念</span>
+                        <span class="skill-tag">平面设计</span>
+                        <span class="skill-tag">原画</span>
                     </div>
                 </div>
                 
                 <div class="resume-section">
                     <h2>联系方式 / Contact</h2>
                     <div class="resume-item">
-                        <p>📧 Email: yourname@example.com<br>📱 WeChat: your_wechat_id</p>
+                        <p>📧 Email: tfcthinker@outlook.com<br>📱 WeChat/Phone: 17678020036</p>
                     </div>
                 </div>
             </div>
@@ -321,7 +336,7 @@
         let currentFilter = 'all';
         let columnsDOM = []; 
 
-        // 🚀 懒加载观察器
+// 🚀 核心优化：懒加载观察器 (修复不显示问题)
         const lazyObserver = new IntersectionObserver((entries, observer) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -330,15 +345,22 @@
                     
                     if (media && media.dataset.src) {
                         media.src = media.dataset.src;
+                        
+                        // ✅ 加回了这几行关键代码！
+                        // 告诉 CSS：“图片下载完了，请显示出来！”
+                        media.onload = () => media.classList.add('loaded');
+                        media.onloadeddata = () => media.classList.add('loaded'); // 针对视频
+                        
                         if(media.tagName === 'VIDEO') media.load(); 
                         media.removeAttribute('data-src');
                     }
                     
+                    // 触发卡片进场动画
                     card.classList.add('reveal');
                     observer.unobserve(card);
                 }
             });
-        }, { rootMargin: '200px' }); 
+        }, { rootMargin: '200px' });
 
         function initPortfolio() {
             createFilterBtn('all', '全部作品', 'ALL WORKS', true);
