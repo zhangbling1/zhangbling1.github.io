@@ -19,7 +19,7 @@
             opacity: 1; 
         }
 
-        /* 导航 */
+        /* ================== 2. 导航栏 (新增右侧按钮) ================== */
         nav {
             position: fixed; top: 0; left: 0; right: 0; height: 72px; padding: 0 40px;
             display: flex; justify-content: space-between; align-items: center;
@@ -27,10 +27,23 @@
             z-index: 100;
             border-bottom: 1px solid rgba(0,0,0,0.05);
         }
-        .brand-container { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+        .brand-container { display: flex; align-items: center; gap: 12px; text-decoration: none; cursor: pointer; }
         .nav-icon { height: 32px; width: auto; }
         .logo-text { font-family: 'Inter', sans-serif; font-weight: 800; font-size: 1.4rem; color: #1a1a1a; letter-spacing: -0.5px; text-transform: uppercase; }
 
+        /* 新增：简历按钮样式 */
+        .nav-right { display: flex; align-items: center; }
+        .resume-link {
+            font-size: 0.9rem; font-weight: 700; color: #1a1a1a; text-decoration: none;
+            padding: 8px 20px; border: 1px solid #1a1a1a; border-radius: 40px;
+            transition: all 0.3s ease; cursor: pointer;
+        }
+        .resume-link:hover { background: #1a1a1a; color: #fff; }
+
+        /* ================== 3. 主要内容区 ================== */
+        /* 给作品集区域加个容器，方便整体隐藏/显示 */
+        #portfolio-view { width: 100%; display: flex; flex-direction: column; align-items: center; transition: opacity 0.4s ease; }
+        
         /* Hero */
         .hero-section { margin-top: 18vh; margin-bottom: 30px; text-align: center; }
         .title-wrapper h1 { font-size: 5.5rem; line-height: 1.0; margin: 0 0 10px 0; color: #1a1a1a; letter-spacing: -2px; }
@@ -79,45 +92,66 @@
         }
         .masonry-column { flex: 1; display: flex; flex-direction: column; gap: 30px; min-width: 0; }
 
-        /* ================== 卡片设计 (融合版：发光 + 不闪烁) ================== */
+        /* ================== 卡片设计 ================== */
         .photo-card {
             width: 100%; border-radius: 16px; overflow: hidden;
             background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(12px); 
-            
-            /* ⚡️ 加回来的发光基础边框 */
             border: 1px solid rgba(255,255,255,0.6);
             box-shadow: 0 4px 15px rgba(0,0,0,0.03); 
-            
             transition: transform 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease, opacity 0.6s ease;
             cursor: pointer; display: flex; flex-direction: column; position: relative;
-            
-            /* 懒加载初始状态 */
-            opacity: 0; 
-            transform: translateY(30px);
+            opacity: 0; transform: translateY(30px);
         }
-        
-        .photo-card.reveal {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
+        .photo-card.reveal { opacity: 1; transform: translateY(0); }
         .photo-card:hover { 
             transform: translateY(-5px); 
-            /* ⚡️ 加回来的蓝色发光特效 */
             box-shadow: 0 20px 40px rgba(66, 133, 244, 0.15), 0 0 20px rgba(66, 133, 244, 0.25); 
-            background: #fff; 
-            z-index: 2;
-            border-color: rgba(66, 133, 244, 0.6);
+            background: #fff; z-index: 2; border-color: rgba(66, 133, 244, 0.6);
         }
-        
         .media-wrapper { position: relative; width: 100%; background: rgba(0,0,0,0.05); overflow: hidden; }
-        .photo-card img, .photo-card video { width: 100%; height: auto; display: block; transition: transform 0.6s ease; }
+        .photo-card img, .photo-card video { 
+            width: 100%; height: auto; display: block; 
+            transition: transform 0.6s ease, opacity 0.3s ease; opacity: 0; 
+        }
+        .photo-card img.loaded, .photo-card video.loaded { opacity: 1; }
         .photo-card:hover img, .photo-card:hover video { transform: scale(1.05); }
-
         .card-info { padding: 16px 20px; background: rgba(255,255,255,0.4); }
         .card-tag { font-size: 0.7rem; font-weight: 700; color: #4285F4; text-transform: uppercase; display: block; margin-bottom: 4px; }
         .card-title { font-size: 0.95rem; font-weight: 800; color: #222; margin: 0; letter-spacing: 0.5px; }
         .video-badge { position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.6); color: #fff; padding: 3px 6px; border-radius: 4px; font-size: 0.6rem; font-weight: 700; backdrop-filter: blur(4px); z-index: 5; pointer-events: none;}
+
+        /* ================== 4. 新增：简历页面样式 ================== */
+        #resume-view {
+            display: none; /* 默认隐藏 */
+            width: 100%; max-width: 900px; margin-top: 120px; padding: 0 40px 100px;
+            animation: fadeIn 0.5s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+
+        .resume-container {
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(20px);
+            border: 1px solid rgba(255,255,255,0.8);
+            border-radius: 20px; padding: 60px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.05);
+        }
+        .resume-header { text-align: center; margin-bottom: 50px; border-bottom: 1px solid rgba(0,0,0,0.1); padding-bottom: 30px; }
+        .resume-header h1 { font-size: 2.5rem; font-weight: 800; margin: 0 0 10px 0; color: #1a1a1a; }
+        .resume-header p { color: #666; font-size: 1.1rem; }
+        
+        .resume-section { margin-bottom: 40px; }
+        .resume-section h2 { font-size: 1.2rem; font-weight: 700; color: #4285F4; text-transform: uppercase; margin-bottom: 20px; border-left: 4px solid #4285F4; padding-left: 12px; }
+        .resume-item { margin-bottom: 25px; }
+        .resume-item h3 { font-size: 1.1rem; font-weight: 700; margin: 0 0 5px 0; }
+        .resume-item .meta { font-size: 0.9rem; color: #888; margin-bottom: 10px; font-style: italic; }
+        .resume-item p { color: #444; line-height: 1.6; font-size: 0.95rem; }
+        
+        .skills-grid { display: flex; flex-wrap: wrap; gap: 10px; }
+        .skill-tag { background: rgba(66, 133, 244, 0.1); color: #4285F4; padding: 6px 14px; border-radius: 20px; font-weight: 600; font-size: 0.85rem; }
+
+        @media (max-width: 600px) {
+            .resume-container { padding: 30px; }
+            .resume-header h1 { font-size: 2rem; }
+        }
 
         /* 灯箱 */
         #lightbox { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.95); z-index: 9999; display: flex; justify-content: center; align-items: center; opacity: 0; pointer-events: none; transition: opacity 0.3s; backdrop-filter: blur(10px); }
@@ -139,7 +173,7 @@
     </div>
 
     <nav>
-        <a href="#" class="brand-container">
+        <a href="#" class="brand-container" onclick="showPortfolio()">
             <svg class="nav-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path d="M20 4L4 36H36L20 4Z" fill="url(#paint0_linear)"/>
                 <circle cx="20" cy="24" r="6" fill="white"/>
@@ -147,25 +181,125 @@
             </svg>
             <span class="logo-text">张宁作品集</span>
         </a>
+        
+        <div class="nav-right">
+            <a href="#" class="resume-link" onclick="showResume()">简历 / RESUME</a>
+        </div>
     </nav>
 
     <div class="content-layer">
-        <div class="hero-section">
-            <div class="title-wrapper">
-                <h1><span class="word-digital">Design</span><span class="word-biology">Portfolio.</span></h1>
-                <p>Check out the latest online display of the portfolio</p>
+        
+        <div id="portfolio-view">
+            <div class="hero-section">
+                <div class="title-wrapper">
+                    <h1><span class="word-digital">Design</span><span class="word-biology">Portfolio.</span></h1>
+                    <p>Check out the latest online display of the portfolio</p>
+                </div>
+            </div>
+
+            <div class="filter-container">
+                <div class="filter-wrapper" id="filters"></div>
+            </div>
+
+            <div class="galleries-wrapper" id="galleries-root"></div>
+        </div>
+
+         <div id="resume-view">
+            <div class="resume-container">
+                <div class="resume-header">
+                    <h1>张宁</h1>
+                    <p>平面设计师 / 视觉设计师 / AI美术</p>
+                </div>
+
+                <div class="resume-section">
+                    <h2>个人简介 / About Me</h2>
+                    <div class="resume-item">
+                        <p>毕业于内蒙古农业大学视觉传达系。拥有游戏宣传图视觉设计和原画设计经验，同时也涉足动漫行业宣发。掌握 <strong>3D 辅助平面设计</strong> 流程。</p>
+                        <p>使用视频剪辑软件：<span style="color:#666;">AE, PR, 达芬奇, 剪映</span>。</p>
+                        <p>深度运用 AI 美术工具提升设计效率与创意，常用工具：<strong>Stable Diffusion (ComfyUI/WebUI), Midjourney, Nano Banana, GPT/Sora Image, 即梦</strong> 等。</p>
+                    </div>
+                </div>
+
+                <div class="resume-section">
+                    <h2>工作经历 / Experience</h2>
+                    
+                    <div class="resume-item">
+                        <h3>AI美术 - 极客创游</h3>
+                        <div class="meta">2025.2 - 2026.1 | 北京</div>
+                        <p>负责项目游戏内礼包图设计、部分角色/怪物设定及宣发图绘制。负责礼包图美术风格迭代与优化，设计并优化 ComfyUI 工作流，利用 AI 工具开发小程序辅助美术生产，提高生产效率。</p>
+                    </div>
+
+                    <div class="resume-item">
+                        <h3>视觉设计师 - 万达游戏</h3>
+                        <div class="meta">2024.6 - 2024.12 | 北京</div>
+                        <p>负责动漫影视海报设计及 AI 工作流的搭建与制作。</p>
+                    </div>
+
+                    <div class="resume-item">
+                        <h3>视觉设计师 - 明日世界</h3>
+                        <div class="meta">2023.7 - 2024.1 | 北京</div>
+                        <p>负责《A3影之刃》、《我叫MT》、《哆啦A梦飞车》、《驯龙高手》等项目的平面设计工作。</p>
+                    </div>
+
+                    <div class="resume-item">
+                        <h3>视觉设计师 - 英雄互娱</h3>
+                        <div class="meta">2021.7 - 2023.5 | 北京</div>
+                        <p>任职于英雄游戏组。主要负责平面设计、兼顾一些视频剪辑、动态贴片制作及网页设计。主要参与游戏宣发作用素材的制作。掌握并应用“三渲二”技术，利用 Maya 和 UE 为二维设计渲染高精度素材。结合游戏运营数据分析优化设计产出。</p>
+                    </div>
+
+                    <div class="resume-item">
+                        <h3>视觉设计师 - 爱普优邦</h3>
+                        <div class="meta">2019 - 2021.4 | 北京</div>
+                        <p>担任游戏平面设计师，设计游戏商店图、Banner 及落地页的视觉设计与绘制。</p>
+                    </div>
+                </div>
+
+                <div class="resume-section">
+                    <h2>专业技能 / Skills</h2>
+                    <div class="skills-grid">
+                        <span class="skill-tag">Photoshop</span>
+                        <span class="skill-tag">ComfyUI</span>
+                        <span class="skill-tag">Stable Diffusion</span>
+                        <span class="skill-tag">Midjourney</span>
+                        <span class="skill-tag">Nano Banana</span>
+                        <span class="skill-tag">平面设计</span>
+                        <span class="skill-tag">游戏原画</span>
+                        <span class="skill-tag">3D辅助设计</span>
+                        <span class="skill-tag">视频剪辑 (AE/PR)</span>
+                    </div>
+                </div>
+                
+                <div class="resume-section">
+                    <h2>联系方式 / Contact</h2>
+                    <div class="resume-item">
+                        <p>📧 Email: tfcthinker@outlook.com<br>📱 WeChat/Phone: 17678020036</p>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div class="filter-container">
-            <div class="filter-wrapper" id="filters"></div>
-        </div>
-
-        <div class="galleries-wrapper" id="galleries-root"></div>
         <footer>© 2026 Created by Zhangbling & Gemini</footer>
     </div>
 
     <script>
+        // =========================================================================
+        // 🔧 页面切换逻辑 (新增)
+        // =========================================================================
+        const portfolioView = document.getElementById('portfolio-view');
+        const resumeView = document.getElementById('resume-view');
+
+        function showResume() {
+            portfolioView.style.display = 'none'; // 隐藏作品
+            resumeView.style.display = 'block';   // 显示简历
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // 滚回顶部
+        }
+
+        function showPortfolio() {
+            resumeView.style.display = 'none';    // 隐藏简历
+            portfolioView.style.display = 'flex'; // 显示作品 (flex布局)
+            // 这里不需要滚回顶部，保持用户浏览位置体验更好，或者你可以加上 window.scrollTo(0,0)
+        }
+
         // =========================================================================
         // 🔧 配置区
         // =========================================================================
@@ -174,7 +308,7 @@
             { id: 'Cartoon',     name: '欧美卡通',  en: 'Cartoon' },
             { id: 'Icon Design', name: 'icon设计',  en: 'Icon Design' },
             { id: 'Character',   name: '角色原画',  en: 'Character' },
-            { id: '平面设计',   name: '平面设计',  en: 'Character' },
+            { id: '平面设计',   name: '平面设计',  en: 'Graphic Design' },
             { id: 'Other',       name: '其他类型',  en: 'Other' },
         ];
 
@@ -187,7 +321,7 @@
             'Cartoon/5.webp': '快乐小镇',
         };
 
-        // 粒子参数 (智能降级：手机端减少粒子数)
+        // 粒子参数
         const isMobile = window.innerWidth < 600;
         const CONFIG = {
             introDuration: 200, explosionForce: 40, drag: 0.7, returnStrength: 0.01,
@@ -201,7 +335,7 @@
         };
 
         // -----------------------------------------------------------
-        // 🚀 核心逻辑 (融合了 IntersectionObserver 的高性能版)
+        // 🚀 核心逻辑
         // -----------------------------------------------------------
         const filters = document.getElementById('filters');
         const galleriesRoot = document.getElementById('galleries-root');
@@ -212,7 +346,7 @@
         let currentFilter = 'all';
         let columnsDOM = []; 
 
-        // 🚀 核心优化：懒加载观察器
+// 🚀 核心优化：懒加载观察器 (修复不显示问题)
         const lazyObserver = new IntersectionObserver((entries, observer) => {
             entries.forEach(entry => {
                 if (entry.isIntersecting) {
@@ -221,16 +355,22 @@
                     
                     if (media && media.dataset.src) {
                         media.src = media.dataset.src;
-                        if(media.tagName === 'VIDEO') media.load(); // 视频特殊处理
+                        
+                        // ✅ 加回了这几行关键代码！
+                        // 告诉 CSS：“图片下载完了，请显示出来！”
+                        media.onload = () => media.classList.add('loaded');
+                        media.onloadeddata = () => media.classList.add('loaded'); // 针对视频
+                        
+                        if(media.tagName === 'VIDEO') media.load(); 
                         media.removeAttribute('data-src');
                     }
                     
-                    // 触发 CSS 进场动画
+                    // 触发卡片进场动画
                     card.classList.add('reveal');
                     observer.unobserve(card);
                 }
             });
-        }, { rootMargin: '200px' }); // 提前 200px 加载，体验更流畅
+        }, { rootMargin: '200px' });
 
         function initPortfolio() {
             createFilterBtn('all', '全部作品', 'ALL WORKS', true);
@@ -290,7 +430,7 @@
                         video.src = src;
                         video.muted = true; 
                         video.playsInline = true;
-                        video.preload = 'metadata'; // 只读元数据，省流
+                        video.preload = 'metadata'; 
                         video.onloadedmetadata = () => {
                             resolve({ success: true, src, w: video.videoWidth || 1600, h: video.videoHeight || 900 });
                             video.src = ""; 
@@ -359,7 +499,6 @@
                 return a.index - b.index; 
             });
 
-            // 移除不该显示的DOM
             loadedItems.forEach(item => {
                 if (!items.includes(item) && item.dom.parentNode) {
                     item.dom.remove(); 
@@ -377,7 +516,6 @@
                 const targetCol = columnsDOM[minIndex];
                 if (item.dom.parentNode !== targetCol) {
                     targetCol.appendChild(item.dom);
-                    // 加入观察列表
                     lazyObserver.observe(item.dom);
                 }
 
@@ -391,7 +529,6 @@
             
             const isVideo = item.src.match(/\.(mp4|mov)$/i);
             
-            // ✅ 修改点 1：在 <video> 标签里加上 autoplay
             let mediaHtml = isVideo 
                 ? `<video data-src="${item.src}" autoplay muted loop playsinline></video><div class="video-badge">VIDEO</div>`
                 : `<img data-src="${item.src}" alt="${item.title}">`;
@@ -406,10 +543,6 @@
                 </div>
             `;
             div.onclick = () => openLightbox(item.src, isVideo);
-            
-            // ✅ 修改点 2：把之前这里的 if(isVideo){ onmouseenter... } 整段删掉
-            // 这样鼠标移开就不会暂停了，视频会一直自动播放。
-            
             return div;
         }
 
@@ -437,9 +570,7 @@
             }, 300);
         });
 
-        // =========================================================
-        // 🌌 高级 Bio-Particles 粒子动画 (恢复完整版)
-        // =========================================================
+        // 粒子动画 (完整版)
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         let width, height, DPR;
