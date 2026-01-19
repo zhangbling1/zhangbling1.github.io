@@ -385,15 +385,15 @@
             });
         }
 
-        function createCardDOM(item) {
+       function createCardDOM(item) {
             const div = document.createElement('div');
             div.className = 'photo-card';
-            // 默认透明，等待 Observer 唤醒
             
             const isVideo = item.src.match(/\.(mp4|mov)$/i);
-            // ⚠️ 核心：使用 data-src 占位
+            
+            // ✅ 修改点 1：在 <video> 标签里加上 autoplay
             let mediaHtml = isVideo 
-                ? `<video data-src="${item.src}" muted loop playsinline></video><div class="video-badge">VIDEO</div>`
+                ? `<video data-src="${item.src}" autoplay muted loop playsinline></video><div class="video-badge">VIDEO</div>`
                 : `<img data-src="${item.src}" alt="${item.title}">`;
 
             div.innerHTML = `
@@ -407,10 +407,9 @@
             `;
             div.onclick = () => openLightbox(item.src, isVideo);
             
-            if(isVideo) {
-                div.onmouseenter = () => { const v = div.querySelector('video'); if(v && v.src) v.play(); }
-                div.onmouseleave = () => { const v = div.querySelector('video'); if(v) v.pause(); }
-            }
+            // ✅ 修改点 2：把之前这里的 if(isVideo){ onmouseenter... } 整段删掉
+            // 这样鼠标移开就不会暂停了，视频会一直自动播放。
+            
             return div;
         }
 
