@@ -467,24 +467,27 @@ body.viewer-open { overflow: hidden; }
 .intro .splash, .splash.is-leaving { position: fixed; inset: 0; z-index: 300; display: block; overflow: hidden; background: var(--paper); }
 .splash::before { content: ''; position: absolute; inset: 0; background: radial-gradient(46% 42% at 76% 12%, rgba(255, 128, 72, .2), rgba(255, 128, 72, 0) 70%), radial-gradient(38% 36% at 18% 78%, rgba(255, 178, 84, .14), rgba(255, 178, 84, 0) 70%); pointer-events: none; }
 .splash-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.splash-head { position: absolute; top: 12px; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; height: calc(var(--masthead) - 24px); }
+/* The progress runs along the top, where the masthead will be; the way out
+   sits below the track. */
+.splash-head { position: absolute; top: 12px; left: 0; right: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; height: calc(var(--masthead) - 24px); }
 .splash-skip { display: inline-flex; align-items: center; height: 40px; padding: 0 20px; border-radius: 999px; font-size: 13px; letter-spacing: .08em; color: var(--ink-2); cursor: pointer; }
-.splash-foot { position: absolute; left: 0; right: 0; bottom: clamp(24px, 6vh, 56px); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 16px; }
-.splash-line { font-size: 13px; letter-spacing: .14em; color: var(--ink-2); }
+.splash-foot { position: absolute; left: 0; right: 0; bottom: clamp(48px, 13vh, 140px); display: flex; justify-content: center; }
+/* Caption and count sit level with the stage names, above their bars. */
+.splash-line { padding-bottom: 10px; font-size: 13px; letter-spacing: .14em; color: var(--ink-2); }
 .splash-stages { display: flex; gap: clamp(14px, 2.4vw, 36px); font-size: 13px; letter-spacing: .08em; color: var(--ink-3); }
 .splash-stages li { position: relative; padding-bottom: 10px; opacity: .4; transition: opacity .45s var(--ease), color .45s var(--ease); }
 .splash-stages li b { margin-right: .55em; font-weight: 500; font-variant-numeric: tabular-nums; }
 .splash-stages li::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px; background: var(--rule); transition: background .45s var(--ease); }
 .splash-stages li.is-on { opacity: 1; color: var(--ink); }
 .splash-stages li.is-on::after { background: linear-gradient(90deg, var(--seal), var(--seal-hot)); }
-.splash-count { justify-self: end; font-size: 13px; letter-spacing: .06em; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.splash-count { justify-self: end; padding-bottom: 10px; font-size: 13px; letter-spacing: .06em; color: var(--ink-3); font-variant-numeric: tabular-nums; }
 /* Leaving, the paper clears to let the cover through while the canvas keeps
    the horse coming apart over it; the page removes the splash once it is done. */
 .splash.is-leaving { background-color: rgba(242, 240, 235, 0); pointer-events: none; transition: background-color .5s cubic-bezier(.4, 0, .2, 1) .15s; }
 .splash::before, .splash-head, .splash-foot { transition: opacity .3s var(--ease); }
 .splash.is-leaving::before, .splash.is-leaving .splash-head, .splash.is-leaving .splash-foot { opacity: 0; }
-/* The cover holds its entrance until the opening lifts. */
-.intro .cover, .intro .cover * { animation-play-state: paused; }
+/* The cover and the masthead hold their entrance until the opening lifts. */
+.intro .cover, .intro .cover *, .intro .masthead .brand, .intro .masthead .main-nav { animation-play-state: paused; }
 
 /* ---------- Motion (only when it is welcome) ---------- */
 @keyframes rise { from { opacity: 0; transform: translateY(22px); } }
@@ -493,7 +496,9 @@ body.viewer-open { overflow: hidden; }
 @keyframes col-in { from { opacity: 0; transform: translateY(48px); } }
 @keyframes plate-in { from { opacity: 0; transform: translateY(26px) scale(.985); } }
 @keyframes num-in { from { opacity: 0; transform: translateY(40%); } }
+@keyframes drop { from { opacity: 0; transform: translateY(-16px); } }
 @media (prefers-reduced-motion: no-preference) {
+  .masthead .brand, .masthead .main-nav { animation: drop .8s var(--liquid) .15s backwards; }
   .cover-label { animation: rise .9s var(--liquid) .05s backwards; }
   .cover h1 .line > span { animation: line-rise 1.15s var(--liquid) .1s backwards; }
   .cover h1 .line + .line > span { animation-delay: .19s; }
@@ -596,7 +601,7 @@ body.viewer-open { overflow: hidden; }
   .viewer-next { right: calc(50% - 54px); }
   .viewer-caption { flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; padding: 14px 16px; }
   .viewer-caption h2 { font-size: 15px; }
-  .splash-foot { grid-template-columns: 1fr; justify-items: center; gap: 12px; }
+  .splash-head { grid-template-columns: 1fr; justify-items: center; }
   .splash-line, .splash-count { display: none; }
   .splash-stages { gap: 16px; font-size: 12px; }
 }
