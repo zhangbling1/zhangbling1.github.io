@@ -129,6 +129,48 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // API 4: 一键发布到 GitHub 远程仓库 (免 Token)
+  if (req.method === 'POST' && pathname === '/api/git-push') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      let commitMsg = 'chore: update portfolio configuration from admin';
+      try {
+        if (body) {
+          const payload = JSON.parse(body);
+          if (payload.commitMsg) commitMsg = payload.commitMsg;
+        }
+      } catch (e) {}
+
+      exec('git status --porcelain', { cwd: ROOT_DIR }, (statusErr, statusOut) => {
+        const hasChanges = statusOut && statusOut.trim().length > 0;
+        const pushCmd = hasChanges
+          ? `git add -A && git commit -m "${commitMsg.replace(/"/g, '\\"')}" && git push origin main`
+          : `git push origin main`;
+
+        console.log(`[Git] 正在执行自动提交与推送: ${pushCmd}`);
+        exec(pushCmd, { cwd: ROOT_DIR }, (err, stdout, stderr) => {
+          if (err) {
+            console.error('[Error] Git 推送失败:', err, stderr);
+            return sendJSON(res, 500, {
+              success: false,
+              message: 'Git 推送失败: ' + (stderr || err.message),
+              details: stdout + '\n' + stderr
+            });
+          }
+          console.log('[Git] ✅ 推送成功:\n', stdout);
+          return sendJSON(res, 200, {
+            success: true,
+            message: '🎉 成功发布到 GitHub！线上网站将在 1-2 分钟内自动部署生效。',
+            siteUrl: 'https://zhangbling1.github.io',
+            details: stdout
+          });
+        });
+      });
+    });
+    return;
+  }
+
   // API 3: 服务器状态
   if (req.method === 'GET' && pathname === '/api/status') {
     return sendJSON(res, 200, {

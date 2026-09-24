@@ -67,7 +67,10 @@
     <aside class="admin-sidebar">
       <div class="side-nav-card">
         <button class="side-nav-btn active" data-tab="tab-assets">
-          🖼️ 作品素材管理
+          🖼️ 作品素材与排序
+        </button>
+        <button class="side-nav-btn" data-tab="tab-chapters">
+          📚 章节目录与排序
         </button>
         <button class="side-nav-btn" data-tab="tab-profile">
           👤 个人简历与资料
@@ -90,22 +93,22 @@
             <div class="stat-lbl">前台已公开</div>
           </div>
           <div class="stat-item">
-            <div class="stat-val featured" id="stat-featured">0</div>
-            <div class="stat-lbl">⭐ 精选推荐</div>
+            <div class="stat-val" id="stat-videos" style="color: #a855f7;">0</div>
+            <div class="stat-lbl">动态视频</div>
           </div>
           <div class="stat-item">
             <div class="stat-val hidden" id="stat-hidden">0</div>
-            <div class="stat-lbl">隐藏草稿</div>
+            <div class="stat-lbl">隐藏未公开</div>
           </div>
         </div>
       </div>
 
       <!-- 快速提示 -->
       <div class="stat-box" style="font-size: 0.8rem; line-height: 1.5; color: var(--text-muted);">
-        <span class="stat-title" style="color: var(--accent-cyan);">💡 使用小技巧</span>
-        <p>1. CG风格有800多张图，建议利用上方【仅显示前20张】一键精简，让前台更具艺术说服力。</p>
-        <p style="margin-top: 6px;">2. 点击卡片右上角 ⭐ 即可设为首页精选高光展示。</p>
-        <p style="margin-top: 6px;">3. 本地启动服务时，点击【保存修改配置】自动写盘，无需手动复制！</p>
+        <span class="stat-title" style="color: var(--accent-cyan);">💡 前端画册机制说明</span>
+        <p>1. 前台采用沉浸式书籍章节排版，不再设立独立的精选区。</p>
+        <p style="margin-top: 6px;">2. 只要将素材开关设为【公开中】，就会自动展示在前台对应章节中。</p>
+        <p style="margin-top: 6px;">3. 保存后点击顶部【🚀 发布到 GitHub】，即可免 Token 一键同步上线！</p>
       </div>
     </aside>
 
@@ -136,7 +139,6 @@
                 <option value="all">全部状态 (All Status)</option>
                 <option value="visible">仅看前台已公开 (Visible)</option>
                 <option value="hidden">仅看隐藏草稿 (Hidden)</option>
-                <option value="featured">仅看⭐精选推荐 (Featured)</option>
               </select>
 
               <select id="filter-type" class="select-ctrl">
@@ -172,7 +174,18 @@
         </div>
       </section>
 
-      <!-- TAB 2: 简历与个人资料 -->
+      <!-- TAB 2: 章节目录与排序管理 -->
+      <section id="tab-chapters" class="tab-content settings-panel">
+        <h2 class="section-title">📚 章节目录与前台呈现顺序</h2>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; line-height: 1.6;">
+          在此处调整 8 个章节在前台导航目录与正文画册中的先后次序（点击 <b>⬆️ 上移</b> / <b>⬇️ 下移</b> 即可即时调整），也可直接编辑各个章节的中文名称与英文副标题。修改后点击右上角【💾 保存修改配置】即可生效。
+        </p>
+        <div id="chapters-list-root">
+          <!-- 动态渲染章节项 -->
+        </div>
+      </section>
+
+      <!-- TAB 3: 简历与个人资料 -->
       <section id="tab-profile" class="tab-content settings-panel">
         <h2 class="section-title">个人基本资料</h2>
         
@@ -264,7 +277,24 @@
     </main>
   </div>
 
-  <!-- 弹窗 1: GitHub API 直连发布 -->
+  <!-- 弹窗 0: 媒体大图与视频播放灯箱 -->
+  <div id="admin-preview-modal" class="modal-overlay" onclick="closePreviewModal(event)">
+    <div class="preview-modal-box" onclick="event.stopPropagation()">
+      <div class="modal-header" style="width: 100%; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <h3 id="admin-preview-title" style="font-size: 1.05rem; color: #fff; margin: 0;">作品预览</h3>
+        <button class="modal-close" onclick="closePreviewModal()">&times;</button>
+      </div>
+      <div id="admin-preview-stage" style="width: 100%; display: flex; justify-content: center; align-items: center; min-height: 240px; background: #000; border-radius: 8px; overflow: hidden;">
+        <!-- 视频或图片 -->
+      </div>
+      <div id="admin-preview-meta" style="width: 100%; margin-top: 14px; font-size: 0.85rem; color: var(--text-muted); display: flex; justify-content: space-between; align-items: center;">
+        <span id="admin-preview-category" style="color: var(--accent-cyan); font-weight: 600;"></span>
+        <span id="admin-preview-desc" style="max-width: 70%; text-align: right;"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- 弹窗 1: GitHub API 直连发布 (离线/远程降级备用) -->
   <div id="github-modal" class="modal-overlay">
     <div class="modal-box">
       <div class="modal-header">

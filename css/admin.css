@@ -575,21 +575,103 @@ body {
 }
 
 .btn-star {
-  background: transparent;
-  border: none;
-  color: var(--text-dim);
-  font-size: 1.1rem;
-  cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  display: none;
+}
+
+/* 卡片排序与文案 */
+.card-desc-input {
+  background: var(--bg-tertiary);
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  font-size: 0.78rem;
+  outline: none;
+  width: 100%;
   transition: var(--transition);
 }
-.btn-star:hover {
-  color: var(--accent-gold);
-  transform: scale(1.15);
+.card-desc-input:focus {
+  border-color: var(--border-focus);
+  color: var(--text-main);
+  background: #141720;
 }
-.btn-star.active {
-  color: var(--accent-gold);
+
+.card-order-badge {
+  font-size: 0.7rem;
+  color: var(--accent-cyan);
+  background: rgba(0, 210, 255, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.card-order-controls {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.order-btn {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  cursor: pointer;
+  transition: var(--transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.order-btn:hover {
+  background: var(--accent-blue);
+  color: #fff;
+  border-color: transparent;
+  transform: translateY(-1px);
+}
+
+/* 预览大图/视频弹窗 */
+.preview-modal-box {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  max-width: 900px;
+  width: 92%;
+  max-height: 92vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);
+}
+
+/* 章节管理列表卡片 */
+.chapter-manage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 14px 18px;
+  margin-bottom: 12px;
+}
+.chapter-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+}
+.chapter-num-badge {
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--accent-blue);
+  background: rgba(66, 133, 244, 0.15);
+  padding: 4px 10px;
+  border-radius: 6px;
 }
 
 /* 分页控件 */

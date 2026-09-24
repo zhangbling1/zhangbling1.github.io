@@ -86,6 +86,7 @@ async function loadPortfolioData() {
     initCategoryChips();
     renderStatistics();
     renderAssetsView();
+    renderChaptersView();
     initProfileView();
     initSettingsView();
     markDirty(false);
@@ -102,7 +103,8 @@ function renderStatistics() {
 
   document.getElementById('stat-total').textContent = items.length;
   document.getElementById('stat-visible').textContent = items.filter(i => i.visible).length;
-  document.getElementById('stat-featured').textContent = items.filter(i => i.featured).length;
+  const vidEl = document.getElementById('stat-videos');
+  if (vidEl) vidEl.textContent = items.filter(i => i.mediaType === 'video').length;
   document.getElementById('stat-hidden').textContent = items.filter(i => !i.visible).length;
 }
 
@@ -199,7 +201,7 @@ function renderAssetsView() {
 // 创建单个卡片 DOM
 function createAssetCard(item) {
   const card = document.createElement('div');
-  card.className = `asset-card ${!item.visible ? 'hidden-item' : ''} ${item.featured ? 'featured-item' : ''}`;
+  card.className = `asset-card ${!item.visible ? 'hidden-item' : ''}`;
   card.id = `card-${item.id}`;
 
   const isVideo = item.mediaType === 'video';
@@ -210,48 +212,53 @@ function createAssetCard(item) {
     : item.src;
   const durationText = preview && preview.duration ? `${Math.round(preview.duration)}s` : '';
 
+  // 计算本分类内的当前次序
+  const categoryItems = portfolioData.items.filter(it => it.category === item.category);
+  const rank = categoryItems.findIndex(it => it.id === item.id) + 1;
+
   card.innerHTML = `
-    <div class="card-thumb-wrap" onclick="previewMedia('${item.src}', ${isVideo})" title="点击查看原图/播放视频">
+    <div class="card-thumb-wrap" onclick="openMediaPreview('${item.id}')" title="点击放大预览/播放视频">
       <img class="card-thumb" src="${thumbSrc}" alt="${escapeHtml(item.title || '')}" loading="lazy">
       ${isVideo ? `<div class="badge-video">▶ 视频${durationText ? ` · ${durationText}` : ''}</div>` : ''}
       ${isGif ? `<div class="badge-video" style="background:#8b5cf6;">GIF</div>` : ''}
-      ${item.featured ? `<div class="badge-featured">⭐ 精选</div>` : ''}
     </div>
 
     <div class="card-body">
       <div class="card-meta-line">
-        <span class="card-category-tag">${item.categoryName}</span>
-        <span class="card-index">#${item.fileIndex} · ${item.fileName}</span>
+        <span class="card-category-tag">${escapeHtml(item.categoryName || item.category)}</span>
+        <span class="card-order-badge">本章第 ${rank} 位</span>
+        <span class="card-index">${escapeHtml(item.fileName)}</span>
       </div>
 
       <input type="text" class="card-title-input" value="${escapeHtml(item.title || '')}" placeholder="输入作品标题...">
-
-      <input type="text" class="card-tags-input" value="${escapeHtml((item.tags || []).join(', '))}" placeholder="标签 (用逗号分隔)...">
+      <input type="text" class="card-desc-input" value="${escapeHtml(item.description || '')}" placeholder="输入作品说明 (前台灯箱展示)...">
 
       <div class="card-footer-controls">
-        <label class="toggle-wrap">
+        <label class="toggle-wrap" title="切换是否在前台该章节画廊中展示">
           <input type="checkbox" ${item.visible ? 'checked' : ''} class="item-visible-toggle">
           <span class="toggle-switch"></span>
           <span class="toggle-label">${item.visible ? '公开中' : '已隐藏'}</span>
         </label>
 
-        <button class="btn-star ${item.featured ? 'active' : ''}" title="${item.featured ? '取消精选' : '设为精选'}">
-          ${item.featured ? '★' : '☆'}
-        </button>
+        <div class="card-order-controls">
+          <button type="button" class="order-btn" title="置顶到该章节最前" onclick="moveItem('${item.id}', 'top')">🔝 置顶</button>
+          <button type="button" class="order-btn" title="向前移一位" onclick="moveItem('${item.id}', 'up')">◀</button>
+          <button type="button" class="order-btn" title="向后移一位" onclick="moveItem('${item.id}', 'down')">▶</button>
+        </div>
       </div>
     </div>
   `;
 
-  // 绑定交互事件
+  // 绑定即时同步事件
   const titleInput = card.querySelector('.card-title-input');
-  titleInput.addEventListener('change', () => {
-    item.title = titleInput.value.trim() || `${item.categoryName} #${item.fileIndex}`;
+  titleInput.addEventListener('input', () => {
+    item.title = titleInput.value.trim();
     markDirty();
   });
 
-  const tagsInput = card.querySelector('.card-tags-input');
-  tagsInput.addEventListener('change', () => {
-    item.tags = tagsInput.value.split(/[,，]/).map(t => t.trim()).filter(Boolean);
+  const descInput = card.querySelector('.card-desc-input');
+  descInput.addEventListener('input', () => {
+    item.description = descInput.value.trim();
     markDirty();
   });
 
@@ -261,29 +268,6 @@ function createAssetCard(item) {
     item.visible = toggle.checked;
     toggleLabel.textContent = item.visible ? '公开中' : '已隐藏';
     card.classList.toggle('hidden-item', !item.visible);
-    renderStatistics();
-    markDirty();
-  });
-
-  const starBtn = card.querySelector('.btn-star');
-  starBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    item.featured = !item.featured;
-    starBtn.classList.toggle('active', item.featured);
-    starBtn.textContent = item.featured ? '★' : '☆';
-    card.classList.toggle('featured-item', item.featured);
-    
-    // 更新或增删 badge
-    const existingBadge = card.querySelector('.badge-featured');
-    if (item.featured && !existingBadge) {
-      const b = document.createElement('div');
-      b.className = 'badge-featured';
-      b.textContent = '⭐ 精选';
-      card.querySelector('.card-thumb-wrap').appendChild(b);
-    } else if (!item.featured && existingBadge) {
-      existingBadge.remove();
-    }
-
     renderStatistics();
     markDirty();
   });
@@ -401,6 +385,173 @@ function setupNavigation() {
     };
   });
 }
+
+// ================= 排序与预览控制 =================
+
+// 作品分类内次序调整
+window.moveItem = function(itemId, direction) {
+  const itemIndex = portfolioData.items.findIndex(it => it.id === itemId);
+  if (itemIndex === -1) return;
+  const item = portfolioData.items[itemIndex];
+  const cat = item.category;
+
+  const catIndices = [];
+  portfolioData.items.forEach((it, idx) => {
+    if (it.category === cat) catIndices.push(idx);
+  });
+
+  const posInCat = catIndices.indexOf(itemIndex);
+  if (posInCat === -1) return;
+
+  if (direction === 'top') {
+    if (posInCat === 0) return;
+    portfolioData.items.splice(itemIndex, 1);
+    portfolioData.items.splice(catIndices[0], 0, item);
+  } else if (direction === 'up') {
+    if (posInCat === 0) return;
+    const prevIdx = catIndices[posInCat - 1];
+    portfolioData.items[itemIndex] = portfolioData.items[prevIdx];
+    portfolioData.items[prevIdx] = item;
+  } else if (direction === 'down') {
+    if (posInCat === catIndices.length - 1) return;
+    const nextIdx = catIndices[posInCat + 1];
+    portfolioData.items[itemIndex] = portfolioData.items[nextIdx];
+    portfolioData.items[nextIdx] = item;
+  }
+
+  markDirty();
+  renderAssetsView();
+  showToast(`已调整【${item.title || item.fileName}】排序`, 'info');
+};
+
+// 章节排序调整
+window.moveChapter = function(catId, direction) {
+  const cats = portfolioData.categories;
+  const idx = cats.findIndex(c => c.id === catId);
+  if (idx === -1) return;
+
+  if (direction === 'up' && idx > 0) {
+    const temp = cats[idx];
+    cats[idx] = cats[idx - 1];
+    cats[idx - 1] = temp;
+  } else if (direction === 'down' && idx < cats.length - 1) {
+    const temp = cats[idx];
+    cats[idx] = cats[idx + 1];
+    cats[idx + 1] = temp;
+  } else {
+    return;
+  }
+
+  cats.forEach((c, i) => { c.order = i + 1; });
+  markDirty();
+  initCategoryChips();
+  renderChaptersView();
+  showToast('章节呈现顺序已更新！前台目录将按此顺序显示。', 'success');
+};
+
+// 渲染章节列表管理
+function renderChaptersView() {
+  const root = document.getElementById('chapters-list-root');
+  if (!root || !portfolioData || !portfolioData.categories) return;
+  root.innerHTML = '';
+
+  const cats = portfolioData.categories;
+  cats.forEach((cat, idx) => {
+    const totalCount = portfolioData.items.filter(it => it.category === cat.id).length;
+    const visibleCount = portfolioData.items.filter(it => it.category === cat.id && it.visible).length;
+
+    const item = document.createElement('div');
+    item.className = 'chapter-manage-item';
+    item.innerHTML = `
+      <div class="chapter-meta">
+        <span class="chapter-num-badge">第 0${idx + 1} 章</span>
+        <div style="flex:1; display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+          <div>
+            <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">章节中文名称</label>
+            <input type="text" class="form-control cat-name-input" value="${escapeHtml(cat.name || '')}">
+          </div>
+          <div>
+            <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">英文副标题</label>
+            <input type="text" class="form-control cat-en-input" value="${escapeHtml(cat.en || '')}">
+          </div>
+        </div>
+        <div style="font-size:0.8rem; color:var(--text-muted); text-align:right; min-width:90px;">
+          <div>公开: <b style="color:var(--accent-green);">${visibleCount}</b> / ${totalCount}</div>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">ID: ${escapeHtml(cat.id)}</div>
+        </div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <button type="button" class="order-btn" title="上移此章节" ${idx === 0 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} onclick="moveChapter('${cat.id}', 'up')">⬆️ 上移</button>
+        <button type="button" class="order-btn" title="下移此章节" ${idx === cats.length - 1 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} onclick="moveChapter('${cat.id}', 'down')">⬇️ 下移</button>
+      </div>
+    `;
+
+    const nameInput = item.querySelector('.cat-name-input');
+    nameInput.addEventListener('input', () => {
+      cat.name = nameInput.value.trim();
+      initCategoryChips();
+      markDirty();
+    });
+
+    const enInput = item.querySelector('.cat-en-input');
+    enInput.addEventListener('input', () => {
+      cat.en = enInput.value.trim();
+      markDirty();
+    });
+
+    root.appendChild(item);
+  });
+}
+
+// 灯箱媒体预览
+window.openMediaPreview = function(itemId) {
+  const item = portfolioData.items.find(it => it.id === itemId);
+  if (!item) return;
+
+  const modal = document.getElementById('admin-preview-modal');
+  const stage = document.getElementById('admin-preview-stage');
+  const title = document.getElementById('admin-preview-title');
+  const cat = document.getElementById('admin-preview-category');
+  const desc = document.getElementById('admin-preview-desc');
+
+  title.textContent = item.title || item.fileName;
+  cat.textContent = `${item.categoryName || item.category} · #${item.fileIndex}`;
+  desc.textContent = item.description || (item.tags || []).join(' / ') || '';
+
+  stage.innerHTML = '';
+  if (item.mediaType === 'video') {
+    const video = document.createElement('video');
+    video.src = item.src;
+    video.controls = true;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.style.maxWidth = '100%';
+    video.style.maxHeight = '75vh';
+    stage.appendChild(video);
+  } else {
+    const img = document.createElement('img');
+    img.src = item.src;
+    img.alt = item.title || '';
+    img.style.maxWidth = '100%';
+    img.style.maxHeight = '75vh';
+    img.style.objectFit = 'contain';
+    stage.appendChild(img);
+  }
+
+  modal.classList.add('active');
+};
+
+window.closePreviewModal = function(e) {
+  if (e && e.target && e.target.closest && e.target.closest('.preview-modal-box') && !e.target.classList.contains('modal-close')) {
+    return;
+  }
+  const modal = document.getElementById('admin-preview-modal');
+  if (modal) {
+    const stage = document.getElementById('admin-preview-stage');
+    if (stage) stage.innerHTML = '';
+    modal.classList.remove('active');
+  }
+};
 
 // 个人资料与简历编辑初始化
 function initProfileView() {
@@ -575,10 +726,28 @@ function setupActionButtons() {
     document.getElementById('export-modal').classList.add('active');
   };
 
-  document.getElementById('btn-github-modal').onclick = () => {
-    const savedToken = localStorage.getItem('gh_portfolio_token') || '';
-    if (savedToken) document.getElementById('gh-token').value = savedToken;
-    document.getElementById('github-modal').classList.add('active');
+  document.getElementById('btn-github-modal').onclick = async () => {
+    if (isServerOnline) {
+      if (!confirm('确定要将本地已保存的全部配置、海报与文件改动一键推送到 GitHub 远程仓库吗？\n\n推送后 GitHub Pages 将自动部署上线（约 1-2 分钟生效）。')) return;
+      showToast('🚀 正在向 GitHub 推送更新中，请稍候...', 'info');
+      try {
+        const res = await fetch('/api/git-push', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success');
+          alert('🎉 恭喜！已成功发布到 GitHub！\n\n线上网站地址：' + (data.siteUrl || 'https://zhangbling1.github.io') + '\n\nGitHub Pages 通常需要 1-2 分钟构建生效，稍后刷新页面即可查看最新效果。');
+        } else {
+          showToast('推送失败: ' + data.message, 'error');
+          alert('Git 推送遇到问题：\n' + data.message);
+        }
+      } catch (e) {
+        showToast('请求本地服务出错: ' + e.message, 'error');
+      }
+    } else {
+      const savedToken = localStorage.getItem('gh_portfolio_token') || '';
+      if (savedToken) document.getElementById('gh-token').value = savedToken;
+      document.getElementById('github-modal').classList.add('active');
+    }
   };
 
   document.getElementById('btn-copy-json').onclick = () => {
