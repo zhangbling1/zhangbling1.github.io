@@ -13,11 +13,12 @@ if (!fs.existsSync(DATA_DIR)) {
 const CATEGORY_MAP = {
   'CG Style':    { id: 'CG Style',    name: 'CG风格',    en: 'CG Style',        order: 1, defaultVisibleCount: 30, featuredIndices: [1, 2, 3, 5, 8] },
   'Character':   { id: 'Character',   name: '角色原画',  en: 'Character',       order: 2, defaultVisibleCount: 30, featuredIndices: [1, 2, 7] },
-  '平面设计':    { id: '平面设计',    name: '平面设计',  en: 'Graphic Design',  order: 3, defaultVisibleCount: 30, featuredIndices: [1, 2, 3] },
-  'Cartoon':     { id: 'Cartoon',     name: '欧美卡通',  en: 'Cartoon',         order: 4, defaultVisibleCount: 30, featuredIndices: [1, 5] },
-  'Icon Design': { id: 'Icon Design', name: 'Icon设计',  en: 'Icon Design',     order: 5, defaultVisibleCount: 30, featuredIndices: [1, 3] },
-  'Other':       { id: 'Other',       name: '其他类型',  en: 'Other & Video',   order: 6, defaultVisibleCount: 30, featuredIndices: [26, 27] },
-  'webp':        { id: 'webp',        name: '插画图层',  en: 'Layers & Art',    order: 7, defaultVisibleCount: 20, featuredIndices: [1] }
+  'Video':       { id: 'Video',       name: '动态视觉',  en: 'Motion & Video',  order: 3, defaultVisibleCount: 29, featuredIndices: [1, 2, 3] },
+  '平面设计':    { id: '平面设计',    name: '平面设计',  en: 'Graphic Design',  order: 4, defaultVisibleCount: 30, featuredIndices: [1, 2, 3] },
+  'Cartoon':     { id: 'Cartoon',     name: '欧美卡通',  en: 'Cartoon',         order: 5, defaultVisibleCount: 30, featuredIndices: [1, 5] },
+  'Icon Design': { id: 'Icon Design', name: 'Icon设计',  en: 'Icon Design',     order: 6, defaultVisibleCount: 30, featuredIndices: [1, 3] },
+  'Other':       { id: 'Other',       name: '其他类型',  en: 'Other',           order: 7, defaultVisibleCount: 30, featuredIndices: [] },
+  'webp':        { id: 'webp',        name: '插画图层',  en: 'Layers & Art',    order: 8, defaultVisibleCount: 20, featuredIndices: [1] }
 };
 
 // 预设自定义标题
@@ -221,6 +222,12 @@ if (!existingConfig) {
   });
 
   existingConfig.items = mergedItems;
+  existingConfig.categories = Object.values(CATEGORY_MAP).map(c => ({
+    id: c.id,
+    name: c.name,
+    en: c.en,
+    order: c.order
+  }));
   fs.writeFileSync(portfolioDataPath, JSON.stringify(existingConfig, null, 2), 'utf-8');
   console.log(`[Scan] 已合并最新素材并保留用户自定义配置: data/portfolio-data.json`);
 }
