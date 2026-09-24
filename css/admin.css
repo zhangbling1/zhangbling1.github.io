@@ -683,9 +683,17 @@ body {
   padding: 20px 0 40px;
 }
 
-/* 个人资料设置面板 */
+/* 标签页面板基础切换 */
+.tab-content {
+  display: none !important;
+  width: 100%;
+}
+.tab-content.active {
+  display: block !important;
+}
+
+/* 个人资料与设置面板外观 */
 .settings-panel {
-  display: none;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -693,9 +701,6 @@ body {
   max-width: 900px;
   margin: 0 auto;
   width: 100%;
-}
-.settings-panel.active {
-  display: block;
 }
 
 .section-title {

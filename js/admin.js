@@ -381,7 +381,11 @@ function setupNavigation() {
 
       btn.classList.add('active');
       const targetTabId = btn.dataset.tab;
-      document.getElementById(targetTabId).classList.add('active');
+      const targetEl = document.getElementById(targetTabId);
+      if (targetEl) {
+        targetEl.classList.add('active');
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      }
     };
   });
 }
