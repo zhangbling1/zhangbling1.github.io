@@ -42,9 +42,11 @@
   ];
   const N = FRAMES.length;
   const FPS = 20;                        // three screen refreshes a frame at 60 Hz
-  const MIN = 2.4, MAX = 6.5, EXIT = 0.7;
+  const MIN = 2, MAX = 4.5, EXIT = 1;
   const INK = '23, 23, 22';
   const SEAL = '216, 67, 44';
+  // Sparks, from the rider's warm red down to the deep red of the hooves, and embers.
+  const TONES = ['236, 94, 58', SEAL, '184, 50, 31', '255, 178, 132'];
   const TAU = Math.PI * 2;
   const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
   const ramp = (v, a, b) => clamp((v - a) / (b - a));
@@ -64,9 +66,10 @@
     const raf = scope.requestAnimationFrame
       ? scope.requestAnimationFrame.bind(scope)
       : callback => setTimeout(() => callback(performance.now()), 1000 / 60);
-    const dust = [];
+    const dust = [], sparks = [];
+    const batches = Array.from({ length: 32 }, () => []);
     let width = 0, height = 0, ratio = 1, rule = null, ready = false, hidden = false;
-    let time = 0, step = 0, last = 0, beat = 0, leftAt = -1, pending = 0, done = false, stage = -1, percent = -1, shown = -1;
+    let time = 0, step = 0, last = 0, beat = 0, leftAt = -1, pending = 0, done = false, stage = -1, percent = -1, shown = -1, eaten = null;
 
     function size(message) {
       ({ width, height, ratio } = message);
@@ -103,7 +106,7 @@
     }
 
     function paint() {
-      const fidelity = clamp(time / 2.1);
+      const fidelity = clamp(time / 1.9);
       const e = fidelity < 0.5 ? 2 * fidelity * fidelity : 1 - (2 - 2 * fidelity) ** 2 / 2;
       const exit = leftAt >= 0 ? (time - leftAt) / EXIT : 0;
       if (exit >= 1) {
@@ -117,25 +120,36 @@
       // Horse and rider are about 290 by 185 plate pixels, centred 18 behind x = 0.
       const k = Math.min(width * (width < 700 ? 0.86 : 0.52) / 290, height * 0.46 / 185);
       const home = width * 0.5 + 18 * k;
-      const ox = home + exit * exit * width * 0.9;
+      // Leaving, the horse breaks into a sprint and comes apart from the tail
+      // forward, while the backdrop clears.
+      const ox = home + exit * exit * width * 0.55;
+      const speed = 2 * exit * width * 0.55 / EXIT;
       const gy = Math.round(height * 0.46 + 92 * k) + 0.5;
+      const clear = 1 - ramp(exit, 0, 0.45);
       const solid = ramp(e, 0.5, 0.66);
       const finesse = ramp(e, 0.72, 0.9);
+      const sweep = ramp(exit, 0.06, 0.72);
+      const edge = leftAt >= 0 ? -175 + 315 * sweep * sweep * (3 - 2 * sweep) : null;
 
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       ctx.clearRect(0, 0, width, height);
-      backdrop(e, k, home, gy, count);
-      if (solid > 0) shadow(ox, gy, k, solid);
+      backdrop(e, k, home, gy, count, clear);
+      if (solid > 0) shadow(ox, gy, k, solid * clear);
 
       ctx.save();
       ctx.translate(ox, gy);
       ctx.scale(k, k);
       ctx.lineJoin = 'round';
       ctx.lineCap = 'round';
+      ctx.save();
+      if (edge !== null) {
+        cut(edge);
+        ctx.clip();
+      }
       // 04 精修, behind everything: the frame before as a faint red trail,
       // and the rider's scarf, tied at the nape.
       if (finesse > 0) {
-        ctx.globalAlpha = 0.13 * finesse;
+        ctx.globalAlpha = 0.13 * finesse * clear;
         ctx.fillStyle = red;
         ctx.fill(paths[(f + N - 1) % N]);
         ctx.globalAlpha = 1;
@@ -178,7 +192,14 @@
         rim(P, finesse, k);
       }
       ctx.restore();
-      kick(f, ox, gy, k, finesse);
+      if (edge !== null) ember(P, edge, k);
+      ctx.restore();
+      if (edge !== null) {
+        shed(P, eaten ?? edge, edge, ox, gy, k, speed, exit);
+        eaten = edge;
+      }
+      sparkle(k);
+      kick(f, ox, gy, k, finesse * clear, leftAt < 0);
 
       const now = Math.min(3, Math.floor(e * 4));
       if (now !== stage) post({ type: 'stage', n: (stage = now) });
@@ -189,12 +210,104 @@
       if (leftAt < 0 && ((ready && time >= MIN) || time >= MAX)) leave();
     }
 
+    /* ---------- The exit: a sprint that comes apart into sparks ---------- */
+
+    // The ragged edge where the horse comes apart, rippling as it goes.
+    function frontier(x, y) {
+      return x + 5 * Math.sin(y * 0.11 + time * 9) + 3 * Math.sin(y * 0.29 - time * 14) + 1.6 * Math.sin(y * 0.83 + time * 23);
+    }
+
+    // Everything ahead of the edge, which is all that is left of the horse.
+    function cut(x) {
+      ctx.beginPath();
+      ctx.moveTo(frontier(x, -270), -270);
+      for (let y = -265; y <= 20; y += 5) ctx.lineTo(frontier(x, y), y);
+      ctx.lineTo(420, 20);
+      ctx.lineTo(420, -270);
+      ctx.closePath();
+    }
+
+    // A hot line along the edge, only where there is still horse to burn.
+    function ember(P, x, k) {
+      ctx.save();
+      ctx.clip(P);
+      ctx.beginPath();
+      ctx.moveTo(frontier(x, -270), -270);
+      for (let y = -265; y <= 20; y += 5) ctx.lineTo(frontier(x, y), y);
+      ctx.strokeStyle = 'rgba(255, 150, 96, 0.35)';
+      ctx.lineWidth = 7 / k;
+      ctx.stroke();
+      ctx.strokeStyle = 'rgba(255, 222, 184, 0.95)';
+      ctx.lineWidth = 1.8 / k;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // The strip the edge has just crossed turns into sparks: each keeps some
+    // of the horse's speed, then the wind catches it and blows it back.
+    function shed(P, from, to, ox, gy, k, speed, exit) {
+      if (to <= from) return;
+      const tries = Math.min(320, Math.round((to - from) * 52));
+      const life = (1 - exit) * EXIT - 0.04;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      for (let i = 0; i < tries; i++) {
+        const ux = from + Math.random() * (to - from), uy = -196 + Math.random() * 198;
+        if (!ctx.isPointInPath(P, ux, uy)) continue;
+        const hot = Math.random() < 0.16;
+        sparks.push({
+          x: ox + ux * k, y: gy + uy * k,
+          vx: speed * (0.3 + Math.random() * 0.5), vy: -(20 + Math.random() * 90) * k,
+          age: 0, life: Math.min(0.5 + Math.random() * 0.4, life),
+          tail: Math.random() < 0.4 ? 0 : 0.008 + Math.random() * 0.024,
+          size: (hot ? 1.6 : 0.9 + Math.random() * 0.9) * Math.max(1, k * 0.7),
+          tone: hot ? 3 : uy < -125 ? 0 : uy < -60 ? 1 : 2,
+        });
+      }
+      ctx.restore();
+    }
+
+    // Sparks drift on the wind and fade; they are drawn as motes or short
+    // streaks along their flight, in batches by colour, strength and size.
+    function sparkle(k) {
+      if (!sparks.length) return;
+      const wind = -560 * k;
+      for (const batch of batches) batch.length = 0;
+      for (let i = sparks.length - 1; i >= 0; i--) {
+        const s = sparks[i];
+        s.age += step;
+        if (s.age >= s.life) {
+          sparks[i] = sparks[sparks.length - 1];
+          sparks.pop();
+          continue;
+        }
+        s.vx += (wind - s.vx) * Math.min(1, 2.4 * step);
+        s.vy += (Math.sin(s.y * 0.021 + s.x * 0.004 + time * 6) * 150 - 40) * k * step;
+        s.x += s.vx * step;
+        s.y += s.vy * step;
+        const strength = Math.min(3, Math.floor((1 - s.age / s.life) * 4));
+        batches[s.tone * 8 + strength * 2 + (s.size > 1.5 * Math.max(1, k * 0.7) ? 1 : 0)].push(s);
+      }
+      batches.forEach((batch, i) => {
+        if (!batch.length) return;
+        const tone = i >> 3, strength = (i >> 1) & 3;
+        ctx.strokeStyle = `rgba(${TONES[tone]}, ${(strength + 1) / 4})`;
+        ctx.lineWidth = batch[0].size;
+        ctx.beginPath();
+        for (const s of batch) {
+          ctx.moveTo(s.x, s.y);
+          ctx.lineTo(s.x - s.vx * s.tail + 0.01, s.y - s.vy * s.tail);
+        }
+        ctx.stroke();
+      });
+    }
+
     // Muybridge's backdrop: numbered lines one panel apart, whose numbers move
     // on by one with every frame, over ruled lines along the track.
-    function backdrop(e, k, home, gy, count) {
-      ctx.fillStyle = `rgba(${INK}, 0.42)`;
+    function backdrop(e, k, home, gy, count, clear) {
+      ctx.fillStyle = `rgba(${INK}, ${0.42 * clear})`;
       ctx.fillRect(0, gy - 0.5, width, 1);
-      const grid = ramp(e, 0.04, 0.22);
+      const grid = ramp(e, 0.04, 0.22) * clear;
       if (grid <= 0) return;
       if (!rule) {
         rule = ctx.createLinearGradient(0, 0, width, 0);
@@ -289,10 +402,10 @@
     }
 
     // Each hoof on the track throws back a little dirt.
-    function kick(f, ox, gy, k, finesse) {
+    function kick(f, ox, gy, k, finesse, emit) {
       if (f !== shown) {
         shown = f;
-        if (finesse > 0) {
+        if (finesse > 0 && emit) {
           for (const x of META[f][2]) {
             for (let i = 0; i < 4; i++) {
               dust.push({

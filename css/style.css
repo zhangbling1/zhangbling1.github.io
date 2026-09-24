@@ -478,9 +478,11 @@ body.viewer-open { overflow: hidden; }
 .splash-stages li.is-on { opacity: 1; color: var(--ink); }
 .splash-stages li.is-on::after { background: linear-gradient(90deg, var(--seal), var(--seal-hot)); }
 .splash-count { justify-self: end; font-size: 13px; letter-spacing: .06em; color: var(--ink-3); font-variant-numeric: tabular-nums; }
-/* It stays up while it fades, even after the cover has started its entrance. */
-.splash.is-leaving { opacity: 0; pointer-events: none; transition: opacity .48s cubic-bezier(.4, 0, .2, 1) .2s; }
-.splash.is-leaving .splash-skip, .splash.is-leaving .splash-foot { opacity: 0; transition: opacity .2s var(--ease); }
+/* Leaving, the paper clears to let the cover through while the canvas keeps
+   the horse coming apart over it; the page removes the splash once it is done. */
+.splash.is-leaving { background-color: rgba(242, 240, 235, 0); pointer-events: none; transition: background-color .5s cubic-bezier(.4, 0, .2, 1) .15s; }
+.splash::before, .splash-head, .splash-foot { transition: opacity .3s var(--ease); }
+.splash.is-leaving::before, .splash.is-leaving .splash-head, .splash.is-leaving .splash-foot { opacity: 0; }
 /* The cover holds its entrance until the opening lifts. */
 .intro .cover, .intro .cover * { animation-play-state: paused; }
 

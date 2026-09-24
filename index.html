@@ -19,7 +19,7 @@
         if (!asked && ((location.hash && location.hash !== '#home') || sessionStorage.getItem('zn-intro') || matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
         root.classList.add('intro');
         var script = document.createElement('script');
-        script.src = 'js/intro.js?v=2026-09-30';
+        script.src = 'js/intro.js?v=2026-10-01';
         script.onerror = end;
         // Lifts the page if the opening never gets going.
         window.introFailsafe = setTimeout(end, 9000);
@@ -29,7 +29,7 @@
   </script>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2026-09-25">
   <link rel="preload" href="assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=2026-09-28">
+  <link rel="stylesheet" href="css/style.css?v=2026-10-01">
   <script src="js/app.js?v=2026-09-27" defer></script>
 </head>
 <body>
