@@ -337,15 +337,10 @@
   /* ---------- The splash ---------- */
 
   const MIN = 2.4, MAX = 6.5, EXIT = 0.7;
-  const splash = document.getElementById('splash');
-  const canvas = document.getElementById('splash-canvas');
-  const context = canvas?.getContext?.('2d');
-  const stages = splash ? [...splash.querySelectorAll('.splash-stages li')] : [];
-  const count = document.getElementById('splash-count');
   const dust = [];
+  let splash, canvas, context, stages, count;
   let ready = Boolean(window.bookReady);
-  let width = 0, height = 0, ratio = 1, start = 0, leaving = 0, frame = 0, done = false;
-  if (!splash || !context) return finish();
+  let width = 0, height = 0, ratio = 1, time = 0, last = 0, leftAt = -1, frame = 0, done = false;
 
   document.addEventListener('book:ready', () => { ready = true; }, { once: true });
   root.style.overflow = 'hidden';
@@ -359,8 +354,8 @@
   }
 
   function leave() {
-    if (leaving || done) return;
-    leaving = performance.now();
+    if (leftAt >= 0 || done) return;
+    leftAt = time;
     splash.classList.add('is-leaving');
     // The cover starts its own entrance while the paper lifts.
     setTimeout(() => root.classList.remove('intro'), 120);
@@ -373,15 +368,14 @@
     root.classList.remove('intro');
     root.style.overflow = '';
     splash?.remove();
-    try { sessionStorage.setItem('zn-intro', '1'); } catch (error) { /* private mode */ }
-    document.dispatchEvent(new CustomEvent('intro:done'));
+    // Only an opening that was actually on screen counts as seen.
+    if (time > 0) try { sessionStorage.setItem('zn-intro', '1'); } catch (error) { /* private mode */ }
   }
 
-  function draw(now) {
-    const time = (now - start) / 1000;
+  function paint() {
     const fidelity = clamp(time / 2.1);
     const eased = fidelity < 0.5 ? 2 * fidelity * fidelity : 1 - (2 - 2 * fidelity) ** 2 / 2;
-    const exit = leaving ? (now - leaving) / 1000 / EXIT : 0;
+    const exit = leftAt >= 0 ? (time - leftAt) / EXIT : 0;
     if (exit >= 1) return finish();
     const phase = wrap(time / STRIDE);
     const P = pose(phase, time);
@@ -458,20 +452,44 @@
     stages.forEach((node, i) => node.classList.toggle('is-on', i <= stage));
     splash.style.setProperty('--progress', eased.toFixed(3));
     if (count) count.textContent = `${String(Math.round(eased * (ready ? 100 : 96))).padStart(2, '0')}%`;
-    if (!leaving && ((ready && time >= MIN) || time >= MAX)) leave();
-    frame = requestAnimationFrame(draw);
+    if (leftAt < 0 && ((ready && time >= MIN) || time >= MAX)) leave();
+  }
+
+  // The clock only runs while frames are drawn, so an opening in a tab that
+  // was loaded in the background starts when the tab is first looked at.
+  function tick(now) {
+    try {
+      time += last ? Math.min(0.1, (now - last) / 1000) : 0;
+      last = now;
+      paint();
+      if (!done) frame = requestAnimationFrame(tick);
+    } catch (error) {
+      finish();
+      console.error(error);
+    }
   }
 
   function begin() {
+    splash = document.getElementById('splash');
+    canvas = document.getElementById('splash-canvas');
+    context = canvas?.getContext?.('2d');
+    if (!splash || !context) return finish();
+    stages = [...splash.querySelectorAll('.splash-stages li')];
+    count = document.getElementById('splash-count');
     resize();
     window.addEventListener('resize', resize);
-    // Any intent to move on skips the rest.
-    const skip = () => leave();
-    for (const type of ['pointerdown', 'wheel', 'touchmove', 'keydown']) window.addEventListener(type, skip, { once: true, passive: true });
-    start = performance.now();
-    frame = requestAnimationFrame(draw);
+    // A click, a tap or a key skips the rest. Scrolling does not, so a stray
+    // wheel or swipe cannot throw the opening away before it is seen.
+    splash.addEventListener('click', leave);
+    window.addEventListener('keydown', leave, { once: true });
+    frame = requestAnimationFrame(tick);
+    // Set up, so the failsafe in index.html stands down: from here a broken
+    // frame ends the opening, and a tab loaded in the background waits to
+    // be looked at instead of timing out.
+    clearTimeout(window.introFailsafe);
   }
 
+  // The markup may still be on its way when this file runs.
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', begin, { once: true });
   else begin();
 })();

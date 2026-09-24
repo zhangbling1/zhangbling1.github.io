@@ -8,25 +8,29 @@
   <title>张宁 | AI视觉设计师</title>
   <meta name="description" content="张宁的个人作品集。游戏美术、角色原画、平面视觉与 AI 创作。">
   <script>
-    // Open with the galloping horse once per session; never on a link into the
-    // book or when the reader prefers less motion. js/intro.js takes it from here.
+    // Open with the galloping horse the first time the book is opened in a tab
+    // (every time with ?intro), but not for a link into a chapter or when the
+    // reader prefers less motion. js/intro.js takes it from here.
     (function () {
+      var root = document.documentElement;
+      var end = function () { root.classList.remove('intro'); root.style.overflow = ''; };
       try {
-        var root = document.documentElement;
-        if (location.hash || sessionStorage.getItem('zn-intro') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        var asked = /[?&]intro\b/.test(location.search);
+        if (!asked && ((location.hash && location.hash !== '#home') || sessionStorage.getItem('zn-intro') || matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
         root.classList.add('intro');
         var script = document.createElement('script');
-        script.src = 'js/intro.js?v=2026-09-27';
+        script.src = 'js/intro.js?v=2026-09-28';
+        script.onerror = end;
+        // Lifts the page if the opening never gets going.
+        window.introFailsafe = setTimeout(end, 9000);
         document.head.appendChild(script);
-        setTimeout(function () { root.classList.remove('intro'); root.style.overflow = ''; }, 9000);
-      } catch (error) {}
+      } catch (error) { end(); }
     })();
   </script>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2026-09-25">
   <link rel="preload" href="assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=2026-09-27">
+  <link rel="stylesheet" href="css/style.css?v=2026-09-28">
   <script src="js/app.js?v=2026-09-27" defer></script>
-  <script src="js/field.js?v=2026-09-27" defer></script>
 </head>
 <body>
   <div class="splash" id="splash" aria-hidden="true">
@@ -62,7 +66,6 @@
 
   <main>
     <div id="portfolio-view">
-      <canvas class="field" id="field" aria-hidden="true"></canvas>
       <section class="cover wrap" id="home" aria-labelledby="hero-title">
         <div class="cover-text">
           <p class="label cover-label glass" id="cover-label"><i class="cover-dot" aria-hidden="true"></i>作品集 <span lang="en">Portfolio</span></p>
