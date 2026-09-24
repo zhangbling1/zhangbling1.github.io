@@ -7,21 +7,24 @@
   <meta name="theme-color" content="#f2f0eb">
   <title>张宁 | 视觉设计与游戏美术</title>
   <meta name="description" content="张宁的个人作品集。游戏美术、角色原画、平面视觉与 AI 创作。">
-  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link rel="preload" href="assets/fonts/manrope-variable.ttf" as="font" type="font/ttf" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=2026-09-24">
-  <script src="js/app.js?v=2026-09-24" defer></script>
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2026-09-25">
+  <link rel="preload" href="assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="css/style.css?v=2026-09-25">
+  <script src="js/app.js?v=2026-09-25" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#contents">跳到目录</a>
+  <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
+
   <header class="masthead" id="masthead">
     <div class="wrap masthead-inner">
-      <a class="brand" href="#home" aria-label="张宁作品集，回到封面">
-        <span class="seal" id="brand-seal" aria-hidden="true">张宁</span>
+      <a class="brand glass" href="#home" aria-label="张宁作品集，回到封面">
+        <span class="seal" id="brand-seal" aria-hidden="true">张</span>
         <span class="brand-text"><strong id="nav-brand-text">张宁</strong><span>作品集</span></span>
       </a>
-      <p class="running-head" id="running-head" aria-hidden="true"></p>
-      <nav class="main-nav" aria-label="主导航">
+      <p class="running-head glass" id="running-head" aria-hidden="true"><b id="running-num"></b><span id="running-name"></span><i class="running-bar"></i></p>
+      <nav class="main-nav glass" id="main-nav" aria-label="主导航">
+        <span class="nav-lens" id="nav-lens" aria-hidden="true"></span>
         <a href="#contents" class="nav-link is-active" id="nav-portfolio-btn" aria-current="page">作品</a>
         <a href="#about" class="nav-link" id="nav-resume-btn">关于</a>
         <a href="#contact" class="nav-link">联系</a>
@@ -33,25 +36,37 @@
     <div id="portfolio-view">
       <section class="cover wrap" id="home" aria-labelledby="hero-title">
         <div class="cover-text">
-          <p class="label" id="cover-label">作品集 <span lang="en">Portfolio</span></p>
-          <h1 id="hero-title"><span id="hero-prefix">ZHANG</span> <span id="hero-suffix">NING</span></h1>
+          <p class="label cover-label glass" id="cover-label"><i class="cover-dot" aria-hidden="true"></i>作品集 <span lang="en">Portfolio</span></p>
+          <h1 id="hero-title"><span class="line"><span id="hero-prefix">ZHANG</span></span> <span class="line"><span id="hero-suffix">NING</span></span></h1>
           <p class="cover-role"><span id="cover-name">张宁</span><span id="cover-title">视觉设计师</span></p>
-          <p class="cover-lead" id="hero-sub">让想象成为画面，让画面讲述故事。</p>
+          <p class="cover-lead" id="hero-sub"><span>让想象成为画面，</span><span>让画面讲述故事。</span></p>
           <dl class="facts">
             <div><dt>方向</dt><dd>游戏美术 · 视觉设计 · AI 创作</dd></div>
             <div id="fact-location" hidden><dt>现居</dt><dd id="hero-location"></dd></div>
             <div id="fact-companies" hidden><dt>经历</dt><dd id="hero-companies"></dd></div>
           </dl>
         </div>
-        <figure class="cover-plate" id="cover-plate" hidden>
-          <button type="button" class="cover-open" id="cover-open"><img id="cover-image" alt="" decoding="async" fetchpriority="high"></button>
-          <figcaption class="plate-caption" id="cover-caption"></figcaption>
+        <figure class="reel" id="reel">
+          <div class="reel-window" id="reel-window" aria-hidden="true"></div>
+          <figcaption class="reel-card glass">
+            <span class="reel-card-text" id="reel-card-text">
+              <span class="reel-card-label" id="reel-label">精选作品 <span lang="en">Selected Works</span></span>
+              <strong class="reel-card-title" id="reel-title">正在整理作品</strong>
+            </span>
+            <button type="button" class="reel-toggle" id="reel-toggle" aria-pressed="false" aria-label="暂停作品滚动">
+              <svg class="icon-pause" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5v11m6-11v11"/></svg>
+              <svg class="icon-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13L18.5 12Z"/></svg>
+            </button>
+          </figcaption>
         </figure>
       </section>
 
       <section class="contents wrap" id="contents" aria-labelledby="contents-title">
         <h2 class="label" id="contents-title">目录 <span lang="en">Contents</span></h2>
-        <ol class="toc" id="toc"></ol>
+        <div class="toc-wrap" id="toc-wrap">
+          <span class="toc-lens glass" id="toc-lens" aria-hidden="true"></span>
+          <ol class="toc" id="toc"></ol>
+        </div>
       </section>
 
       <div class="chapters" id="chapters" aria-busy="true"><p class="book-message wrap" role="status">正在载入作品…</p></div>
@@ -61,11 +76,11 @@
     <section class="about wrap" id="resume-view" aria-labelledby="resume-name" hidden>
       <div class="about-top">
         <p class="label">关于作者 <span lang="en">About</span></p>
-        <button type="button" class="text-button" id="print-resume">下载 PDF 简历 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg></button>
+        <button type="button" class="pill glass" id="print-resume">下载 PDF 简历 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m-5-5 5 5 5-5M5 20h14"/></svg></button>
       </div>
       <div class="about-intro">
         <div class="about-id">
-          <span class="seal seal-large" id="about-seal" aria-hidden="true">张宁</span>
+          <span class="seal seal-large" id="about-seal" aria-hidden="true">张</span>
           <h1 id="resume-name">张宁</h1>
           <p id="resume-title"></p>
         </div>
@@ -91,17 +106,18 @@
   </main>
 
   <footer class="colophon" id="contact">
+    <div class="colophon-glow" aria-hidden="true"><i></i><i></i></div>
     <div class="wrap">
       <div class="colophon-main">
         <p class="label">联系 <span lang="en">Contact</span></p>
-        <p class="colophon-statement">一个好想法，<br>从一次对话开始。</p>
+        <p class="colophon-statement"><span>一个好想法，</span><span>从一次对话开始。</span></p>
         <div class="colophon-actions">
-          <a class="colophon-email" id="footer-email" href="mailto:tfcthinker@outlook.com">tfcthinker@outlook.com</a>
-          <button type="button" class="text-button" id="copy-wechat">复制微信号</button>
+          <a class="colophon-email glass-dark" id="footer-email" href="mailto:tfcthinker@outlook.com">tfcthinker@outlook.com</a>
+          <button type="button" class="pill glass-dark" id="copy-wechat">复制微信号</button>
         </div>
       </div>
       <div class="colophon-bottom">
-        <span class="seal seal-small" id="footer-seal" aria-hidden="true">张宁</span>
+        <span class="seal seal-small" id="footer-seal" aria-hidden="true">张</span>
         <p id="footer-copy">© 2026 Zhang Ning</p>
         <p id="colophon-count"></p>
         <p class="colophon-motto">想象不止，创作不停。</p>
@@ -111,22 +127,23 @@
   </footer>
 
   <dialog class="viewer" id="lightbox" aria-labelledby="lb-title">
+    <div class="viewer-ambient" id="viewer-ambient" aria-hidden="true"></div>
     <div class="viewer-shell">
       <div class="viewer-top">
-        <span id="lb-counter" aria-live="polite"></span>
-        <button type="button" class="icon-button" id="lb-close" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 6.5 11 11m-11 0 11-11"/></svg></button>
+        <span class="viewer-counter glass-dark" id="lb-counter" aria-live="polite"></span>
+        <button type="button" class="icon-button glass-dark" id="lb-close" aria-label="关闭"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6.5 6.5 11 11m-11 0 11-11"/></svg></button>
       </div>
       <div class="viewer-stage">
-        <button type="button" class="icon-button viewer-prev" id="lb-prev" aria-label="上一幅"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button>
+        <button type="button" class="icon-button glass-dark viewer-prev" id="lb-prev" aria-label="上一幅"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg></button>
         <div class="viewer-media" id="lightbox-media"></div>
-        <button type="button" class="icon-button viewer-next" id="lb-next" aria-label="下一幅"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button>
+        <button type="button" class="icon-button glass-dark viewer-next" id="lb-next" aria-label="下一幅"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m10 6 6 6-6 6"/></svg></button>
       </div>
-      <div class="viewer-caption">
+      <div class="viewer-caption glass-dark">
         <div><p id="lb-meta"></p><h2 id="lb-title"></h2><p id="lb-description"></p></div>
         <a id="lb-original" target="_blank" rel="noopener">查看原图 <span aria-hidden="true">↗</span></a>
       </div>
     </div>
   </dialog>
-  <div class="toast" id="toast" role="status" hidden></div>
+  <div class="toast glass-dark" id="toast" role="status" hidden></div>
 </body>
 </html>
