@@ -78,9 +78,18 @@ const server = http.createServer((req, res) => {
         }
         fs.writeFileSync(DATA_FILE, JSON.stringify(payload, null, 2), 'utf-8');
         console.log(`[${new Date().toLocaleTimeString()}] ✅ 配置已成功保存至本地 data/portfolio-data.json`);
+
+        // 异步后台同步更新 media-previews.json，使前台海报与预览保持最新
+        const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+        exec(`${pythonCmd} scripts/build-previews.py`, { cwd: ROOT_DIR }, (err, stdout) => {
+          if (!err) {
+            console.log(`[Auto-Build] 已自动完成预览图与海报同步更新。`);
+          }
+        });
+
         return sendJSON(res, 200, {
           success: true,
-          message: '保存成功！前台页面刷新即可看到最新效果。',
+          message: '保存成功！已自动写盘并同步更新前台海报预览。',
           savedAt: new Date().toISOString()
         });
       } catch (err) {
@@ -100,6 +109,24 @@ const server = http.createServer((req, res) => {
     } catch (err) {
       return sendJSON(res, 500, { success: false, message: '重新扫描失败: ' + err.message });
     }
+  }
+
+  // API 3: 生成/更新 WebP 缩略图与视频关键帧海报
+  if (req.method === 'POST' && pathname === '/api/build-previews') {
+    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
+    exec(`${pythonCmd} scripts/build-previews.py`, { cwd: ROOT_DIR }, (err, stdout, stderr) => {
+      if (err) {
+        console.error('[Error] 生成预览失败:', err, stderr);
+        return sendJSON(res, 500, { success: false, message: '生成预览失败: ' + (stderr || err.message) });
+      }
+      console.log('[Build] 预览海报生成完成:\n', stdout);
+      return sendJSON(res, 200, {
+        success: true,
+        message: 'WebP 预览图与视频海报已全部生成并同步！',
+        details: stdout
+      });
+    });
+    return;
   }
 
   // API 3: 服务器状态

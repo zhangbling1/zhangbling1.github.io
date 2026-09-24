@@ -4,6 +4,7 @@
 
 // 全局应用状态
 let portfolioData = null;
+let mediaPreviews = {};
 let currentTab = 'tab-assets';
 let isServerOnline = false;
 let isDirty = false;
@@ -67,12 +68,20 @@ function markDirty(dirty = true) {
   updateServerIndicator();
 }
 
-// 加载作品集主配置
+// 加载作品集主配置与海报预览索引
 async function loadPortfolioData() {
   try {
-    const res = await fetch('data/portfolio-data.json?t=' + Date.now());
-    if (!res.ok) throw new Error('无法读取 data/portfolio-data.json');
-    portfolioData = await res.json();
+    const [dataRes, prevRes] = await Promise.all([
+      fetch('data/portfolio-data.json?t=' + Date.now()),
+      fetch('data/media-previews.json?t=' + Date.now()).catch(() => null)
+    ]);
+    if (!dataRes.ok) throw new Error('无法读取 data/portfolio-data.json');
+    portfolioData = await dataRes.json();
+    if (prevRes && prevRes.ok) {
+      mediaPreviews = await prevRes.json();
+    } else {
+      mediaPreviews = {};
+    }
 
     initCategoryChips();
     renderStatistics();
@@ -195,14 +204,16 @@ function createAssetCard(item) {
 
   const isVideo = item.mediaType === 'video';
   const isGif = item.mediaType === 'gif';
+  const preview = mediaPreviews[item.src];
+  const thumbSrc = preview && preview.variants && preview.variants.length > 0
+    ? preview.variants[0].src
+    : item.src;
+  const durationText = preview && preview.duration ? `${Math.round(preview.duration)}s` : '';
 
   card.innerHTML = `
-    <div class="card-thumb-wrap" onclick="previewMedia('${item.src}', ${isVideo})">
-      ${
-        isVideo
-          ? `<video class="card-thumb" src="${item.src}" muted playsinline></video><div class="badge-video">▶ 视频</div>`
-          : `<img class="card-thumb" src="${item.src}" alt="${item.title}" loading="lazy">`
-      }
+    <div class="card-thumb-wrap" onclick="previewMedia('${item.src}', ${isVideo})" title="点击查看原图/播放视频">
+      <img class="card-thumb" src="${thumbSrc}" alt="${escapeHtml(item.title || '')}" loading="lazy">
+      ${isVideo ? `<div class="badge-video">▶ 视频${durationText ? ` · ${durationText}` : ''}</div>` : ''}
       ${isGif ? `<div class="badge-video" style="background:#8b5cf6;">GIF</div>` : ''}
       ${item.featured ? `<div class="badge-featured">⭐ 精选</div>` : ''}
     </div>
@@ -401,11 +412,12 @@ function initProfileView() {
   document.getElementById('prof-email').value = p.email || '';
   document.getElementById('prof-phone').value = p.phone || '';
   document.getElementById('prof-wechat').value = p.wechat || '';
+  document.getElementById('prof-location').value = p.location || '';
   document.getElementById('prof-bio').value = p.bio || '';
   document.getElementById('prof-skills').value = (p.skills || []).join(', ');
 
   // 监听输入修改
-  ['prof-name', 'prof-title', 'prof-email', 'prof-phone', 'prof-wechat', 'prof-bio', 'prof-skills'].forEach(id => {
+  ['prof-name', 'prof-title', 'prof-email', 'prof-phone', 'prof-wechat', 'prof-location', 'prof-bio', 'prof-skills'].forEach(id => {
     document.getElementById(id).addEventListener('change', () => {
       syncProfileFromInputs();
       markDirty();
@@ -421,6 +433,7 @@ function syncProfileFromInputs() {
   portfolioData.profile.email = document.getElementById('prof-email').value.trim();
   portfolioData.profile.phone = document.getElementById('prof-phone').value.trim();
   portfolioData.profile.wechat = document.getElementById('prof-wechat').value.trim();
+  portfolioData.profile.location = document.getElementById('prof-location').value.trim();
   portfolioData.profile.bio = document.getElementById('prof-bio').value.trim();
   portfolioData.profile.skills = document.getElementById('prof-skills').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
 }
@@ -444,10 +457,11 @@ function renderExperiences() {
         <span style="font-weight:700; color:#fff;">经历 #${idx + 1}</span>
         <button class="btn btn-secondary btn-sm" style="color:var(--accent-red);" onclick="deleteExperience(${idx})">删除</button>
       </div>
-      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px; margin-bottom:10px;">
+      <div style="display:grid; grid-template-columns: 1.2fr 1fr 1.2fr 0.8fr; gap:10px; margin-bottom:10px;">
         <input type="text" class="form-control exp-comp" value="${escapeHtml(exp.company || '')}" placeholder="公司名称">
         <input type="text" class="form-control exp-role" value="${escapeHtml(exp.role || '')}" placeholder="职位角色">
         <input type="text" class="form-control exp-period" value="${escapeHtml(exp.period || '')}" placeholder="时间区间 (如 2024.6 - 2024.12)">
+        <input type="text" class="form-control exp-loc" value="${escapeHtml(exp.location || '')}" placeholder="城市 (如 北京)">
       </div>
       <textarea class="form-control exp-desc" placeholder="工作内容详情说明...">${escapeHtml(exp.description || '')}</textarea>
     `;
@@ -455,6 +469,7 @@ function renderExperiences() {
     card.querySelector('.exp-comp').addEventListener('change', e => { exp.company = e.target.value.trim(); markDirty(); });
     card.querySelector('.exp-role').addEventListener('change', e => { exp.role = e.target.value.trim(); markDirty(); });
     card.querySelector('.exp-period').addEventListener('change', e => { exp.period = e.target.value.trim(); markDirty(); });
+    card.querySelector('.exp-loc').addEventListener('change', e => { exp.location = e.target.value.trim(); markDirty(); });
     card.querySelector('.exp-desc').addEventListener('change', e => { exp.description = e.target.value.trim(); markDirty(); });
 
     root.appendChild(card);
@@ -531,6 +546,26 @@ function setupActionButtons() {
       showToast('本地服务未响应，请确保 scripts/server.js 正在运行', 'error');
     }
   };
+
+  // 触发生成/更新预览海报 (调用 build-previews.py)
+  const buildBtn = document.getElementById('btn-build-previews');
+  if (buildBtn) {
+    buildBtn.onclick = async () => {
+      showToast('正在分析资产并生成 WebP 缩略图与视频海报...', 'info');
+      try {
+        const res = await fetch('/api/build-previews', { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          showToast(data.message, 'success');
+          await loadPortfolioData();
+        } else {
+          showToast('生成预览失败: ' + data.message, 'error');
+        }
+      } catch (e) {
+        showToast('本地服务未响应，请确保 scripts/server.js 正在运行', 'error');
+      }
+    };
+  }
 
   // 弹窗控制
   document.getElementById('btn-export-modal').onclick = () => {

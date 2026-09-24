@@ -39,7 +39,11 @@
       </a>
 
       <button id="btn-rescan" class="btn btn-secondary" title="重新读取 images/ 目录新加入的素材">
-        🔄 重新扫描目录
+        🔄 重新扫描素材
+      </button>
+
+      <button id="btn-build-previews" class="btn btn-secondary" title="重新生成 WebP 缩略图与视频海报 (免黑窗口手动运行 Python)">
+        ⚡ 同步海报预览
       </button>
 
       <button id="btn-export-modal" class="btn btn-secondary">
@@ -183,7 +187,7 @@
           </div>
         </div>
 
-        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 16px;">
           <div class="form-group">
             <label class="form-label">联系邮箱 / Email</label>
             <input type="email" id="prof-email" class="form-control">
@@ -195,6 +199,10 @@
           <div class="form-group">
             <label class="form-label">微信 / WeChat</label>
             <input type="text" id="prof-wechat" class="form-control">
+          </div>
+          <div class="form-group">
+            <label class="form-label">现居城市 / Location</label>
+            <input type="text" id="prof-location" class="form-control" placeholder="如：北京">
           </div>
         </div>
 
