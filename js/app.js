@@ -150,6 +150,9 @@
       chaptersRoot.replaceChildren(message);
     } finally {
       chaptersRoot.setAttribute('aria-busy', 'false');
+      // The opening (js/intro.js) waits for this before it rides off.
+      window.bookReady = true;
+      document.dispatchEvent(new Event('book:ready'));
     }
   }
 
@@ -167,6 +170,8 @@
   function setLead(text) {
     const parts = String(text).trim().match(/^(.+?[，,；;])\s*(.+)$/);
     $('hero-sub').replaceChildren(...(parts ? parts.slice(1) : [String(text).trim()]).map(line => element('span', '', line)));
+    // The opening's caption echoes the first half.
+    if ($('splash-line')) $('splash-line').textContent = (parts ? parts[1] : String(text)).trim().replace(/[，,；;。.!！]$/, '');
   }
 
   function applyProfile(profile) {

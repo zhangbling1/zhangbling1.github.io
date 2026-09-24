@@ -5,14 +5,42 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="color-scheme" content="light">
   <meta name="theme-color" content="#f2f0eb">
-  <title>张宁 | 视觉设计与游戏美术</title>
+  <title>张宁 | AI视觉设计师</title>
   <meta name="description" content="张宁的个人作品集。游戏美术、角色原画、平面视觉与 AI 创作。">
+  <script>
+    // Open with the galloping horse once per session; never on a link into the
+    // book or when the reader prefers less motion. js/intro.js takes it from here.
+    (function () {
+      try {
+        var root = document.documentElement;
+        if (location.hash || sessionStorage.getItem('zn-intro') || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        root.classList.add('intro');
+        var script = document.createElement('script');
+        script.src = 'js/intro.js?v=2026-09-27';
+        document.head.appendChild(script);
+        setTimeout(function () { root.classList.remove('intro'); root.style.overflow = ''; }, 9000);
+      } catch (error) {}
+    })();
+  </script>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2026-09-25">
   <link rel="preload" href="assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=2026-09-26">
-  <script src="js/app.js?v=2026-09-26" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=2026-09-27">
+  <script src="js/app.js?v=2026-09-27" defer></script>
+  <script src="js/field.js?v=2026-09-27" defer></script>
 </head>
 <body>
+  <div class="splash" id="splash" aria-hidden="true">
+    <canvas class="splash-canvas" id="splash-canvas"></canvas>
+    <div class="wrap splash-head">
+      <span class="brand glass"><span class="seal">张</span><span class="brand-text"><strong>张宁</strong><span>作品集</span></span></span>
+      <span class="splash-skip glass">跳过</span>
+    </div>
+    <div class="wrap splash-foot">
+      <p class="splash-line" id="splash-line">借 AI 构筑想象为画面</p>
+      <ol class="splash-stages"><li><b>01</b>构想</li><li><b>02</b>结构</li><li><b>03</b>造型</li><li><b>04</b>精修</li></ol>
+      <p class="splash-count" id="splash-count">00%</p>
+    </div>
+  </div>
   <a class="skip-link" href="#contents">跳到目录</a>
   <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>
 
@@ -34,12 +62,13 @@
 
   <main>
     <div id="portfolio-view">
+      <canvas class="field" id="field" aria-hidden="true"></canvas>
       <section class="cover wrap" id="home" aria-labelledby="hero-title">
         <div class="cover-text">
           <p class="label cover-label glass" id="cover-label"><i class="cover-dot" aria-hidden="true"></i>作品集 <span lang="en">Portfolio</span></p>
           <h1 id="hero-title"><span class="line"><span id="hero-prefix">ZHANG</span></span> <span class="line"><span id="hero-suffix">NING</span></span></h1>
-          <p class="cover-role"><span id="cover-name">张宁</span><span id="cover-title">视觉设计师</span></p>
-          <p class="cover-lead" id="hero-sub"><span>让想象成为画面，</span><span>让画面讲述故事。</span></p>
+          <p class="cover-role"><span id="cover-name">张宁</span><span id="cover-title">平面设计师 / 视觉设计师 / AI美术</span></p>
+          <p class="cover-lead" id="hero-sub"><span>借 AI 构筑想象为画面，</span><span>假 AI 为翼，驰骋无边遐思。</span></p>
           <dl class="facts">
             <div><dt>方向</dt><dd>游戏美术 · 视觉设计 · AI 创作</dd></div>
             <div id="fact-location" hidden><dt>现居</dt><dd id="hero-location"></dd></div>

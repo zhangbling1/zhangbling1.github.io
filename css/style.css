@@ -169,6 +169,10 @@ svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColo
 /* Masthead: three floating glass capsules. The running head (书眉) names the
    chapter in view and fills as you read through it. */
 .masthead { position: sticky; top: 0; z-index: 40; height: var(--masthead); padding-top: 12px; pointer-events: none; }
+/* Once the page scrolls, a soft veil of paper and blur lifts the capsules off
+   whatever passes beneath them, fading out before it reaches the content. */
+.masthead::before { content: ''; position: absolute; z-index: -1; inset: 0 0 -26px; background: linear-gradient(180deg, rgba(242, 240, 235, .84), rgba(242, 240, 235, .5) 55%, rgba(242, 240, 235, 0)); -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px); -webkit-mask-image: linear-gradient(180deg, #000 50%, transparent); mask-image: linear-gradient(180deg, #000 50%, transparent); opacity: 0; transition: opacity .4s var(--ease); pointer-events: none; }
+.masthead.is-scrolled::before { opacity: 1; }
 .masthead-inner { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; height: calc(var(--masthead) - 24px); }
 .masthead .glass { pointer-events: auto; transition: background .4s; }
 .masthead.is-scrolled .glass { background: linear-gradient(180deg, rgba(255, 255, 255, .78), rgba(255, 255, 255, .5)); }
@@ -202,7 +206,10 @@ svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColo
 .nav-lens.is-instant { transition: none; }
 
 /* ---------- Cover ---------- */
-.cover { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); align-items: center; padding: clamp(24px, 3.4vw, 56px) 0 clamp(80px, 10vw, 144px); }
+/* The particle field (js/field.js) lies behind the cover, over the ambient light. */
+.field { position: absolute; z-index: 0; top: 0; left: 0; width: 100%; height: 100vh; pointer-events: none; opacity: 0; transition: opacity 1.4s var(--ease); }
+.field.is-on { opacity: 1; }
+.cover { position: relative; z-index: 1; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); align-items: center; padding: clamp(24px, 3.4vw, 56px) 0 clamp(80px, 10vw, 144px); }
 .cover-text { grid-column: 1 / 6; position: relative; z-index: 1; }
 .cover-label { display: inline-flex; align-items: center; height: 34px; padding: 0 16px 0 13px; border-radius: 999px; color: var(--ink-2); }
 .cover-dot { flex: none; width: 7px; height: 7px; margin-right: 10px; border-radius: 50%; background: linear-gradient(135deg, var(--seal-hot), var(--seal)); box-shadow: 0 0 0 3px rgba(214, 64, 42, .14); }
@@ -458,6 +465,29 @@ body.viewer-open { overflow: hidden; }
 .toast { position: fixed; z-index: 110; left: 50%; bottom: 32px; max-width: calc(100% - 32px); padding: 11px 22px; border-radius: 999px; font-size: 13px; letter-spacing: .04em; text-align: center; transform: translateX(-50%); animation: toast-in .5s var(--spring); }
 @keyframes toast-in { from { opacity: 0; transform: translate(-50%, 12px) scale(.9); } }
 
+/* ---------- Opening: the horse gallops from a sketch to a finished drawing ---------- */
+.splash { display: none; }
+.intro .splash, .splash.is-leaving { position: fixed; inset: 0; z-index: 300; display: block; overflow: hidden; background: var(--paper); animation: splash-failsafe .6s var(--ease) 8.5s forwards; }
+.splash::before { content: ''; position: absolute; inset: 0; background: radial-gradient(46% 42% at 76% 12%, rgba(255, 128, 72, .2), rgba(255, 128, 72, 0) 70%), radial-gradient(38% 36% at 18% 78%, rgba(255, 178, 84, .14), rgba(255, 178, 84, 0) 70%); pointer-events: none; }
+.splash-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.splash-head { position: absolute; top: 12px; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center; height: calc(var(--masthead) - 24px); }
+.splash-skip { display: inline-flex; align-items: center; height: 40px; padding: 0 20px; border-radius: 999px; font-size: 13px; letter-spacing: .08em; color: var(--ink-2); cursor: pointer; }
+.splash-foot { position: absolute; left: 0; right: 0; bottom: clamp(24px, 6vh, 56px); display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: end; gap: 16px; }
+.splash-line { font-size: 13px; letter-spacing: .14em; color: var(--ink-2); }
+.splash-stages { display: flex; gap: clamp(14px, 2.4vw, 36px); font-size: 13px; letter-spacing: .08em; color: var(--ink-3); }
+.splash-stages li { position: relative; padding-bottom: 10px; opacity: .4; transition: opacity .45s var(--ease), color .45s var(--ease); }
+.splash-stages li b { margin-right: .55em; font-weight: 500; font-variant-numeric: tabular-nums; }
+.splash-stages li::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 2px; border-radius: 2px; background: var(--rule); transition: background .45s var(--ease); }
+.splash-stages li.is-on { opacity: 1; color: var(--ink); }
+.splash-stages li.is-on::after { background: linear-gradient(90deg, var(--seal), var(--seal-hot)); }
+.splash-count { justify-self: end; font-size: 13px; letter-spacing: .06em; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+/* It stays up while it fades, even after the cover has started its entrance. */
+.splash.is-leaving { opacity: 0; pointer-events: none; transition: opacity .48s cubic-bezier(.4, 0, .2, 1) .2s; }
+.splash.is-leaving .splash-skip, .splash.is-leaving .splash-foot { opacity: 0; transition: opacity .2s var(--ease); }
+@keyframes splash-failsafe { to { opacity: 0; visibility: hidden; } }
+/* The cover holds its entrance until the opening lifts. */
+.intro .cover, .intro .cover * { animation-play-state: paused; }
+
 /* ---------- Motion (only when it is welcome) ---------- */
 @keyframes rise { from { opacity: 0; transform: translateY(22px); } }
 @keyframes line-rise { from { transform: translateY(104%); } }
@@ -568,6 +598,9 @@ body.viewer-open { overflow: hidden; }
   .viewer-next { right: calc(50% - 54px); }
   .viewer-caption { flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; padding: 14px 16px; }
   .viewer-caption h2 { font-size: 15px; }
+  .splash-foot { grid-template-columns: 1fr; justify-items: center; gap: 12px; }
+  .splash-line, .splash-count { display: none; }
+  .splash-stages { gap: 16px; font-size: 12px; }
 }
 @media (max-width: 380px) {
   .nav-link { padding: 0 11px; }
@@ -588,7 +621,7 @@ body.viewer-open { overflow: hidden; }
 }
 @media print {
   html, body { background: #fff; color: #111; font-size: 10pt; }
-  .masthead, .ambient, #portfolio-view, .colophon, .skip-link, .viewer, .toast, .about-top, .about-end { display: none !important; }
+  .masthead, .ambient, .splash, #portfolio-view, .colophon, .skip-link, .viewer, .toast, .about-top, .about-end { display: none !important; }
   #resume-view { display: block !important; width: 100%; padding: 0; }
   .label [lang='en'] { display: none; }
   .about-intro { display: block; padding: 0 0 5mm; }
