@@ -3,12 +3,15 @@
 
   const $ = id => document.getElementById(id);
   const state = { data: null, previews: {}, chapters: [], plates: [], viewerIndex: -1, runningChapter: null };
+  const reel = { plates: [], tracks: 0, vertical: true, shown: undefined, userPaused: false, inView: true, width: 0, deferred: [] };
   const dialog = $('lightbox');
   const chaptersRoot = $('chapters');
   const playIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15L19.5 12Z"/></svg>';
   const downIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-6-6 6 6 6-6"/></svg>';
   const chevronIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const narrowScreen = matchMedia('(max-width: 760px)');
+  const mediumScreen = matchMedia('(max-width: 1100px)');
+  const finePointer = matchMedia('(hover: hover) and (pointer: fine)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
   let toastTimer;
   let layoutFrame;
@@ -52,6 +55,12 @@
     const variants = (state.previews[item.src]?.variants || []).filter(variant => mediaURL(variant.src));
     const widths = new Map(variants.map(variant => [variant.width, mediaURL(variant.src)]));
     return Array.from(widths, ([width, src]) => ({ width, src }));
+  }
+
+  // Average colour of a work, painted behind it until the image arrives.
+  function toneOf(item) {
+    const color = state.previews[item.src]?.color;
+    return /^#[0-9a-f]{6}$/i.test(color || '') ? color : '';
   }
 
   /* ---------- Book structure ---------- */
@@ -108,7 +117,8 @@
       buildBook(data.items.filter(item => item.visible !== false && mediaURL(item.src)), data);
       applySiteInfo(data.siteInfo || {});
       applyProfile(data.profile || {});
-      renderCover();
+      reel.plates = pickReel(15);
+      buildReel();
       renderContents();
       renderChapters();
       layoutBook();
@@ -117,6 +127,7 @@
       if (target && !$('portfolio-view').hidden) requestAnimationFrame(() => target.scrollIntoView({ behavior: 'instant' }));
     } catch (error) {
       console.error(error);
+      $('reel').hidden = true;
       const message = element('div', 'book-message wrap');
       message.append(element('h3', '', '作品暂时没能载入'), element('p', '', '请检查网络连接，再试一次。'));
       const retry = element('button', 'line-link', '重新加载');
@@ -131,10 +142,18 @@
 
   function applySiteInfo(info) {
     if (info.title) document.title = info.title;
-    const fields = { brandName: 'nav-brand-text', heroTitlePrefix: 'hero-prefix', heroTitleSuffix: 'hero-suffix', heroSubtitle: 'hero-sub', footerCopyright: 'footer-copy' };
+    const fields = { brandName: 'nav-brand-text', heroTitlePrefix: 'hero-prefix', heroTitleSuffix: 'hero-suffix', footerCopyright: 'footer-copy' };
     for (const [key, id] of Object.entries(fields)) if (info[key]) $(id).textContent = info[key];
-    const seal = Array.from(String(info.brandName || '张宁')).slice(0, 2).join('');
+    if (info.heroSubtitle) setLead(info.heroSubtitle);
+    // The mark carries the first character of the name.
+    const seal = Array.from(String(info.brandName || '张宁'))[0];
     for (const id of ['brand-seal', 'about-seal', 'footer-seal']) $(id).textContent = seal;
+  }
+
+  // The tagline breaks after its first comma; the second half carries the sheen.
+  function setLead(text) {
+    const parts = String(text).trim().match(/^(.+?[，,；;])\s*(.+)$/);
+    $('hero-sub').replaceChildren(...(parts ? parts.slice(1) : [String(text).trim()]).map(line => element('span', '', line)));
   }
 
   function applyProfile(profile) {
@@ -181,29 +200,153 @@
     }));
   }
 
-  function renderCover() {
-    const opening = state.data.siteInfo?.workOrder || [];
-    const stills = state.plates.filter(plate => plate.item.mediaType !== 'video');
-    const plate = opening.map(id => stills.find(candidate => candidate.item.id === id)).find(Boolean) || stills[0];
-    if (!plate) return;
-    const image = $('cover-image');
-    const sources = previewSet(plate.item);
-    image.addEventListener('load', () => image.classList.add('is-loaded'), { once: true });
-    if (sources.length) {
-      image.sizes = '(max-width: 760px) 100vw, 56vw';
-      image.srcset = sources.map(source => `${source.src} ${source.width}w`).join(', ');
-      image.src = sources[sources.length - 1].src;
-    } else image.src = mediaURL(plate.item.src);
-    $('cover-plate').style.setProperty('--cover-ratio', String(Math.min(16 / 9, Math.max(1.25, plate.ratio))));
-    const title = realTitle(plate.item);
-    $('cover-open').setAttribute('aria-label', `查看图版 ${pad(plate.number, 3)}${title ? `：${title}` : ''}`);
-    $('cover-open').onclick = () => openViewer(plate.number - 1);
-    const caption = $('cover-caption');
-    caption.replaceChildren(element('span', 'plate-no', `图版 ${pad(plate.number, 3)}`));
-    if (title) caption.append(element('span', 'plate-title', title));
-    caption.append(element('span', '', plate.item.categoryName || ''));
-    $('cover-plate').hidden = false;
+  /* ---------- Reel: the cover's drifting selection ---------- */
+
+  // Works from siteInfo.workOrder first, then the rest of the book one chapter
+  // at a time. Videos, stickers and extreme panoramas or scrolls stay out.
+  function pickReel(count) {
+    const usable = plate => plate.item.mediaType !== 'video' && !plate.small && previewSet(plate.item).length
+      && plate.ratio > .45 && plate.ratio < 2.6;
+    const byId = new Map(state.plates.map(plate => [plate.item.id, plate]));
+    const picked = new Set();
+    for (const id of state.data.siteInfo?.workOrder || []) {
+      const plate = byId.get(id);
+      if (plate && usable(plate)) picked.add(plate);
+    }
+    const queues = state.chapters.map(chapter => chapter.plates.filter(plate => usable(plate) && !picked.has(plate)));
+    while (picked.size < count && queues.some(queue => queue.length)) {
+      for (const queue of queues) if (queue.length && picked.size < count) picked.add(queue.shift());
+    }
+    return [...picked].slice(0, count);
   }
+
+  const tileRatio = plate => Math.min(2, Math.max(.66, plate.ratio));
+
+  function buildReel() {
+    const holder = $('reel-window');
+    $('reel').hidden = !reel.plates.length;
+    // Built once the cover is on screen (the page may open on the About view).
+    if (!reel.plates.length || !holder.clientWidth) return;
+    reel.vertical = !narrowScreen.matches;
+    reel.tracks = reel.vertical && !mediumScreen.matches ? 3 : 2;
+    // Fewer works where the reel is smaller: five per column, five per row on phones.
+    const plates = reel.plates.slice(0, reel.tracks * 5);
+    holder.style.setProperty('--tracks', reel.tracks);
+    const gap = parseFloat(getComputedStyle($('reel')).getPropertyValue('--reel-gap')) || 12;
+    // Columns share the window's width; phone rows share one tile height.
+    const across = reel.vertical ? (holder.clientWidth - (reel.tracks - 1) * gap) / reel.tracks : Math.min(168, Math.max(120, innerWidth * .36));
+    const span = reel.vertical ? holder.clientHeight : holder.clientWidth;
+    const extent = plate => (reel.vertical ? across / tileRatio(plate) : across * tileRatio(plate)) + gap;
+    // Deal each work to the shortest track so every loop is about as long.
+    const tracks = Array.from({ length: reel.tracks }, () => ({ plates: [], length: 0 }));
+    for (const plate of plates) {
+      const track = tracks.reduce((shortest, candidate) => candidate.length < shortest.length ? candidate : shortest);
+      track.plates.push(plate);
+      track.length += extent(plate);
+    }
+    reel.deferred = [];
+    holder.replaceChildren(...tracks.map((track, index) => {
+      // A loop must outrun the window, or its seam would show.
+      const loop = [...track.plates];
+      for (let length = track.length; length < span * 1.15 && track.plates.length; length += track.length) loop.push(...track.plates);
+      // Works in view when the page opens load now; the rest wait for the page.
+      let reach = 0;
+      const eager = loop.map(plate => {
+        const visible = reach < span;
+        reach += extent(plate);
+        return visible;
+      });
+      const column = element('div', 'reel-col');
+      column.style.setProperty('--i', index);
+      const strip = element('div', 'reel-track');
+      for (let copy = 0; copy < 2; copy++) {
+        const set = element('div', 'reel-set');
+        loop.forEach((plate, order) => set.append(reelTile(plate, across, eager[order])));
+        strip.append(set);
+      }
+      column.append(strip);
+      return column;
+    }));
+    reel.width = holder.clientWidth;
+    timeReel();
+    showReelCard(null, true);
+    $('reel').classList.add('is-ready');
+    if (document.readyState === 'complete') hydrateReel();
+  }
+
+  function reelTile(plate, across, eager) {
+    const { item } = plate;
+    const ratio = tileRatio(plate);
+    const tile = element('span', 'reel-tile');
+    tile.dataset.index = String(plate.number - 1);
+    tile.style.setProperty('--ratio', ratio.toFixed(4));
+    const tone = toneOf(item);
+    if (tone) tile.style.setProperty('--tone', tone);
+    if (plate.ratio < ratio) tile.dataset.crop = 'top';
+    const image = element('img');
+    image.alt = '';
+    image.decoding = 'async';
+    image.draggable = false;
+    image.addEventListener('load', () => tile.classList.add('is-loaded'), { once: true });
+    // The reel never needs more than the 640px preview.
+    const all = previewSet(item);
+    const sources = all.filter(source => source.width <= 640);
+    if (!sources.length) sources.push(all[0]);
+    image.sizes = `${Math.round(reel.vertical ? across : across * ratio)}px`;
+    const srcset = sources.map(source => `${source.src} ${source.width}w`).join(', ');
+    if (eager) {
+      image.srcset = srcset;
+      image.src = sources[0].src;
+    } else reel.deferred.push(() => { image.srcset = srcset; image.src = sources[0].src; });
+    tile.append(image);
+    return tile;
+  }
+
+  function hydrateReel() {
+    const pending = reel.deferred.splice(0);
+    if (!pending.length) return;
+    const start = () => pending.forEach(load => load());
+    if ('requestIdleCallback' in window) requestIdleCallback(start, { timeout: 1500 });
+    else setTimeout(start, 200);
+  }
+
+  // Each column drifts at its own steady pace, whatever its length.
+  function timeReel() {
+    const speeds = reel.vertical ? [24, 19, 27] : [20, 16];
+    $('reel-window').querySelectorAll('.reel-track').forEach((strip, index) => {
+      const set = strip.firstElementChild;
+      const length = reel.vertical ? set.offsetHeight : set.offsetWidth;
+      strip.style.setProperty('--dur', `${Math.max(18, length / speeds[index % speeds.length]).toFixed(1)}s`);
+    });
+  }
+
+  function showReelCard(plate, force) {
+    if (plate === reel.shown && !force) return;
+    reel.shown = plate;
+    const text = $('reel-card-text');
+    const apply = () => {
+      if (plate) {
+        $('reel-label').textContent = `图版 ${pad(plate.number, 3)} · ${plate.item.categoryName || plate.chapter.category.name}`;
+        $('reel-title').textContent = realTitle(plate.item) || plate.chapter.category.name;
+      } else {
+        const english = element('span', '', 'Selected Works');
+        english.lang = 'en';
+        $('reel-label').replaceChildren('精选作品', english);
+        $('reel-title').textContent = `${state.plates.length} 幅作品 · ${state.chapters.length} 个章节`;
+      }
+      text.classList.remove('is-swapping');
+    };
+    clearTimeout(reel.swapTimer);
+    if (force) return apply();
+    text.classList.add('is-swapping');
+    reel.swapTimer = setTimeout(apply, 170);
+  }
+
+  function syncReelMotion() {
+    $('reel').classList.toggle('is-paused', reel.userPaused || !reel.inView);
+  }
+
+  /* ---------- Contents ---------- */
 
   function renderContents() {
     $('toc').replaceChildren(...state.chapters.map(chapter => {
@@ -222,6 +365,7 @@
 
   function renderChapters() {
     videoObserver.disconnect();
+    plateLoader.disconnect();
     chaptersRoot.replaceChildren(...state.chapters.map(chapter => {
       const section = element('section', 'chapter wrap');
       section.id = chapter.id;
@@ -242,13 +386,14 @@
       const box = element('div', 'plates');
       box.id = `${chapter.id}-plates`;
       for (const plate of chapter.plates) box.append(createPlate(plate));
-      const more = element('button', 'more-button');
+      const more = element('button', 'more-button glass');
       more.type = 'button';
       more.setAttribute('aria-controls', box.id);
       more.addEventListener('click', () => toggleChapter(chapter));
       const foot = element('div', 'chapter-foot');
       foot.append(more);
       section.append(head, box, foot);
+      revealObserver.observe(section);
       Object.assign(chapter, { section, box, more, foot });
       return section;
     }));
@@ -273,6 +418,34 @@
     }
   }, { rootMargin: '200px' });
 
+  // Plates fetch their image when about a screen away. The browser's own lazy
+  // loading starts several screens early, which slows the first visit.
+  const plateLoader = new IntersectionObserver(entries => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const image = entry.target.querySelector('img[data-src]');
+      if (image) {
+        if (image.dataset.srcset) image.srcset = image.dataset.srcset;
+        image.src = image.dataset.src;
+        delete image.dataset.srcset;
+        delete image.dataset.src;
+      }
+      plateLoader.unobserve(entry.target);
+    }
+  }, { rootMargin: '700px 0px' });
+
+  // Plates and chapter heads rise in as they enter; plates arriving together
+  // are staggered from top left to bottom right.
+  const revealObserver = new IntersectionObserver(entries => {
+    const arriving = entries.filter(entry => entry.isIntersecting)
+      .sort((a, b) => a.boundingClientRect.top - b.boundingClientRect.top || a.boundingClientRect.left - b.boundingClientRect.left);
+    arriving.forEach((entry, index) => {
+      entry.target.style.setProperty('--delay', `${Math.min(index, 8) * 60}ms`);
+      entry.target.classList.add('is-in');
+      revealObserver.unobserve(entry.target);
+    });
+  }, { rootMargin: '0px 0px -6% 0px' });
+
   function createPlate(plate) {
     const { item } = plate;
     const figure = element('figure', 'plate');
@@ -282,6 +455,8 @@
     button.type = 'button';
     button.setAttribute('aria-label', `查看图版 ${pad(plate.number, 3)}${title ? `：${title}` : ''}`);
     const media = element('span', 'plate-media');
+    const tone = toneOf(item);
+    if (tone) media.style.setProperty('--tone', tone);
     button.append(media);
     const caption = element('figcaption', 'plate-caption');
     caption.append(element('span', 'plate-no', pad(plate.number, 3)));
@@ -308,7 +483,6 @@
       const image = element('img');
       image.alt = '';
       image.decoding = 'async';
-      image.loading = 'lazy';
       image.addEventListener('load', () => {
         if (!plate.known) learnRatio(plate, image.naturalWidth, image.naturalHeight);
         markLoaded();
@@ -325,13 +499,15 @@
       const sources = previewSet(item);
       if (sources.length) {
         image.sizes = '(max-width: 760px) 50vw, 30vw';
-        image.srcset = sources.map(source => `${source.src} ${source.width}w`).join(', ');
-        image.src = sources[0].src;
-      } else image.src = mediaURL(item.src);
+        image.dataset.srcset = sources.map(source => `${source.src} ${source.width}w`).join(', ');
+        image.dataset.src = sources[0].src;
+      } else image.dataset.src = mediaURL(item.src);
       media.append(image);
       if (item.mediaType === 'gif') media.append(badge('动图'));
+      plateLoader.observe(figure);
     }
     button.addEventListener('click', () => openViewer(plate.number - 1));
+    revealObserver.observe(figure);
     Object.assign(plate, { figure, media });
     return figure;
   }
@@ -422,9 +598,10 @@
         plate.figure.hidden = !shown;
         if (!shown) continue;
         const plateWidth = position === row.end && !row.ragged ? width - left : Math.round(ratios[position] * row.height);
-        plate.figure.style.cssText = `width:${plateWidth}px;transform:translate(${left}px,${top}px)`;
+        plate.figure.style.width = `${plateWidth}px`;
+        plate.figure.style.transform = `translate(${left}px,${top}px)`;
         plate.media.style.height = `${height}px`;
-        const image = plate.media.querySelector('img[srcset]');
+        const image = plate.media.querySelector('img');
         if (image) image.sizes = `${plateWidth}px`;
         left += plateWidth + gap;
       }
@@ -464,18 +641,76 @@
     const masthead = $('masthead');
     masthead.classList.toggle('is-scrolled', window.scrollY > 4);
     let current = null;
+    let progress = 0;
     if (!$('portfolio-view').hidden) {
       const line = masthead.offsetHeight + 48;
       for (const chapter of state.chapters) {
         const rect = chapter.section?.getBoundingClientRect();
-        if (rect && rect.top <= line && rect.bottom > line) current = chapter;
+        if (rect && rect.top <= line && rect.bottom > line) {
+          current = chapter;
+          progress = (line - rect.top) / rect.height;
+        }
       }
     }
+    const head = $('running-head');
+    if (current) head.style.setProperty('--progress', progress.toFixed(3));
     if (current === state.runningChapter) return;
     state.runningChapter = current;
-    const head = $('running-head');
-    if (current) head.replaceChildren(element('b', '', pad(current.number)), document.createTextNode(current.category.name));
+    if (current) {
+      $('running-num').textContent = pad(current.number);
+      $('running-name').textContent = current.category.name;
+    }
     head.classList.toggle('is-visible', Boolean(current));
+  }
+
+  /* ---------- Liquid details ---------- */
+
+  // The droplet behind the active link. Moving right, its right edge leads and
+  // its left edge follows late, so it stretches and then settles.
+  let lensLeft = null;
+  function moveLens(link, instant) {
+    const lens = $('nav-lens');
+    if (!link?.offsetWidth) return;
+    const left = link.offsetLeft;
+    const right = link.offsetParent.clientWidth - left - link.offsetWidth;
+    const forward = lensLeft === null || left >= lensLeft;
+    lens.style.setProperty('--tl', forward ? '.62s' : '.34s');
+    lens.style.setProperty('--tr', forward ? '.34s' : '.62s');
+    lens.classList.toggle('is-instant', Boolean(instant) || lensLeft === null);
+    lens.style.setProperty('--l', `${left}px`);
+    lens.style.setProperty('--r', `${right}px`);
+    lensLeft = left;
+    if (lens.classList.contains('is-instant')) {
+      void lens.offsetWidth;
+      lens.classList.remove('is-instant');
+    }
+  }
+  const activeLink = () => document.querySelector('.nav-link.is-active');
+
+  // Glass catches the light where the pointer is.
+  function followLight() {
+    let lit = null;
+    let frame = 0;
+    let last = null;
+    document.addEventListener('pointermove', event => {
+      last = event;
+      if (frame) return;
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        const glass = last.target instanceof Element ? last.target.closest('.glass, .glass-dark') : null;
+        if (lit && lit !== glass) lit.style.setProperty('--glow', '0');
+        lit = glass;
+        if (!glass) return;
+        const rect = glass.getBoundingClientRect();
+        glass.style.setProperty('--mx', `${Math.round(last.clientX - rect.left)}px`);
+        glass.style.setProperty('--my', `${Math.round(last.clientY - rect.top)}px`);
+        glass.style.setProperty('--glow', '1');
+      });
+    }, { passive: true });
+    document.documentElement.addEventListener('pointerleave', () => {
+      lit?.style.setProperty('--glow', '0');
+      lit = null;
+    });
   }
 
   /* ---------- Plate viewer ---------- */
@@ -487,6 +722,23 @@
     holder.replaceChildren();
     holder.classList.remove('is-long', 'is-pending');
     holder.scrollTop = 0;
+  }
+
+  // The room takes its light from the plate: a blurred copy of a preview the
+  // page has usually loaded already.
+  function lightViewer(plate, index) {
+    const ambient = $('viewer-ambient');
+    ambient.classList.remove('is-lit');
+    const loaded = plate.media?.querySelector('img')?.currentSrc;
+    const glow = plate.item.mediaType === 'video' ? '' : loaded || previewSet(plate.item)[0]?.src;
+    if (!glow) return;
+    const probe = new Image();
+    probe.onload = () => {
+      if (state.viewerIndex !== index) return;
+      ambient.style.backgroundImage = `url("${glow}")`;
+      ambient.classList.add('is-lit');
+    };
+    probe.src = glow;
   }
 
   function openViewer(index) {
@@ -543,6 +795,7 @@
         }).catch(() => {});
       }
     }
+    lightViewer(plate, index);
     const tags = (item.tags || []).filter(tag => tag !== item.categoryName && tag !== item.categoryEn);
     $('lb-meta').textContent = [`第 ${pad(plate.chapter.number)} 章`, item.categoryName, ...tags].filter(Boolean).join(' · ');
     $('lb-title').textContent = realTitle(item) || `图版 ${pad(plate.number, 3)}`;
@@ -580,6 +833,7 @@
       $('nav-portfolio-btn').toggleAttribute('aria-current', !about);
       $('nav-resume-btn').toggleAttribute('aria-current', about);
       (about ? $('nav-resume-btn') : $('nav-portfolio-btn')).setAttribute('aria-current', 'page');
+      moveLens(activeLink());
     }
     requestAnimationFrame(() => {
       layoutBook();
@@ -599,15 +853,81 @@
     if (chaptersRoot.clientWidth === bookWidth) return;
     bookWidth = chaptersRoot.clientWidth;
     layoutBook();
+    moveLens(activeLink(), true);
   }).observe(chaptersRoot);
+  // Tiles scale with their column, so a new width only needs new loop timings.
+  let reelResize;
+  new ResizeObserver(() => {
+    const width = $('reel-window').clientWidth;
+    if (!reel.plates.length || !width || width === reel.width) return;
+    clearTimeout(reelResize);
+    if (!reel.width) return buildReel();
+    reelResize = setTimeout(() => {
+      reel.width = $('reel-window').clientWidth;
+      timeReel();
+    }, 150);
+  }).observe($('reel-window'));
+  // The cover's motion rests while it is off screen.
+  new IntersectionObserver(([entry]) => {
+    reel.inView = entry.isIntersecting;
+    syncReelMotion();
+    document.querySelector('.ambient').classList.toggle('is-paused', !entry.isIntersecting);
+  }).observe($('home'));
   window.addEventListener('scroll', () => {
     cancelAnimationFrame(headFrame);
     headFrame = requestAnimationFrame(updateRunningHead);
   }, { passive: true });
+  window.addEventListener('load', hydrateReel, { once: true });
+
+  const reelWindow = $('reel-window');
+  reelWindow.addEventListener('click', event => {
+    const tile = event.target.closest('.reel-tile');
+    if (tile) openViewer(Number(tile.dataset.index));
+  });
+  reelWindow.addEventListener('pointerover', event => {
+    const tile = event.target.closest('.reel-tile');
+    if (tile && event.pointerType === 'mouse') showReelCard(state.plates[Number(tile.dataset.index)]);
+  });
+  reelWindow.addEventListener('pointerleave', () => { if (reel.shown) showReelCard(null); });
+  $('reel-toggle').addEventListener('click', () => {
+    reel.userPaused = !reel.userPaused;
+    $('reel-toggle').setAttribute('aria-pressed', String(reel.userPaused));
+    $('reel-toggle').setAttribute('aria-label', reel.userPaused ? '继续作品滚动' : '暂停作品滚动');
+    syncReelMotion();
+  });
+
+  const nav = $('main-nav');
+  nav.addEventListener('pointerover', event => {
+    const link = event.target.closest('.nav-link');
+    if (link && event.pointerType === 'mouse') moveLens(link);
+  });
+  nav.addEventListener('pointerleave', () => moveLens(activeLink()));
+  nav.addEventListener('focusin', event => moveLens(event.target.closest('.nav-link')));
+  nav.addEventListener('focusout', () => moveLens(activeLink()));
+
+  const tocWrap = $('toc-wrap');
+  tocWrap.addEventListener('pointerover', event => {
+    const link = event.target.closest('.toc a');
+    if (!link || event.pointerType !== 'mouse') return;
+    const lens = $('toc-lens');
+    lens.style.setProperty('--y', `${Math.round(link.getBoundingClientRect().top - tocWrap.getBoundingClientRect().top) + 5}px`);
+    lens.style.setProperty('--h', `${link.offsetHeight - 10}px`);
+    tocWrap.classList.add('is-lensed');
+  });
+  tocWrap.addEventListener('pointerleave', () => tocWrap.classList.remove('is-lensed'));
+
+  for (const query of [narrowScreen, mediumScreen]) query.addEventListener('change', () => { if (reel.plates.length) buildReel(); });
+  if (finePointer.matches) followLight();
+
   $('lb-close').addEventListener('click', () => dialog.close());
   $('lb-prev').addEventListener('click', () => stepViewer(-1));
   $('lb-next').addEventListener('click', () => stepViewer(1));
-  dialog.addEventListener('close', () => { clearViewerMedia(); document.body.classList.remove('viewer-open'); state.viewerIndex = -1; });
+  dialog.addEventListener('close', () => {
+    clearViewerMedia();
+    $('viewer-ambient').classList.remove('is-lit');
+    document.body.classList.remove('viewer-open');
+    state.viewerIndex = -1;
+  });
   dialog.addEventListener('keydown', event => {
     if (event.target.tagName === 'VIDEO') return;
     if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') { event.preventDefault(); stepViewer(event.key === 'ArrowLeft' ? -1 : 1); }
@@ -632,5 +952,6 @@
   });
   window.addEventListener('hashchange', route);
   route();
+  document.fonts?.ready.then(() => moveLens(activeLink(), true));
   loadData();
 })();
