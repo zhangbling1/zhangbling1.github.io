@@ -9,8 +9,8 @@
   <meta name="description" content="张宁的个人作品集。游戏美术、角色原画、平面视觉与 AI 创作。">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2026-09-25">
   <link rel="preload" href="assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=2026-09-25">
-  <script src="js/app.js?v=2026-09-25" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=2026-09-26">
+  <script src="js/app.js?v=2026-09-26" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#contents">跳到目录</a>
@@ -62,9 +62,12 @@
       </section>
 
       <section class="contents wrap" id="contents" aria-labelledby="contents-title">
-        <h2 class="label" id="contents-title">目录 <span lang="en">Contents</span></h2>
-        <div class="toc-wrap" id="toc-wrap">
-          <span class="toc-lens glass" id="toc-lens" aria-hidden="true"></span>
+        <header class="section-head">
+          <h2 class="label" id="contents-title">目录 <span lang="en">Contents</span></h2>
+          <p class="section-note" id="contents-note"></p>
+        </header>
+        <div class="glide" id="toc-wrap">
+          <span class="lens glass" aria-hidden="true"></span>
           <ol class="toc" id="toc"></ol>
         </div>
       </section>
@@ -94,12 +97,20 @@
         </div>
       </div>
       <section class="resume-block" aria-labelledby="exp-title">
-        <h2 class="label" id="exp-title">工作经历 <span lang="en">Experience</span></h2>
-        <div class="resume-content" id="resume-exps"></div>
+        <header class="section-head">
+          <h2 class="label" id="exp-title">工作经历 <span lang="en">Experience</span></h2>
+          <p class="section-note" id="exp-note"></p>
+        </header>
+        <div class="glide" id="exp-wrap">
+          <span class="lens glass" aria-hidden="true"></span>
+          <ol class="experiences" id="resume-exps"></ol>
+        </div>
       </section>
       <section class="resume-block" aria-labelledby="skills-title">
-        <h2 class="label" id="skills-title">擅长的事 <span lang="en">Skills &amp; Tools</span></h2>
-        <ol class="resume-content skills" id="resume-skills"></ol>
+        <header class="section-head">
+          <h2 class="label" id="skills-title">擅长的事 <span lang="en">Skills &amp; Tools</span></h2>
+        </header>
+        <div class="skill-groups" id="resume-skills"></div>
       </section>
       <div class="about-end"><a class="line-link" href="#contents">浏览作品 <span aria-hidden="true">→</span></a></div>
     </section>
@@ -111,9 +122,10 @@
       <div class="colophon-main">
         <p class="label">联系 <span lang="en">Contact</span></p>
         <p class="colophon-statement"><span>一个好想法，</span><span>从一次对话开始。</span></p>
-        <div class="colophon-actions">
-          <a class="colophon-email glass-dark" id="footer-email" href="mailto:tfcthinker@outlook.com">tfcthinker@outlook.com</a>
-          <button type="button" class="pill glass-dark" id="copy-wechat">复制微信号</button>
+        <div class="contact-card glass-dark">
+          <div class="contact-row" id="contact-email"><span class="contact-label">邮箱</span><a class="contact-value" id="footer-email" href="mailto:tfcthinker@outlook.com">tfcthinker@outlook.com</a><button type="button" class="contact-action" data-copy="email">复制</button></div>
+          <div class="contact-row" id="contact-wechat"><span class="contact-label">微信</span><span class="contact-value" id="footer-wechat">17678020036</span><button type="button" class="contact-action" data-copy="wechat">复制</button></div>
+          <div class="contact-row" id="contact-phone"><span class="contact-label">电话</span><a class="contact-value" id="footer-phone" href="tel:17678020036">176 7802 0036</a><button type="button" class="contact-action" data-copy="phone">复制</button></div>
         </div>
       </div>
       <div class="colophon-bottom">
@@ -140,7 +152,7 @@
       </div>
       <div class="viewer-caption glass-dark">
         <div><p id="lb-meta"></p><h2 id="lb-title"></h2><p id="lb-description"></p></div>
-        <a id="lb-original" target="_blank" rel="noopener">查看原图 <span aria-hidden="true">↗</span></a>
+        <a id="lb-original" target="_blank" rel="noopener"><span id="lb-original-text">查看原图</span> <span aria-hidden="true">↗</span></a>
       </div>
     </div>
   </dialog>

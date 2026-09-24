@@ -13,12 +13,18 @@
   const mediumScreen = matchMedia('(max-width: 1100px)');
   const finePointer = matchMedia('(hover: hover) and (pointer: fine)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  // Which codec each video uses comes with its poster; the browser says whether it can decode it.
+  const videoTypes = { av1: 'video/mp4; codecs="av01.0.08M.08"', h264: 'video/mp4; codecs="avc1.640028"', hevc: 'video/mp4; codecs="hvc1.1.6.L120.90"', vp9: 'video/webm; codecs="vp09.00.40.08"' };
+  const videoProbe = document.createElement('video');
   let toastTimer;
   let layoutFrame;
   let headFrame;
   let bookWidth = 0;
 
   const pad = (value, size = 2) => String(value).padStart(size, '0');
+  const clock = seconds => `${Math.floor(Math.round(seconds) / 60)}:${pad(Math.round(seconds) % 60)}`;
+  // Chinese mobile numbers read in groups of three, four and four.
+  const spacedPhone = phone => /^1\d{10}$/.test(phone) ? phone.replace(/^(\d{3})(\d{4})(\d{4})$/, '$1 $2 $3') : phone;
 
   function element(tag, className, text) {
     const node = document.createElement(tag);
@@ -55,6 +61,11 @@
     const variants = (state.previews[item.src]?.variants || []).filter(variant => mediaURL(variant.src));
     const widths = new Map(variants.map(variant => [variant.width, mediaURL(variant.src)]));
     return Array.from(widths, ([width, src]) => ({ width, src }));
+  }
+
+  function playable(item) {
+    const type = videoTypes[state.previews[item.src]?.codec];
+    return !type || videoProbe.canPlayType(type) !== '';
   }
 
   // Average colour of a work, painted behind it until the image arrives.
@@ -119,6 +130,8 @@
       applyProfile(data.profile || {});
       reel.plates = pickReel(15);
       buildReel();
+      videoObserver.disconnect();
+      plateLoader.disconnect();
       renderContents();
       renderChapters();
       layoutBook();
@@ -182,31 +195,36 @@
       }
     }
     $('row-email').hidden = !email;
-    const phone = String(profile.phone || '');
-    $('row-phone').hidden = !phone;
-    $('resume-phone').textContent = phone;
-    if (phone) $('resume-phone').href = `tel:${phone.replace(/[^+\d]/g, '')}`;
-    $('row-wechat').hidden = !profile.wechat;
-    $('resume-wechat').textContent = profile.wechat || '';
-    $('copy-wechat').hidden = !profile.wechat;
-    $('resume-skills').replaceChildren(...(profile.skills || []).map(skill => element('li', '', skill)));
+    $('contact-email').hidden = !email;
+    const phone = String(profile.phone || '').trim();
+    const dial = `tel:${phone.replace(/[^+\d]/g, '')}`;
+    $('row-phone').hidden = $('contact-phone').hidden = !phone;
+    $('resume-phone').textContent = $('footer-phone').textContent = spacedPhone(phone);
+    if (phone) $('resume-phone').href = $('footer-phone').href = dial;
+    const wechat = String(profile.wechat || '').trim();
+    $('row-wechat').hidden = $('contact-wechat').hidden = !wechat;
+    $('resume-wechat').textContent = $('footer-wechat').textContent = wechat;
+    const skills = element('ul', 'chips');
+    skills.append(...(profile.skills || []).map(skill => element('li', 'chip', skill)));
+    $('resume-skills').replaceChildren(skills);
     $('resume-exps').replaceChildren(...experiences.map(experience => {
-      const row = element('article', 'experience');
-      const detail = element('div');
-      detail.append(element('h3', '', experience.company || ''), element('p', 'experience-role', [experience.role, experience.location].filter(Boolean).join(' · ')));
-      if (experience.description) detail.append(element('p', 'experience-description', experience.description));
-      row.append(element('p', 'experience-period', String(experience.period || '').replace(/\s*-\s*/, ' — ')), detail);
-      return row;
+      const card = element('li', 'experience');
+      card.append(element('p', 'experience-period', String(experience.period || '').replace(/\s*-\s*/, ' — ')),
+        element('h3', '', experience.company || ''),
+        element('p', 'experience-role', [experience.role, experience.location].filter(Boolean).join(' · ')));
+      if (experience.description) card.append(element('p', 'experience-description', experience.description));
+      return card;
     }));
+    $('exp-note').textContent = experiences.length ? `${experiences.length} 段经历${years.length ? ` · ${Math.min(...years)} — ${Math.max(...years)}` : ''}` : '';
   }
 
   /* ---------- Reel: the cover's drifting selection ---------- */
 
   // Works from siteInfo.workOrder first, then the rest of the book one chapter
-  // at a time. Videos, stickers and extreme panoramas or scrolls stay out.
+  // at a time; videos appear as their poster. Anything without a preview,
+  // stickers and extreme panoramas or scrolls stay out.
   function pickReel(count) {
-    const usable = plate => plate.item.mediaType !== 'video' && !plate.small && previewSet(plate.item).length
-      && plate.ratio > .45 && plate.ratio < 2.6;
+    const usable = plate => !plate.small && previewSet(plate.item).length && plate.ratio > .45 && plate.ratio < 2.6;
     const byId = new Map(state.plates.map(plate => [plate.item.id, plate]));
     const picked = new Set();
     for (const id of state.data.siteInfo?.workOrder || []) {
@@ -299,6 +317,7 @@
       image.src = sources[0].src;
     } else reel.deferred.push(() => { image.srcset = srcset; image.src = sources[0].src; });
     tile.append(image);
+    if (item.mediaType === 'video') tile.append(videoBadge(item));
     return tile;
   }
 
@@ -348,24 +367,52 @@
 
   /* ---------- Contents ---------- */
 
+  // Each chapter is a card: its opening plate in front, the colours of the next
+  // two peeking out behind like a stack of prints.
   function renderContents() {
     $('toc').replaceChildren(...state.chapters.map(chapter => {
-      const link = element('a');
+      const [lead, second, third] = chapter.plates;
+      const link = element('a', 'toc-card');
       link.href = `#${chapter.id}`;
+      const cover = element('span', 'toc-cover');
+      for (const [name, plate] of [['--stack-1', second], ['--stack-2', third]]) {
+        const tone = plate && toneOf(plate.item);
+        if (tone) cover.style.setProperty(name, tone);
+      }
+      const frame = element('span', 'toc-frame');
+      const tone = toneOf(lead.item);
+      if (tone) frame.style.setProperty('--tone', tone);
+      const sources = previewSet(lead.item);
+      if (sources.length) {
+        const image = element('img');
+        image.alt = '';
+        image.decoding = 'async';
+        image.sizes = '(max-width: 760px) 84px, (max-width: 1100px) 24vw, 340px';
+        image.dataset.srcset = sources.map(source => `${source.src} ${source.width}w`).join(', ');
+        image.dataset.src = sources[0].src;
+        image.addEventListener('load', () => link.classList.add('is-loaded'), { once: true });
+        frame.append(image);
+        plateLoader.observe(link);
+      }
+      if (lead.item.mediaType === 'video') frame.append(videoBadge(lead.item));
+      cover.append(frame);
+      const count = element('span', 'toc-count', `${chapter.plates.length} 幅`);
       const arrow = element('span', 'toc-arrow');
       arrow.innerHTML = downIcon;
-      link.append(element('span', 'toc-num', pad(chapter.number)), element('span', 'toc-name', chapter.category.name),
-        element('span', 'toc-en', chapter.category.en || ''), element('span', 'toc-count', `${chapter.plates.length} 幅`), arrow);
+      count.append(arrow);
+      const text = element('span', 'toc-text');
+      text.append(element('span', 'toc-num', pad(chapter.number)), element('span', 'toc-name', chapter.category.name), count, element('span', 'toc-en', chapter.category.en || ''));
+      link.append(cover, text);
       const item = element('li');
       item.append(link);
       return item;
     }));
+    const videos = state.plates.filter(plate => plate.item.mediaType === 'video').length;
+    $('contents-note').textContent = `${state.chapters.length} 个章节 · ${state.plates.length} 幅作品${videos ? `，含视频 ${videos} 段` : ''}`;
     $('colophon-count').textContent = `收录图版 ${state.plates.length} 幅`;
   }
 
   function renderChapters() {
-    videoObserver.disconnect();
-    plateLoader.disconnect();
     chaptersRoot.replaceChildren(...state.chapters.map(chapter => {
       const section = element('section', 'chapter wrap');
       section.id = chapter.id;
@@ -404,6 +451,42 @@
     if (!bottom) node.innerHTML = playIcon;
     node.append(document.createTextNode(text));
     return node;
+  }
+
+  const videoBadge = item => badge(state.previews[item.src]?.duration ? clock(state.previews[item.src].duration) : '视频');
+
+  // Pointing at a video's poster plays it silently after a moment's rest, so
+  // sweeping across a row of videos downloads nothing.
+  function previewOnHover(plate, button) {
+    let timer = 0;
+    let motion = null;
+    const stop = () => {
+      clearTimeout(timer);
+      if (!motion) return;
+      motion.pause();
+      motion.removeAttribute('src');
+      motion.load();
+      motion.remove();
+      motion = null;
+      plate.figure.classList.remove('is-playing');
+    };
+    button.addEventListener('pointerenter', event => {
+      if (event.pointerType !== 'mouse' || reducedMotion.matches || !playable(plate.item)) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        motion = element('video', 'plate-motion');
+        motion.muted = true;
+        motion.loop = true;
+        motion.playsInline = true;
+        motion.setAttribute('aria-hidden', 'true');
+        motion.addEventListener('playing', () => plate.figure.classList.add('is-playing'), { once: true });
+        motion.src = mediaURL(plate.item.src);
+        plate.media.append(motion);
+        motion.play().catch(() => {});
+      }, 280);
+    });
+    button.addEventListener('pointerleave', stop);
+    button.addEventListener('click', stop);
   }
 
   // Load video metadata only when its plate approaches the viewport.
@@ -463,7 +546,9 @@
     if (title) caption.append(element('span', 'plate-title', title));
     figure.append(button, caption);
     const markLoaded = () => figure.classList.add('is-loaded');
-    if (item.mediaType === 'video') {
+    // Videos show their poster; only those without one fall back to a live video element.
+    const poster = item.mediaType === 'video' && previewSet(item).length > 0;
+    if (item.mediaType === 'video' && !poster) {
       const video = element('video');
       video.muted = true;
       video.loop = true;
@@ -488,7 +573,7 @@
         markLoaded();
       });
       image.addEventListener('error', () => {
-        if (image.src === mediaURL(item.src)) {
+        if (poster || image.src === mediaURL(item.src)) {
           media.replaceChildren(element('span', 'media-failure', '预览暂不可用'));
           markLoaded();
         } else {
@@ -504,6 +589,10 @@
       } else image.dataset.src = mediaURL(item.src);
       media.append(image);
       if (item.mediaType === 'gif') media.append(badge('动图'));
+      if (poster) {
+        media.append(videoBadge(item));
+        previewOnHover(plate, button);
+      }
       plateLoader.observe(figure);
     }
     button.addEventListener('click', () => openViewer(plate.number - 1));
@@ -687,6 +776,34 @@
   }
   const activeLink = () => document.querySelector('.nav-link.is-active');
 
+  // One glass lens per grid glides to the card under the pointer or keyboard
+  // focus. It appears in place the first time and slides between cards after.
+  function glide(wrap, selector) {
+    const lens = wrap.querySelector('.lens');
+    const moveTo = card => {
+      const box = wrap.getBoundingClientRect();
+      const rect = card.getBoundingClientRect();
+      const arriving = !wrap.classList.contains('is-lensed');
+      lens.classList.toggle('is-instant', arriving);
+      lens.style.cssText = `--x:${Math.round(rect.left - box.left)}px;--y:${Math.round(rect.top - box.top)}px;--w:${Math.round(rect.width)}px;--h:${Math.round(rect.height)}px`;
+      if (arriving) void lens.offsetWidth;
+      lens.classList.remove('is-instant');
+      wrap.classList.add('is-lensed');
+    };
+    wrap.addEventListener('pointerover', event => {
+      const card = event.target.closest(selector);
+      if (card && event.pointerType === 'mouse') moveTo(card);
+    });
+    wrap.addEventListener('focusin', event => {
+      const card = event.target.closest(selector);
+      if (card) moveTo(card);
+    });
+    wrap.addEventListener('pointerleave', () => wrap.classList.remove('is-lensed'));
+    wrap.addEventListener('focusout', event => {
+      if (!wrap.contains(event.relatedTarget)) wrap.classList.remove('is-lensed');
+    });
+  }
+
   // Glass catches the light where the pointer is.
   function followLight() {
     let lit = null;
@@ -730,7 +847,7 @@
     const ambient = $('viewer-ambient');
     ambient.classList.remove('is-lit');
     const loaded = plate.media?.querySelector('img')?.currentSrc;
-    const glow = plate.item.mediaType === 'video' ? '' : loaded || previewSet(plate.item)[0]?.src;
+    const glow = loaded || previewSet(plate.item)[0]?.src;
     if (!glow) return;
     const probe = new Image();
     probe.onload = () => {
@@ -752,13 +869,28 @@
     const original = mediaURL(item.src);
     const fail = () => holder.replaceChildren(element('p', 'media-failure', '这个文件暂时无法预览，可以用右下角的链接打开原文件。'));
     if (item.mediaType === 'video') {
-      const video = element('video');
-      video.controls = true;
-      video.playsInline = true;
-      video.autoplay = true;
-      video.addEventListener('error', fail, { once: true });
-      video.src = original;
-      holder.append(video);
+      const poster = previewSet(item).at(-1)?.src || '';
+      if (playable(item)) {
+        const video = element('video');
+        video.controls = true;
+        video.playsInline = true;
+        video.preload = 'auto';
+        if (poster) video.poster = poster;
+        video.addEventListener('error', fail, { once: true });
+        video.src = original;
+        holder.append(video);
+        // Sound is allowed by the click that opened the viewer; if not, start muted.
+        video.play().catch(() => {
+          video.muted = true;
+          video.play().catch(() => {});
+        });
+      } else {
+        const still = element('img');
+        still.alt = realTitle(item) || item.categoryName || '';
+        if (poster) still.src = poster;
+        const codec = String(state.previews[item.src]?.codec || '').toUpperCase();
+        holder.append(still, element('p', 'viewer-note', `当前浏览器无法播放 ${codec} 视频，请换用 Chrome、Edge 或 Firefox 观看。`));
+      }
     } else {
       // Show the cached preview at once, then swap in the original when it is ready.
       const preview = state.previews[item.src];
@@ -802,6 +934,7 @@
     $('lb-description').textContent = item.description || '';
     $('lb-counter').textContent = `${pad(plate.number, 3)} / ${pad(state.plates.length, 3)}`;
     $('lb-original').href = original;
+    $('lb-original-text').textContent = item.mediaType === 'video' ? '查看原视频' : '查看原图';
     $('lb-prev').disabled = $('lb-next').disabled = state.plates.length < 2;
     for (const offset of [1, -1]) {
       const neighbour = state.plates[(index + offset + state.plates.length) % state.plates.length];
@@ -905,16 +1038,8 @@
   nav.addEventListener('focusin', event => moveLens(event.target.closest('.nav-link')));
   nav.addEventListener('focusout', () => moveLens(activeLink()));
 
-  const tocWrap = $('toc-wrap');
-  tocWrap.addEventListener('pointerover', event => {
-    const link = event.target.closest('.toc a');
-    if (!link || event.pointerType !== 'mouse') return;
-    const lens = $('toc-lens');
-    lens.style.setProperty('--y', `${Math.round(link.getBoundingClientRect().top - tocWrap.getBoundingClientRect().top) + 5}px`);
-    lens.style.setProperty('--h', `${link.offsetHeight - 10}px`);
-    tocWrap.classList.add('is-lensed');
-  });
-  tocWrap.addEventListener('pointerleave', () => tocWrap.classList.remove('is-lensed'));
+  glide($('toc-wrap'), '.toc-card');
+  glide($('exp-wrap'), '.experience');
 
   for (const query of [narrowScreen, mediumScreen]) query.addEventListener('change', () => { if (reel.plates.length) buildReel(); });
   if (finePointer.matches) followLight();
@@ -944,11 +1069,15 @@
     touchStart = null;
   }, { passive: true });
   $('print-resume').addEventListener('click', () => window.print());
-  $('copy-wechat').addEventListener('click', async () => {
-    const wechat = state.data?.profile?.wechat;
-    if (!wechat) return;
-    try { await navigator.clipboard.writeText(String(wechat)); showToast('微信号已复制'); }
-    catch { showToast(`微信号：${wechat}`); }
+  const copyNames = { email: '邮箱', wechat: '微信号', phone: '电话号码' };
+  document.querySelector('.contact-card').addEventListener('click', async event => {
+    const button = event.target.closest('[data-copy]');
+    if (!button) return;
+    const kind = button.dataset.copy;
+    const shown = button.parentElement.querySelector('.contact-value').textContent.trim();
+    const value = kind === 'phone' ? shown.replace(/\s+/g, '') : shown;
+    try { await navigator.clipboard.writeText(value); showToast(`${copyNames[kind]}已复制`); }
+    catch { showToast(`${copyNames[kind]}：${value}`); }
   });
   window.addEventListener('hashchange', route);
   route();
