@@ -1,11 +1,11 @@
 {
   "version": "2.0.0",
   "siteInfo": {
-    "title": "张宁 | 视觉设计与游戏美术",
+    "title": "张宁 | AI视觉设计师",
     "brandName": "张宁",
     "heroTitlePrefix": "ZHANG",
     "heroTitleSuffix": "NING",
-    "heroSubtitle": "让想象成为画面，让画面讲述故事。",
+    "heroSubtitle": "借 AI 构筑想象为画面，假 AI 为翼，驰骋无边遐思。",
     "footerCopyright": "© 2026 Zhang Ning. All rights reserved.",
     "workOrder": [
       "CG_Style_5",
@@ -29,7 +29,8 @@
     "phone": "17678020036",
     "wechat": "17678020036",
     "location": "北京",
-    "bio": "毕业于内蒙古农业大学视觉传达系。拥有游戏宣传图视觉设计和原画设计经验，同时也涉足动漫行业宣发。掌握 3D 辅助平面设计流程。深度运用 AI 美术工具提升设计效率与创意。",
+    "aiToolsIntro": "熟练使用 Codex · Claude · Antigravity 协同创作",
+    "bio": "熟练运用 Codex、Claude、Antigravity 等前沿 AI 工具与智能体协同创作，深度赋能视觉设计与创意落地。毕业于内蒙古农业大学视觉传达系，拥有丰富的游戏宣传图视觉设计与原画经验，涉足动漫行业宣发，掌握 3D 辅助平面设计流程，全面运用 AI 工具持续突破生产力与视觉表现边界。",
     "videoSoftware": [
       "AE",
       "PR",
@@ -44,17 +45,26 @@
       "即梦"
     ],
     "skills": [
-      "Photoshop",
+      "Codex",
+      "Claude",
+      "Antigravity",
+      "Ps",
       "ComfyUI",
-      "Stable Diffusion",
+      "SD",
       "Midjourney",
-      "Nano Banana",
-      "平面设计",
-      "游戏原画",
+      "🍌",
+      "GPT image",
       "3D辅助设计",
-      "视频剪辑 (AE/PR)"
+      "视频剪辑 (AE/PR/剪映/chatcut)"
     ],
     "experiences": [
+      {
+        "company": "艾维乐游",
+        "role": "视觉设计师",
+        "period": "2026.6 - 2026.10",
+        "location": "北京",
+        "description": "负责项目游戏的平面宣传图，banner图设计。另外负责一些游戏买量的视频剪辑设计。利用AI工具（Codex/Claude/Antigravity）制作提高效率的游戏脚本和程序，例如在Roguelite类型游戏中制作了自动游戏和自动录制脚本，一键解决游戏录制的战斗素材问题，制作了批量导出视频、自动拆切尺寸和增加落版和自动命名分类的程序脚本。"
+      },
       {
         "company": "极客创游",
         "role": "AI美术",

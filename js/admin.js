@@ -568,12 +568,13 @@ function initProfileView() {
   document.getElementById('prof-phone').value = p.phone || '';
   document.getElementById('prof-wechat').value = p.wechat || '';
   document.getElementById('prof-location').value = p.location || '';
+  document.getElementById('prof-ai-tools').value = p.aiToolsIntro || '';
   document.getElementById('prof-bio').value = p.bio || '';
   document.getElementById('prof-skills').value = (p.skills || []).join(', ');
 
   // 监听输入修改
-  ['prof-name', 'prof-title', 'prof-email', 'prof-phone', 'prof-wechat', 'prof-location', 'prof-bio', 'prof-skills'].forEach(id => {
-    document.getElementById(id).addEventListener('change', () => {
+  ['prof-name', 'prof-title', 'prof-email', 'prof-phone', 'prof-wechat', 'prof-location', 'prof-ai-tools', 'prof-bio', 'prof-skills'].forEach(id => {
+    document.getElementById(id).addEventListener('input', () => {
       syncProfileFromInputs();
       markDirty();
     });
@@ -589,6 +590,7 @@ function syncProfileFromInputs() {
   portfolioData.profile.phone = document.getElementById('prof-phone').value.trim();
   portfolioData.profile.wechat = document.getElementById('prof-wechat').value.trim();
   portfolioData.profile.location = document.getElementById('prof-location').value.trim();
+  portfolioData.profile.aiToolsIntro = document.getElementById('prof-ai-tools').value.trim();
   portfolioData.profile.bio = document.getElementById('prof-bio').value.trim();
   portfolioData.profile.skills = document.getElementById('prof-skills').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
 }

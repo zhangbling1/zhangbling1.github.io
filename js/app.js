@@ -177,11 +177,9 @@
     $('resume-bio').textContent = profile.bio || '';
     $('fact-location').hidden = !profile.location;
     $('hero-location').textContent = profile.location || '';
+    const aiIntro = profile.aiToolsIntro || '熟练使用 Codex · Claude · Antigravity 协同创作';
+    if ($('hero-ai-tools')) $('hero-ai-tools').textContent = aiIntro;
     const experiences = profile.experiences || [];
-    const companies = [...new Set(experiences.map(experience => experience.company).filter(Boolean))];
-    $('fact-companies').hidden = !companies.length;
-    // Each company stays on one line; only the separators may wrap.
-    $('hero-companies').replaceChildren(...companies.flatMap((company, index) => [index ? ' · ' : '', element('span', '', company)]));
     const years = experiences.flatMap(experience => String(experience.period || '').match(/\d{4}/g) || []).map(Number);
     $('cover-label').querySelector('.years')?.remove();
     if (years.length) $('cover-label').append(element('span', 'years', `${Math.min(...years)} — ${new Date().getFullYear()}`));
