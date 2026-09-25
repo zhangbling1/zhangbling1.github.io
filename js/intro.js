@@ -69,14 +69,157 @@
   const PHOTOS = META.length;            // 11 of them photographs
   const STRIDE = 0.55;                   // seconds a stride
   const Q = 2;                           // outlines are stored at twice plate scale
-  const MIN = 1.75, MAX = 2.8, EXIT = 1;
+  const DRAW = 2.7, MIN = 3.15, MAX = 4.2, EXIT = 0.95;
   const INK = '23, 23, 22';
   const SEAL = '216, 67, 44';
-  // Sparks, from the rider's warm red down to the deep red of the hooves, and embers.
-  const TONES = ['236, 94, 58', SEAL, '184, 50, 31', '255, 178, 132'];
+  const TONES = ['211, 91, 57', SEAL, '133, 43, 30', '228, 139, 93'];
   const TAU = Math.PI * 2;
   const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
   const ramp = (v, a, b) => clamp((v - a) / (b - a));
+  const smooth = (v, a, b) => { const t = ramp(v, a, b); return t * t * (3 - 2 * t); };
+
+  // Match the outline by position and contour order, not by its SVG command
+  // index. The photographed poses have different starting points and topology.
+  function motionContours() {
+    const wrap = (i, n) => (i % n + n) % n;
+    const dist = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
+    const at = (points, index) => {
+      const i = Math.floor(index), t = index - i;
+      const a = points[wrap(i, points.length)], b = points[wrap(i + 1, points.length)];
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    };
+    const mapped = (values, index) => {
+      const i = Math.floor(index), t = index - i;
+      return values[i] + (values[Math.min(i + 1, values.length - 1)] - values[i]) * t;
+    };
+    function contour(points, count) {
+      let start = 0;
+      for (let i = 1; i < points.length; i++) {
+        if (points[i][1] < points[start][1]) start = i;
+      }
+      points = [...points.slice(start), ...points.slice(0, start)];
+      points.push(points[0]);
+      const lengths = [0];
+      for (let i = 1; i < points.length; i++) lengths.push(lengths[i - 1] + Math.sqrt(dist(points[i], points[i - 1])));
+      const length = lengths[lengths.length - 1], result = [];
+      let segment = 0;
+      for (let i = 0; i < count; i++) {
+        const position = i * length / count;
+        while (segment < lengths.length - 2 && lengths[segment + 1] < position) segment++;
+        const t = (position - lengths[segment]) / (lengths[segment + 1] - lengths[segment] || 1);
+        const a = points[segment], b = points[segment + 1];
+        result.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+      }
+      return result;
+    }
+    function parse(d) {
+      const tokens = d.match(/[Mcz]|-?\d+(?:\.\d+)?/g), loops = [];
+      let i = 0, x = 0, y = 0, points = [];
+      const number = () => Number(tokens[i++]) / Q;
+      while (i < tokens.length) {
+        const command = tokens[i++];
+        if (command === 'M') {
+          x = number(); y = number(); points = [[x, y]];
+        } else if (command === 'c') {
+          while (i < tokens.length && !/[Mcz]/.test(tokens[i])) {
+            const x1 = x + number(), y1 = y + number(), x2 = x + number(), y2 = y + number(), x3 = x + number(), y3 = y + number();
+            const steps = Math.max(2, Math.ceil((Math.hypot(x1 - x, y1 - y) + Math.hypot(x2 - x1, y2 - y1) + Math.hypot(x3 - x2, y3 - y2)) / 2));
+            for (let s = 1; s <= steps; s++) {
+              const t = s / steps, u = 1 - t;
+              points.push([u ** 3 * x + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t ** 3 * x3, u ** 3 * y + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t ** 3 * y3]);
+            }
+            x = x3; y = y3;
+          }
+        } else if (command === 'z') {
+          loops.push(contour(points, loops.length ? 64 : 320));
+        }
+      }
+      return loops;
+    }
+    function match(a, b) {
+      const n = a.length, m = b.length, stride = m + 1;
+      const cost = new Float64Array((n + 1) * stride).fill(Infinity);
+      const route = new Uint8Array(cost.length);
+      cost[0] = 0;
+      const band = Math.ceil(Math.max(n, m) * 0.28);
+      for (let i = 1; i <= n; i++) {
+        for (let j = Math.max(1, i - band); j <= Math.min(m, i + band); j++) {
+          const index = i * stride + j;
+          let previous = cost[index - stride - 1], direction = 0;
+          if (cost[index - stride] + 0.6 < previous) { previous = cost[index - stride] + 0.6; direction = 1; }
+          if (cost[index - 1] + 0.6 < previous) { previous = cost[index - 1] + 0.6; direction = 2; }
+          cost[index] = previous + dist(a[i - 1], b[j - 1]);
+          route[index] = direction;
+        }
+      }
+      const forward = Array.from({ length: n }, () => []), backward = Array.from({ length: m }, () => []), pairs = [];
+      let i = n, j = m;
+      while (i > 0 && j > 0) {
+        forward[i - 1].push(j - 1); backward[j - 1].push(i - 1);
+        pairs.push([i - 1, j - 1]);
+        const direction = route[i * stride + j];
+        if (direction !== 2) i--;
+        if (direction !== 1) j--;
+      }
+      const average = values => values.reduce((sum, value) => sum + value, 0) / values.length;
+      return { forward: forward.map(average), backward: backward.map(average), pairs: pairs.reverse() };
+    }
+    const frames = FRAMES.map(parse);
+    const links = frames.map((frame, i) => match(frame[0], frames[(i + 1) % N][0]));
+    // Suppress tracing noise across adjacent photographs. Matching keeps this
+    // filter attached to the same part of the horse as the legs change pose.
+    const bodies = frames.map((frame, i) => frame[0].map((point, j) => {
+      const previous = wrap(i - 1, N), next = (i + 1) % N;
+      const back = links[previous].backward[j], forward = links[i].forward[j];
+      const before = at(frames[previous][0], back), after = at(frames[next][0], forward);
+      const before2 = at(frames[wrap(i - 2, N)][0], mapped(links[wrap(i - 2, N)].backward, back));
+      const after2 = at(frames[(i + 2) % N][0], mapped(links[next].forward, forward));
+      return point.map((value, axis) => value * 0.375 + (before[axis] + after[axis]) * 0.25 + (before2[axis] + after2[axis]) * 0.0625);
+    }));
+    const center = points => points.reduce((sum, p) => [sum[0] + p[0] / points.length, sum[1] + p[1] / points.length], [0, 0]);
+    const pairs = frames.map((frame, i) => {
+      const next = (i + 1) % N;
+      const body = links[i].pairs.map(([j, index]) => {
+        const p = bodies[i][j], q = bodies[next][index];
+        const before = at(bodies[wrap(i - 1, N)], links[wrap(i - 1, N)].backward[j]);
+        const after = at(bodies[(i + 2) % N], links[next].forward[index]);
+        return [p, q, p.map((v, axis) => (q[axis] - before[axis]) * 0.5), q.map((v, axis) => (after[axis] - p[axis]) * 0.5)];
+      });
+      // Interior openings are small and may appear or disappear as legs cross.
+      // Pair nearby openings; an unmatched opening shrinks to its own centre.
+      const remaining = new Set(frames[next].slice(1)), holes = [];
+      for (const hole of frame.slice(1)) {
+        const c = center(hole);
+        let closest = null, distance = 28 ** 2;
+        for (const candidate of remaining) {
+          const d = dist(c, center(candidate));
+          if (d < distance) { closest = candidate; distance = d; }
+        }
+        if (closest) remaining.delete(closest);
+        const target = closest || hole.map(() => c);
+        const mapping = closest ? match(hole, target).pairs : hole.map((_, j) => [j, j]);
+        holes.push(mapping.map(([a, b]) => [hole[a], target[b]]));
+      }
+      for (const hole of remaining) {
+        const c = center(hole);
+        holes.push(hole.map(p => [c, p]));
+      }
+      return { body, holes };
+    });
+    function add(path, points) {
+      path.moveTo(points[0][0], points[0][1]);
+      for (let i = 1; i < points.length; i++) path.lineTo(points[i][0], points[i][1]);
+      path.closePath();
+    }
+    return position => {
+      const index = Math.floor(position) % N, t = position - Math.floor(position), u = 1 - t;
+      const pair = pairs[index], path = new Path2D();
+      const h0 = (1 + 2 * t) * u * u, h1 = t * t * (3 - 2 * t), h2 = t * u * u, h3 = -t * t * u;
+      add(path, pair.body.map(([a, b, v, w]) => [0, 1].map(axis => h0 * a[axis] + h1 * b[axis] + h2 * v[axis] + h3 * w[axis])));
+      for (const hole of pair.holes) add(path, hole.map(([a, b]) => a.map((v, axis) => v * u + b[axis] * t)));
+      return path;
+    };
+  }
 
   /* ---------- Drawing: in a worker when it can be, else on the page ---------- */
 
@@ -84,11 +227,7 @@
     const ctx = canvas.getContext('2d');
     if (!ctx || typeof Path2D !== 'function') return () => post({ type: 'fail' });
     const paths = FRAMES.map(d => new Path2D(d.replace(/-?\d+/g, n => n / Q)));
-    // The seal's red, hot at the rider's head and deep at the hooves.
-    const red = ctx.createLinearGradient(0, -185, 0, 0);
-    red.addColorStop(0, 'rgb(236, 94, 58)');
-    red.addColorStop(0.55, `rgb(${SEAL})`);
-    red.addColorStop(1, 'rgb(184, 50, 31)');
+    const contourAt = motionContours();
     const scope = typeof self !== 'undefined' ? self : window;
     const raf = scope.requestAnimationFrame
       ? scope.requestAnimationFrame.bind(scope)
@@ -105,13 +244,12 @@
       rule = null;
     }
 
-    // An in-between takes the rider's nape and the guide circles from between
-    // its two photographs; only photographs kick up dirt.
+    // The material and scarf use the same continuous phase as the contour.
+    // Cubic interpolation removes the velocity kinks of linear keyframes.
     function meta(f) {
       const i = Math.floor(f / 3), t = (f % 3) / 3;
-      if (!t) return META[i];
-      const a = META[i], b = META[(i + 1) % PHOTOS];
-      return a.map((v, n) => (n === 2 ? [] : v + (b[n] - v) * t));
+      const a = META[i], b = META[(i + 1) % PHOTOS], before = META[(i + PHOTOS - 1) % PHOTOS], after = META[(i + 2) % PHOTOS];
+      return a.map((v, n) => n === 2 ? [] : 0.5 * (2 * v + (b[n] - before[n]) * t + (2 * before[n] - 5 * v + 4 * b[n] - after[n]) * t * t + (3 * v - before[n] - 3 * b[n] + after[n]) * t * t * t));
     }
 
     function leave() {
@@ -128,6 +266,7 @@
     // was loaded in the background starts when the tab is first looked at.
     function tick(now) {
       pending = 0;
+      if (done || hidden) return;
       step = last ? Math.min(0.1, (now - last) / 1000) : 0;
       time += step;
       last = now;
@@ -142,42 +281,37 @@
     }
 
     function paint() {
-      const fidelity = clamp(time / 1.9);
-      const e = fidelity < 0.5 ? 2 * fidelity * fidelity : 1 - (2 - 2 * fidelity) ** 2 / 2;
+      const e = ramp(time, 0.08, DRAW);
       const exit = leftAt >= 0 ? (time - leftAt) / EXIT : 0;
       if (exit >= 1) {
         done = true;
         post({ type: 'done' });
         return;
       }
-      // The frame rate grows with the drawing: a few poses a stride while it
-      // is an idea, every photograph once it has form, and the in-betweens
-      // too, sixty a second, once it is finished.
-      // Sampled half a refresh late, so at 60 Hz every refresh lands squarely
-      // on one of the sixty poses instead of on the edge between two.
+      // All stages use the same continuous stride. Fidelity changes the
+      // drawing, never the cadence or the horse's anatomy.
       const phase = ((time + 1 / 120) / STRIDE) % 1;
-      const poses = e < 0.25 ? 4 : e < 0.5 ? 6 : e < 0.75 ? PHOTOS : N;
-      const f = poses === N ? Math.floor(phase * N) % N : (Math.round(Math.floor(phase * poses) * PHOTOS / poses) % PHOTOS) * 3;
-      const gap = Math.max(3, Math.round(PHOTOS / poses) * 3);
-      const P = paths[f], M = meta(f);
-      const count = Math.floor(time * PHOTOS / STRIDE);
+      const position = phase * N;
+      const f = Math.floor(position) % N;
+      const gap = 3;
+      const P = e > 0.6 ? contourAt(position) : paths[f], M = meta(e > 0.6 ? position : f);
       // Horse and rider are about 290 by 185 plate pixels, centred 18 behind x = 0.
-      const k = Math.min(width * (width < 700 ? 0.86 : 0.52) / 290, height * 0.46 / 185);
+      const k = Math.min(width * (width < 700 ? 0.9 : 0.53) / 290, height * 0.43 / 185);
       const home = width * 0.5 + 18 * k;
       // Leaving, the horse breaks into a sprint and comes apart from the tail
       // forward, while the backdrop clears.
-      const ox = home + exit * exit * width * 0.55;
+      const ox = home - (1 - smooth(time, 0, 1.1)) * 9 * k + exit * exit * width * 0.55;
       const speed = 2 * exit * width * 0.55 / EXIT;
-      const gy = Math.round(height * 0.46 + 92 * k) + 0.5;
+      const gy = Math.round(height * (width < 700 ? 0.55 : 0.6) + 10 * k) + 0.5;
       const clear = 1 - ramp(exit, 0, 0.45);
-      const solid = ramp(e, 0.5, 0.66);
-      const finesse = ramp(e, 0.72, 0.9);
+      const solid = smooth(e, 0.43, 0.62);
+      const finesse = smooth(e, 0.64, 0.85);
       const sweep = ramp(exit, 0.06, 0.72);
       const edge = leftAt >= 0 ? -175 + 315 * sweep * sweep * (3 - 2 * sweep) : null;
 
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       ctx.clearRect(0, 0, width, height);
-      backdrop(e, k, home, gy, count, clear);
+      backdrop(e, k, home, gy, clear);
       if (solid > 0) shadow(ox, gy, k, solid * clear);
 
       ctx.save();
@@ -193,27 +327,30 @@
       // 04 精修, behind everything: the rider's scarf, tied at the nape.
       if (finesse > 0) scarf(M, finesse);
       // 01 构想: the outline as a string of dots.
-      const dots = ramp(e, 0, 0.05) * (1 - ramp(e, 0.3, 0.44));
+      const dots = smooth(e, 0, 0.08) * (1 - smooth(e, 0.2, 0.34));
       if (dots > 0) {
-        ctx.setLineDash([0, 5.2]);
-        ctx.lineWidth = 2.4 / k;
-        ctx.strokeStyle = `rgba(${INK}, ${dots})`;
+        ctx.setLineDash([0, 4]);
+        ctx.lineWidth = 1.65 / k;
+        ctx.strokeStyle = `rgba(${INK}, ${dots * 0.7})`;
         ctx.stroke(P);
         ctx.setLineDash([]);
+        ctx.lineWidth = 0.5 / k;
+        ctx.strokeStyle = `rgba(${INK}, ${dots * 0.15})`;
+        ctx.stroke(P);
       }
       // 02 结构: a clean outline, the two frames before it in red as in a
       // chronophotograph, and circles for chest, quarters and head.
-      const study = ramp(e, 0.22, 0.34) * (1 - ramp(e, 0.62, 0.76));
+      const study = smooth(e, 0.17, 0.3) * (1 - smooth(e, 0.58, 0.72));
       if (study > 0) {
         ctx.lineWidth = 1 / k;
-        for (const [back, alpha] of [[2, 0.14], [1, 0.3]]) {
+        for (const [back, alpha] of [[2, 0.09], [1, 0.19]]) {
           ctx.strokeStyle = `rgba(${SEAL}, ${alpha * study})`;
           ctx.stroke(paths[(f + N - back * gap) % N]);
         }
-        ctx.lineWidth = 1.3 / k;
+        ctx.lineWidth = 1.2 / k;
         ctx.strokeStyle = `rgba(${INK}, ${0.85 * study})`;
         ctx.stroke(P);
-        construction(M, study * ramp(e, 0.28, 0.4), k);
+        construction(M, study * smooth(e, 0.24, 0.4), k);
       }
       // 03 造型: the silhouette in ink.
       if (solid > 0) {
@@ -222,10 +359,7 @@
       }
       // 04 精修: horse and rider take on the seal's red, lit along the back.
       if (finesse > 0) {
-        ctx.globalAlpha = finesse;
-        ctx.fillStyle = red;
-        ctx.fill(P);
-        ctx.globalAlpha = 1;
+        finishDrawing(P, M, finesse, k);
         rim(P, finesse, k);
       }
       ctx.restore();
@@ -247,7 +381,71 @@
       if (leftAt < 0 && ((ready && time >= MIN) || time >= MAX)) leave();
     }
 
-    /* ---------- The exit: a sprint that comes apart into sparks ---------- */
+    /* ---------- Sculpted pigment, with light following the moving anatomy ---------- */
+
+    function finishDrawing(P, M, alpha, k) {
+      const [, , , cx, cy, cr, qx, qy, qr, hx, hy, hr] = M;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      const pigment = ctx.createLinearGradient(-60, -180, 35, 12);
+      pigment.addColorStop(0, '#f09161');
+      pigment.addColorStop(0.38, '#d64e32');
+      pigment.addColorStop(0.7, '#a82e24');
+      pigment.addColorStop(1, '#4c2320');
+      ctx.fillStyle = pigment;
+      ctx.fill(P);
+      ctx.clip(P);
+
+      // Large soft volumes keep the form readable; the thin arcs underneath
+      // are engraving marks, not another outline around the whole horse.
+      for (const [x, y, r] of [[qx, qy, qr * 1.9], [cx, cy, cr * 1.75], [hx, hy, hr * 2.3]]) {
+        const light = ctx.createRadialGradient(x - r * 0.32, y - r * 0.42, 0, x, y, r);
+        light.addColorStop(0, 'rgba(255, 193, 128, .56)');
+        light.addColorStop(0.45, 'rgba(240, 113, 64, .12)');
+        light.addColorStop(0.75, 'rgba(100, 22, 21, .12)');
+        light.addColorStop(1, 'rgba(73, 19, 20, 0)');
+        ctx.fillStyle = light;
+        ctx.fillRect(x - r, y - r, r * 2, r * 2);
+      }
+
+      ctx.lineWidth = 0.65 / Math.sqrt(k);
+      ctx.strokeStyle = 'rgba(255, 213, 170, .36)';
+      ctx.beginPath();
+      ctx.moveTo(qx - 19, qy - 16);
+      ctx.bezierCurveTo(qx + 2, qy - 27, cx - 31, cy - 22, cx + 10, cy - 21);
+      ctx.moveTo(qx - 5, qy - 20);
+      ctx.bezierCurveTo(qx + 26, qy - 20, qx + 24, qy + 6, qx + 5, qy + 23);
+      ctx.moveTo(cx - 10, cy - 25);
+      ctx.bezierCurveTo(cx - 27, cy - 5, cx - 2, cy + 3, cx - 19, cy + 27);
+      ctx.moveTo(cx + 10, cy - 23);
+      ctx.bezierCurveTo(cx + 14, cy - 38, hx - 21, hy + 4, hx - 8, hy - 8);
+      ctx.stroke();
+
+      // Fine curved hatching suggests a printed plate, visible only up close.
+      ctx.strokeStyle = 'rgba(74, 21, 20, .085)';
+      ctx.lineWidth = 0.55 / k;
+      ctx.beginPath();
+      for (let i = 0; i < 14; i++) {
+        const y = qy - 12 + i * 2.9;
+        ctx.moveTo(qx - 26, y);
+        ctx.bezierCurveTo(qx + 5, y - 8, cx - 26, y + 13, cx + 30, y - 4);
+      }
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(75, 24, 23, .34)';
+      ctx.lineWidth = 1.05 / Math.sqrt(k);
+      ctx.beginPath();
+      ctx.moveTo(hx - 2, hy - hr * 0.7);
+      ctx.quadraticCurveTo(hx + 9, hy - 1, hx + hr, hy + hr * 0.5);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(48, 24, 22, .75)';
+      ctx.beginPath();
+      ctx.ellipse(hx + 5.5, hy - 4, 1.4, 0.9, -0.15, 0, TAU);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    /* ---------- The exit: pigment lifts off the page with the final stride ---------- */
 
     // The ragged edge where the horse comes apart, rippling as it goes.
     function frontier(x, y) {
@@ -271,11 +469,8 @@
       ctx.beginPath();
       ctx.moveTo(frontier(x, -270), -270);
       for (let y = -265; y <= 20; y += 5) ctx.lineTo(frontier(x, y), y);
-      ctx.strokeStyle = 'rgba(255, 150, 96, 0.35)';
-      ctx.lineWidth = 7 / k;
-      ctx.stroke();
-      ctx.strokeStyle = 'rgba(255, 222, 184, 0.95)';
-      ctx.lineWidth = 1.8 / k;
+      ctx.strokeStyle = 'rgba(235, 157, 111, 0.6)';
+      ctx.lineWidth = 1.2 / k;
       ctx.stroke();
       ctx.restore();
     }
@@ -284,20 +479,20 @@
     // of the horse's speed, then the wind catches it and blows it back.
     function shed(P, from, to, ox, gy, k, speed, exit) {
       if (to <= from) return;
-      const tries = Math.min(320, Math.round((to - from) * 52));
+      const tries = Math.min(170, Math.round((to - from) * 28));
       const life = (1 - exit) * EXIT - 0.04;
       ctx.save();
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       for (let i = 0; i < tries; i++) {
         const ux = from + Math.random() * (to - from), uy = -196 + Math.random() * 198;
         if (!ctx.isPointInPath(P, ux, uy)) continue;
-        const hot = Math.random() < 0.16;
+        const hot = Math.random() < 0.08;
         sparks.push({
           x: ox + ux * k, y: gy + uy * k,
           vx: speed * (0.3 + Math.random() * 0.5), vy: -(20 + Math.random() * 90) * k,
           age: 0, life: Math.min(0.5 + Math.random() * 0.4, life),
           tail: Math.random() < 0.4 ? 0 : 0.008 + Math.random() * 0.024,
-          size: (hot ? 1.6 : 0.9 + Math.random() * 0.9) * Math.max(1, k * 0.7),
+          size: (hot ? 1.2 : 0.55 + Math.random() * 0.65) * Math.max(1, k * 0.7),
           tone: hot ? 3 : uy < -125 ? 0 : uy < -60 ? 1 : 2,
         });
       }
@@ -339,42 +534,53 @@
       });
     }
 
-    // Muybridge's backdrop: numbered lines one panel apart, whose numbers move
-    // on by one with every frame, over ruled lines along the track.
-    function backdrop(e, k, home, gy, count, clear) {
-      ctx.fillStyle = `rgba(${INK}, ${0.42 * clear})`;
-      ctx.fillRect(0, gy - 0.5, width, 1);
-      const grid = ramp(e, 0.04, 0.22) * clear;
+    // A quiet drawing plate. Registration marks stay still while the ground
+    // moves, so the composition has an anchor throughout the stride.
+    function backdrop(e, k, home, gy, clear) {
+      const grid = smooth(e, 0.02, 0.14) * clear;
       if (grid <= 0) return;
       if (!rule) {
         rule = ctx.createLinearGradient(0, 0, width, 0);
         rule.addColorStop(0, `rgba(${INK}, 0)`);
-        rule.addColorStop(0.18, `rgba(${INK}, 0.07)`);
-        rule.addColorStop(0.82, `rgba(${INK}, 0.07)`);
+        rule.addColorStop(0.2, `rgba(${INK}, 0.13)`);
+        rule.addColorStop(0.8, `rgba(${INK}, 0.13)`);
         rule.addColorStop(1, `rgba(${INK}, 0)`);
       }
       ctx.globalAlpha = grid;
       ctx.fillStyle = rule;
-      for (const y of [7, 15, 22]) ctx.fillRect(0, Math.round(gy - y * k), width, 1);
+      ctx.fillRect(width * 0.06, gy, width * 0.88, 0.75);
       ctx.globalAlpha = 1;
-      const gap = 52 * k, top = gy - 206 * k;
-      ctx.font = `500 ${Math.max(9, Math.round(3.3 * k))}px Manrope, ui-sans-serif, system-ui, sans-serif`;
+      const gap = 37 * k, top = gy - 204 * k;
+      const guides = grid * (1 - smooth(e, 0.52, 0.85) * 0.86);
+      ctx.font = '500 9px Manrope, ui-sans-serif, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      for (let j = Math.ceil(-home / gap); home + j * gap <= width; j++) {
-        const x = Math.round(home + j * gap);
-        const edge = Math.min(1, Math.min(x, width - x) / (width * 0.16));
-        if (edge <= 0) continue;
-        ctx.fillStyle = `rgba(${INK}, ${0.075 * grid * edge})`;
+      for (let j = -5; j <= 5; j++) {
+        const x = Math.round(home - 18 * k + j * gap);
+        if (x < 24 || x > width - 24) continue;
+        ctx.fillStyle = `rgba(${INK}, ${0.06 * guides})`;
         ctx.fillRect(x, top, 1, gy - top);
-        ctx.fillStyle = `rgba(${INK}, ${0.4 * grid * edge})`;
-        ctx.fillText(String((((j + count) % 99) + 99) % 99 + 1), x + 0.5, top - 5 * k);
+        ctx.fillStyle = `rgba(${INK}, ${0.24 * grid})`;
+        ctx.fillText(String(j + 6).padStart(2, '0'), x + 0.5, top - 10);
+        ctx.fillStyle = `rgba(${INK}, ${0.16 * grid})`;
+        ctx.fillRect(x - 3, top, 7, 0.75);
+        ctx.fillRect(x, top - 3, 0.75, 7);
       }
+      ctx.strokeStyle = `rgba(${INK}, ${0.08 * grid})`;
+      ctx.lineWidth = 0.7;
+      ctx.beginPath();
+      const travel = time * 220 * k;
+      for (let i = 0; i < 14; i++) {
+        const x = ((i * width / 10 - travel) % width + width) % width;
+        const y = gy + 6 + (i % 3) * 4;
+        ctx.moveTo(x, y); ctx.lineTo(x + (5 + i % 4 * 5) * k, y);
+      }
+      ctx.stroke();
     }
 
     function shadow(ox, gy, k, alpha) {
       const x = ox - 14 * k, rx = 118 * k;
       const glow = ctx.createRadialGradient(x, gy, 0, x, gy, rx);
-      glow.addColorStop(0, `rgba(${INK}, ${0.16 * alpha})`);
+      glow.addColorStop(0, `rgba(66, 39, 24, ${0.13 * alpha})`);
       glow.addColorStop(1, `rgba(${INK}, 0)`);
       ctx.save();
       ctx.translate(x, gy);
@@ -389,7 +595,7 @@
       if (alpha <= 0) return;
       const [, , , cx, cy, cr, qx, qy, qr, sx, sy, sr] = M;
       ctx.lineWidth = 1 / k;
-      ctx.strokeStyle = `rgba(${SEAL}, ${0.62 * alpha})`;
+      ctx.strokeStyle = `rgba(${SEAL}, ${0.36 * alpha})`;
       ctx.beginPath();
       for (const [x, y, r] of [[cx, cy, cr], [qx, qy, qr], [sx, sy, sr]]) {
         ctx.moveTo(x + r * 1.1, y);
@@ -410,8 +616,8 @@
       ctx.save();
       ctx.clip(P);
       ctx.translate(0, 1.3 / k);
-      ctx.lineWidth = 2.2 / k;
-      ctx.strokeStyle = `rgba(255, 234, 216, ${0.42 * alpha})`;
+      ctx.lineWidth = 1.6 / k;
+      ctx.strokeStyle = `rgba(255, 234, 216, ${0.32 * alpha})`;
       ctx.stroke(P);
       ctx.restore();
     }
@@ -422,7 +628,11 @@
     function scarf(M, alpha) {
       const x0 = M[0] + 2, y0 = M[1];
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = red;
+      const silk = ctx.createLinearGradient(x0 - 55, y0 - 5, x0, y0 + 4);
+      silk.addColorStop(0, '#e99465');
+      silk.addColorStop(0.6, '#cb4b31');
+      silk.addColorStop(1, '#862b22');
+      ctx.fillStyle = silk;
       for (const [length, width, phase, drop] of [[50, 2.7, 0, 0], [34, 1.8, 1.3, 2.2]]) {
         const edge = [];
         for (let i = 0; i <= 18; i++) {
@@ -524,10 +734,13 @@
   const root = document.documentElement;
   if (!root.classList.contains('intro')) return;
   const source = document.currentScript?.src;
-  let splash, canvas, stages, count, worker = null, send = () => {};
+  const events = new AbortController();
+  const stageNames = ['捕捉灵感的形状', '梳理线条与结构', '赋予形体与力量', '让想象跃然纸上'];
+  let splash, canvas, stages, count, statusText, worker = null, send = () => {};
+  let inertNodes = [], revealTimer = 0;
   let ready = Boolean(window.bookReady), seen = false, leftAt = 0, done = false, watchdog = 0;
   root.style.overflow = 'hidden';
-  document.addEventListener('book:ready', () => { ready = true; send({ type: 'ready' }); }, { once: true });
+  document.addEventListener('book:ready', () => { ready = true; send({ type: 'ready' }); }, { once: true, signal: events.signal });
 
   const measure = () => ({ width: splash.clientWidth, height: splash.clientHeight, ratio: Math.min(window.devicePixelRatio || 1, 2), hidden: document.hidden });
 
@@ -539,6 +752,7 @@
   }
 
   function handle(message) {
+    if (done) return;
     arm();
     switch (message.type) {
       case 'started':
@@ -547,10 +761,15 @@
         break;
       case 'stage':
         seen = true;
-        stages.forEach((node, i) => node.classList.toggle('is-on', i <= message.n));
+        stages.forEach((node, i) => {
+          node.classList.toggle('is-on', i <= message.n);
+          node.classList.toggle('is-current', i === message.n);
+        });
+        if (statusText) statusText.textContent = stageNames[message.n];
         break;
       case 'progress':
-        if (count) count.textContent = `${String(message.value).padStart(2, '0')}%`;
+        if (count) count.firstChild.nodeValue = String(message.value).padStart(2, '0');
+        stages.forEach((node, i) => node.style.setProperty('--progress', clamp(message.value / 25 - i)));
         break;
       case 'leave':
         leave();
@@ -561,6 +780,7 @@
         break;
       case 'fail':
         if (worker) local(true);
+        else finish();
         break;
     }
   }
@@ -570,19 +790,25 @@
     leftAt = performance.now();
     splash.classList.add('is-leaving');
     // The cover starts its own entrance while the paper lifts.
-    setTimeout(() => root.classList.remove('intro'), 120);
+    revealTimer = setTimeout(() => root.classList.remove('intro'), 300);
   }
 
   function finish() {
     if (done) return;
     done = true;
     clearTimeout(watchdog);
+    clearTimeout(revealTimer);
     clearTimeout(window.introFailsafe);
+    events.abort();
     send({ type: 'stop' });
     worker?.terminate();
     root.classList.remove('intro');
     root.style.overflow = '';
+    inertNodes.forEach(node => { node.inert = false; });
+    inertNodes = [];
+    const restoreFocus = document.activeElement !== splash && splash?.contains(document.activeElement);
     splash?.remove();
+    if (restoreFocus) document.querySelector('.brand')?.focus({ preventScroll: true });
     // Only an opening that was actually on screen counts as seen.
     if (seen) try { sessionStorage.setItem('zn-intro', '1'); } catch (error) { /* private mode */ }
   }
@@ -595,6 +821,7 @@
       const replacement = document.createElement('canvas');
       replacement.className = canvas.className;
       replacement.id = canvas.id;
+      replacement.setAttribute('aria-hidden', 'true');
       canvas.replaceWith(replacement);
       canvas = replacement;
     }
@@ -609,6 +836,11 @@
     if (!splash || !canvas) return finish();
     stages = [...splash.querySelectorAll('.splash-stages li')];
     count = document.getElementById('splash-count');
+    statusText = document.getElementById('splash-status-text');
+    inertNodes = [...document.body.children].filter(node => node !== splash && !node.inert && !['SCRIPT', 'STYLE'].includes(node.tagName));
+    inertNodes.forEach(node => { node.inert = true; });
+    splash.tabIndex = -1;
+    splash.focus({ preventScroll: true });
     let handed = false;
     if (source && window.Worker && canvas.transferControlToOffscreen) {
       try {
@@ -625,15 +857,15 @@
     } else {
       local(false);
     }
-    window.addEventListener('resize', () => send({ type: 'size', ...measure() }));
+    window.addEventListener('resize', () => send({ type: 'size', ...measure() }), { signal: events.signal });
     document.addEventListener('visibilitychange', () => {
       send({ type: 'hidden', hidden: document.hidden });
       if (!document.hidden && watchdog) arm();
-    });
-    // A click, a tap or a key skips the rest. Scrolling does not, so a stray
-    // wheel or swipe cannot throw the opening away before it is seen.
-    splash.addEventListener('click', () => send({ type: 'skip' }));
-    window.addEventListener('keydown', () => send({ type: 'skip' }), { once: true });
+    }, { signal: events.signal });
+    // Use an actual button for keyboard and touch. Escape also dismisses it.
+    splash.querySelector('.splash-skip')?.addEventListener('click', finish, { signal: events.signal });
+    window.addEventListener('keydown', event => { if (event.key === 'Escape') finish(); }, { signal: events.signal });
+    matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', event => { if (event.matches) finish(); }, { signal: events.signal });
   }
 
   // The markup may still be on its way when this file runs.

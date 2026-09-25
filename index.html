@@ -16,10 +16,10 @@
       var end = function () { root.classList.remove('intro'); root.style.overflow = ''; };
       try {
         var asked = /[?&]intro\b/.test(location.search);
-        if (!asked && ((location.hash && location.hash !== '#home') || sessionStorage.getItem('zn-intro') || matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches || (!asked && ((location.hash && location.hash !== '#home') || sessionStorage.getItem('zn-intro')))) return;
         root.classList.add('intro');
         var script = document.createElement('script');
-        script.src = 'js/intro.js?v=2026-10-02';
+        script.src = 'js/intro.js?v=2026-10-04';
         script.onerror = end;
         // Lifts the page if the opening never gets going.
         window.introFailsafe = setTimeout(end, 9000);
@@ -29,18 +29,28 @@
   </script>
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg?v=2026-09-25">
   <link rel="preload" href="assets/fonts/manrope-latin.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="css/style.css?v=2026-10-02">
-  <script src="js/app.js?v=2026-09-27" defer></script>
+  <link rel="stylesheet" href="css/style.css?v=2026-10-08">
+  <script src="js/portfolio-order.js?v=2026-10-05" defer></script>
+  <script src="js/app.js?v=2026-10-09" defer></script>
 </head>
 <body>
-  <div class="splash" id="splash" aria-hidden="true">
-    <canvas class="splash-canvas" id="splash-canvas"></canvas>
+  <div class="splash" id="splash" role="dialog" aria-modal="true" aria-label="作品集开场动画">
+    <canvas class="splash-canvas" id="splash-canvas" aria-hidden="true"></canvas>
     <div class="wrap splash-head">
-      <p class="splash-line" id="splash-line">借 AI 构筑想象为画面</p>
-      <ol class="splash-stages"><li><b>01</b>构想</li><li><b>02</b>结构</li><li><b>03</b>造型</li><li><b>04</b>精修</li></ol>
-      <p class="splash-count" id="splash-count">00%</p>
+      <p class="splash-signature"><span>张宁</span><i></i>作品集</p>
+      <p class="splash-edition" lang="en">A study in motion</p>
+      <button class="splash-skip" type="button" aria-label="跳过开场动画">跳过 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 13 0m-5-5 5 5-5 5"/></svg></button>
     </div>
-    <div class="splash-foot"><span class="splash-skip glass">跳过</span></div>
+    <div class="wrap splash-foot">
+      <div class="splash-caption">
+        <p class="splash-eyebrow" lang="en">Imagination, in motion.</p>
+        <p class="splash-line" id="splash-line">借 AI 构筑想象为画面</p>
+      </div>
+      <div class="splash-process">
+        <ol class="splash-stages" aria-label="创作阶段"><li><b>01</b>构想</li><li><b>02</b>结构</li><li><b>03</b>造型</li><li><b>04</b>精修</li></ol>
+        <div class="splash-status"><p id="splash-status-text">捕捉灵感的形状</p><p class="splash-count" id="splash-count">00<span>%</span></p></div>
+      </div>
+    </div>
   </div>
   <a class="skip-link" href="#contents">跳到目录</a>
   <div class="ambient" aria-hidden="true"><i></i><i></i><i></i></div>

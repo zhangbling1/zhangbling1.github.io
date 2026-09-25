@@ -1,933 +1,493 @@
-/**
- * 个人作品集管理后台业务逻辑 - admin.js
- */
-
-// 全局应用状态
-let portfolioData = null;
-let mediaPreviews = {};
-let currentTab = 'tab-assets';
-let isServerOnline = false;
-let isDirty = false;
-
-const state = {
-  category: 'all',
-  status: 'all', // all | visible | hidden | featured
-  mediaType: 'all', // all | image | video | gif
-  keyword: '',
-  page: 1,
-  pageSize: 40
-};
-
-// DOM 元素引用
-const serverDot = document.getElementById('server-dot');
-const saveStatusText = document.getElementById('save-status-text');
-const catChipsRoot = document.getElementById('cat-chips-root');
-const assetsGridRoot = document.getElementById('assets-grid-root');
-const paginationRoot = document.getElementById('pagination-root');
-const toastContainer = document.getElementById('toast-container');
-
-// 初始化
-document.addEventListener('DOMContentLoaded', async () => {
-  setupNavigation();
-  setupFilterEvents();
-  setupActionButtons();
-  await checkServerStatus();
-  await loadPortfolioData();
-});
-
-// 检查本地 Node 服务连接状态
-async function checkServerStatus() {
-  try {
-    const res = await fetch('/api/status', { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      isServerOnline = data.status === 'running';
-    } else {
-      isServerOnline = false;
-    }
-  } catch (e) {
-    isServerOnline = false;
-  }
-
-  updateServerIndicator();
-}
-
-function updateServerIndicator() {
-  if (isServerOnline) {
-    serverDot.className = isDirty ? 'dot dirty' : 'dot';
-    saveStatusText.textContent = isDirty ? '有未保存修改 (本地服务就绪)' : '本地服务已连接';
-  } else {
-    serverDot.className = 'dot dirty';
-    serverDot.style.background = '#f59e0b';
-    saveStatusText.textContent = '静态模式 (建议双击运行 启动管理后台.bat)';
-  }
-}
-
-function markDirty(dirty = true) {
-  isDirty = dirty;
-  updateServerIndicator();
-}
-
-// 加载作品集主配置与海报预览索引
-async function loadPortfolioData() {
-  try {
-    const [dataRes, prevRes] = await Promise.all([
-      fetch('data/portfolio-data.json?t=' + Date.now()),
-      fetch('data/media-previews.json?t=' + Date.now()).catch(() => null)
-    ]);
-    if (!dataRes.ok) throw new Error('无法读取 data/portfolio-data.json');
-    portfolioData = await dataRes.json();
-    if (prevRes && prevRes.ok) {
-      mediaPreviews = await prevRes.json();
-    } else {
-      mediaPreviews = {};
-    }
-
-    initCategoryChips();
-    renderStatistics();
-    renderAssetsView();
-    renderChaptersView();
-    initProfileView();
-    initSettingsView();
-    markDirty(false);
-  } catch (err) {
-    console.error(err);
-    showToast('加载作品配置失败: ' + err.message, 'error');
-  }
-}
-
-// 统计卡片渲染
-function renderStatistics() {
-  if (!portfolioData || !portfolioData.items) return;
-  const items = portfolioData.items;
-
-  document.getElementById('stat-total').textContent = items.length;
-  document.getElementById('stat-visible').textContent = items.filter(i => i.visible).length;
-  const vidEl = document.getElementById('stat-videos');
-  if (vidEl) vidEl.textContent = items.filter(i => i.mediaType === 'video').length;
-  document.getElementById('stat-hidden').textContent = items.filter(i => !i.visible).length;
-}
-
-// 分类筛选标签初始化
-function initCategoryChips() {
-  if (!portfolioData || !portfolioData.categories) return;
-  catChipsRoot.innerHTML = '';
-
-  const totalCount = portfolioData.items.length;
-  createChip('all', '全部素材', totalCount, state.category === 'all');
-
-  portfolioData.categories.forEach(cat => {
-    const count = portfolioData.items.filter(i => i.category === cat.id).length;
-    createChip(cat.id, cat.name, count, state.category === cat.id);
-  });
-}
-
-function createChip(id, name, count, isActive) {
-  const btn = document.createElement('button');
-  btn.className = `chip-btn ${isActive ? 'active' : ''}`;
-  btn.innerHTML = `${name} <span class="chip-count">(${count})</span>`;
-  btn.onclick = () => {
-    document.querySelectorAll('.chip-btn').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    state.category = id;
-    state.page = 1;
-    renderAssetsView();
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const Order = PortfolioOrder;
+  const state = { data: null, previews: {}, revision: '', saved: '', online: false, busy: false, loaded: false,
+    category: '', status: 'all', type: 'all', keyword: '', page: 1, pageSize: 48,
+    selected: new Set(), missing: new Set(), undo: [], redo: [], editKey: null, savedAt: '', error: '' };
+  let toastTimer, moveRequest, reviewAction, drag;
+  const serialize = () => JSON.stringify(state.data);
+  const dirty = () => Boolean(state.data && serialize() !== state.saved);
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
   };
-  catChipsRoot.appendChild(btn);
-}
-
-// 过滤计算
-function getFilteredItems() {
-  if (!portfolioData || !portfolioData.items) return [];
-
-  return portfolioData.items.filter(item => {
-    // 分类筛选
-    if (state.category !== 'all' && item.category !== state.category) return false;
-
-    // 状态筛选
-    if (state.status === 'visible' && !item.visible) return false;
-    if (state.status === 'hidden' && item.visible) return false;
-    if (state.status === 'featured' && !item.featured) return false;
-
-    // 格式筛选
-    if (state.mediaType !== 'all') {
-      if (state.mediaType === 'image' && item.mediaType !== 'image') return false;
-      if (state.mediaType === 'video' && item.mediaType !== 'video') return false;
-      if (state.mediaType === 'gif' && item.mediaType !== 'gif') return false;
+  const button = (label, className, action, aria) => {
+    const node = el('button', className, label);
+    node.type = 'button';
+    if (aria) { node.setAttribute('aria-label', aria); node.title = aria; }
+    node.addEventListener('click', action);
+    return node;
+  };
+  const title = item => item.title || item.fileName || '未命名作品';
+  const mediaURL = src => {
+    if (typeof src !== 'string' || !/^(images|assets)\//.test(src) || src.split('/').includes('..')) return '';
+    const url = new URL(src, document.baseURI);
+    return url.origin === location.origin ? url.href : '';
+  };
+  function toast(message, error = false) {
+    clearTimeout(toastTimer);
+    // Native dialogs sit above every z-index; keep feedback in the active top layer.
+    (document.querySelector('dialog[open]') || document.body).append($('toast'));
+    $('toast').textContent = message;
+    $('toast').classList.toggle('error', error);
+    $('toast').hidden = false;
+    toastTimer = setTimeout(() => { $('toast').hidden = true; }, error ? 7500 : 4000);
+  }
+  async function json(url, body) {
+    const response = await fetch(url, body === undefined ? { cache: 'no-store' } : {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.success === false) throw new Error(data.message || `请求失败（${response.status}）`);
+    return data;
+  }
+  function updateStatus() {
+    const changed = dirty();
+    $('save').disabled = !state.data || !state.online || state.busy || !changed;
+    $('save').textContent = state.busy ? '处理中…' : changed ? '保存修改 ●' : '已保存';
+    if (!state.online && state.loaded) $('save').textContent = '静态预览';
+    $('save-status').textContent = state.error ? '保存未完成 · 修改仍在' : state.busy ? '正在处理…' : changed ? '有未保存的修改' : state.savedAt ? `已保存 ${state.savedAt}` : state.online ? '已与本地同步' : '导出模式';
+    $('save-status').classList.toggle('dirty', changed || Boolean(state.error));
+    $('undo').disabled = !state.undo.length || state.busy;
+    $('redo').disabled = !state.redo.length || state.busy;
+    $('connection').textContent = !state.loaded ? '正在连接本地服务' : state.online ? '本地服务已连接' : '静态预览 · 无法写盘';
+    $('connection').classList.toggle('offline', !state.online);
+    if (state.data) {
+      $('total-count').textContent = state.data.items.length;
+      $('visible-count').textContent = state.data.items.filter(item => item.visible !== false).length;
     }
-
-    // 关键词搜索
-    if (state.keyword.trim()) {
-      const kw = state.keyword.trim().toLowerCase();
-      const matchTitle = (item.title || '').toLowerCase().includes(kw);
-      const matchFile = (item.fileName || '').toLowerCase().includes(kw);
-      const matchCategory = (item.categoryName || '').toLowerCase().includes(kw);
-      const matchTags = (item.tags || []).some(t => t.toLowerCase().includes(kw));
-      if (!matchTitle && !matchFile && !matchCategory && !matchTags) return false;
+    $('notice').replaceChildren();
+    $('notice').hidden = !state.loaded || (state.online && !state.error && !state.missing.size);
+    if (!state.online) {
+      $('notice').append(el('span', '', '当前是静态预览，修改只能导出为文件。双击项目中的「启动管理后台.bat」后，使用本地后台保存。'));
+      const link = el('a', '', '打开本地后台 ↗'); link.href = 'http://127.0.0.1:3000/admin.html'; link.target = '_blank'; $('notice').append(link);
+    } else if (state.error) {
+      $('notice').append(el('span', '', state.error), button('导出当前修改', '', openBackup), button('重新载入', '', reloadReview));
+    } else if (state.missing.size) {
+      $('notice').append(el('span', '', `${state.missing.size} 幅作品的原文件已移动或替换。扫描素材可同步文件变化，并保留现有编辑。`), button('查看缺失作品', '', () => {
+        state.status = 'missing'; $('status-filter').value = 'missing'; resetFilter();
+      }));
     }
-
+  }
+  function busy(value) {
+    state.busy = value;
+    $('editor-main').inert = value;
+    document.querySelector('.sidebar').inert = value;
+    document.querySelectorAll('dialog').forEach(dialog => { dialog.inert = value; });
+    updateStatus();
+  }
+  function change(mutator, { render = true, key = null } = {}) {
+    if (state.busy || !state.data) return;
+    const before = serialize();
+    mutator();
+    if (before === serialize()) return;
+    if (!key || key !== state.editKey) {
+      state.undo.push(before);
+      if (state.undo.length > 40) state.undo.shift();
+    }
+    state.editKey = key;
+    state.redo = [];
+    state.error = '';
+    if (render) renderAll(); else updateStatus();
+  }
+  function history(direction) {
+    if (state.busy) return;
+    const from = state[direction], to = state[direction === 'undo' ? 'redo' : 'undo'];
+    if (!from.length) return;
+    to.push(serialize()); state.data = JSON.parse(from.pop()); state.editKey = null; state.selected.clear();
+    state.error = ''; renderAll(); toast(direction === 'undo' ? '已撤销上一步' : '已重做');
+  }
+  function setSnapshot(result) {
+    Order.validate(result.data);
+    state.data = result.data; state.revision = result.revision || '';
+    state.saved = serialize(); state.undo = []; state.redo = []; state.selected.clear(); state.editKey = null;
+    state.savedAt = result.savedAt ? new Date(result.savedAt).toLocaleTimeString('zh-CN', { hour12: false }) : '';
+    state.missing = new Set(result.missing || []); state.error = '';
+    renderAll();
+  }
+  async function load() {
+    busy(true);
+    try {
+      const [status, previews] = await Promise.all([
+        json('/api/status').catch(() => null), json('data/media-previews.json').catch(() => ({}))
+      ]);
+      state.online = status?.status === 'running'; state.previews = previews;
+      setSnapshot(state.online ? await json('/api/portfolio') : { data: await json('data/portfolio-data.json') });
+    } catch (error) {
+      state.error = `读取失败：${error.message}`;
+      $('assets-grid').replaceChildren(el('div', 'empty', '配置未能读取。请检查本地服务，再重新载入。'));
+      $('assets-grid').append(button('重新载入', 'btn', load));
+      toast(state.error, true);
+    } finally { state.loaded = true; busy(false); }
+  }
+  async function save() {
+    if (!state.online || state.busy || !state.data) return false;
+    if (!dirty()) return true;
+    busy(true); state.error = '';
+    try {
+      const result = await json('/api/save', { data: state.data, revision: state.revision });
+      state.revision = result.revision; state.saved = serialize();
+      state.editKey = null;
+      state.savedAt = new Date(result.savedAt).toLocaleTimeString('zh-CN', { hour12: false });
+      toast('已保存到本地。刷新前台即可看到修改。'); return true;
+    } catch (error) { state.error = error.message; toast(`保存未完成：${error.message}`, true); return false; }
+    finally { busy(false); }
+  }
+  function renderAll() {
+    if (!state.data) return;
+    if (state.category && !state.data.categories.some(cat => cat.id === state.category)) state.category = '';
+    renderCategories(); renderAssets(); renderChapters(); renderProfile(); renderSettings(); updateStatus();
+  }
+  function renderCategories() {
+    const categories = [{ id: '', name: '全部作品' }, ...[...state.data.categories].sort((a, b) => a.order - b.order)];
+    $('categories').replaceChildren(...categories.map(cat => {
+      const node = button(cat.name, cat.id === state.category ? 'active' : '', () => { state.category = cat.id; resetFilter(); });
+      node.setAttribute('aria-pressed', String(cat.id === state.category));
+      node.append(el('span', '', state.data.items.filter(item => !cat.id || item.category === cat.id).length));
+      return node;
+    }));
+  }
+  function filtered() {
+    const keyword = state.keyword.toLocaleLowerCase();
+    return Order.ordered(state.data, state.category).filter(item =>
+      (state.status === 'all' || (state.status === 'visible' && item.visible !== false) || (state.status === 'hidden' && item.visible === false) || (state.status === 'missing' && state.missing.has(item.id)))
+      && (state.type === 'all' || item.mediaType === state.type)
+      && (!keyword || [item.title, item.fileName, item.categoryName, ...(item.tags || [])].join(' ').toLocaleLowerCase().includes(keyword)));
+  }
+  function resetFilter() { state.page = 1; state.selected.clear(); renderCategories(); renderAssets(); }
+  function pageItems() {
+    const items = filtered();
+    const size = state.pageSize === 'all' ? Math.max(items.length, 1) : state.pageSize;
+    const pages = Math.max(1, Math.ceil(items.length / size));
+    state.page = Math.max(1, Math.min(state.page, pages));
+    return { items: items.slice((state.page - 1) * size, state.page * size), total: items.length, size, pages };
+  }
+  function renderAssets() {
+    const page = pageItems();
+    const ranks = new Map(), lengths = new Map();
+    for (const item of Order.ordered(state.data)) {
+      const rank = (lengths.get(item.category) || 0) + 1;
+      lengths.set(item.category, rank); ranks.set(item.id, rank);
+    }
+    $('result-count').textContent = `${page.total} 幅作品${page.pages > 1 ? ` · 第 ${state.page} / ${page.pages} 页` : ''}`;
+    const neighbors = new Map(), previous = new Map();
+    for (const item of filtered()) {
+      const before = previous.get(item.category);
+      neighbors.set(item.id, { up: before ? ranks.get(before.id) : null, down: null });
+      if (before) neighbors.get(before.id).down = ranks.get(item.id);
+      previous.set(item.category, item);
+    }
+    $('assets-grid').replaceChildren(...page.items.map(item => assetCard(item, ranks.get(item.id), lengths.get(item.category), neighbors.get(item.id))));
+    if (!page.total) $('assets-grid').append(el('div', 'empty', '没有符合条件的作品，试试其他分类或筛选。'));
+    renderSelection();
+    const prev = button('← 上一页', 'btn', () => { state.page--; renderAssets(); $('categories').scrollIntoView({ block: 'start' }); });
+    const next = button('下一页 →', 'btn', () => { state.page++; renderAssets(); $('categories').scrollIntoView({ block: 'start' }); });
+    prev.disabled = state.page === 1; next.disabled = state.page === page.pages;
+    const jump = el('input'); jump.type = 'number'; jump.min = '1'; jump.max = String(page.pages); jump.value = state.page; jump.setAttribute('aria-label', '跳转页码');
+    jump.addEventListener('change', () => { state.page = Number(jump.value) || 1; renderAssets(); });
+    $('pagination').replaceChildren(prev, jump, el('span', '', `/ ${page.pages} 页`), next);
+    $('pagination').hidden = page.pages <= 1;
+  }
+  function assetCard(item, rank, total, neighbors) {
+    const card = el('article', `asset${item.visible === false ? ' hidden-work' : ''}${state.selected.has(item.id) ? ' selected' : ''}`);
+    card.dataset.id = item.id; card.dataset.category = item.category;
+    const top = el('div', 'asset-top');
+    const select = el('input'); select.type = 'checkbox'; select.checked = state.selected.has(item.id); select.setAttribute('aria-label', `选择 ${title(item)}`);
+    select.addEventListener('change', () => { select.checked ? state.selected.add(item.id) : state.selected.delete(item.id); card.classList.toggle('selected', select.checked); renderSelection(); });
+    const rankButton = button(String(rank).padStart(2, '0'), 'rank', () => openMove([item.id]), `移动 ${title(item)}，当前第 ${rank} 幅`);
+    const handle = button('⠿', 'drag-handle', () => {}, `拖动 ${title(item)} 排序；方向键调整位置`);
+    handle.addEventListener('pointerdown', event => beginDrag(event, item, card));
+    handle.addEventListener('keydown', event => {
+      if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      const position = event.key === 'Home' ? 1 : event.key === 'End' ? total : neighbors[event.key === 'ArrowUp' ? 'up' : 'down'];
+      if (position === null) return;
+      moveItems([item.id], position);
+      document.querySelectorAll('.asset').forEach(node => { if (node.dataset.id === item.id) node.querySelector('.drag-handle').focus(); });
+    });
+    top.append(select, rankButton, handle);
+    const media = button('', 'asset-media', () => openItem(item.id), `编辑 ${title(item)}`);
+    const preview = state.previews[item.src];
+    const source = mediaURL(preview?.variants?.[0]?.src) || (item.mediaType !== 'video' ? mediaURL(item.src) : '');
+    if (source) {
+      const img = el('img'); img.src = source; img.alt = title(item); img.loading = 'lazy'; img.decoding = 'async'; img.draggable = false;
+      img.addEventListener('error', () => { media.classList.add('is-broken'); }); media.append(img);
+    }
+    media.append(el('span', 'media-placeholder', state.missing.has(item.id) ? '原文件缺失 · 待同步' : item.mediaType === 'video' ? '▶ 点击播放视频' : '预览暂不可用'));
+    if (item.mediaType !== 'image') media.append(el('span', 'media-type', item.mediaType === 'video' ? '▶ VIDEO' : 'GIF'));
+    const body = el('div', 'asset-body');
+    body.append(button(title(item), 'asset-title', () => openItem(item.id)), el('p', 'asset-meta', `${item.fileName} · ${preview ? `${preview.width} × ${preview.height}` : item.categoryName || item.category}`));
+    const footer = el('div', 'asset-footer');
+    footer.append(button(item.visible === false ? '已隐藏' : '已公开', `visibility${item.visible === false ? ' is-hidden' : ''}`, () => {
+      change(() => { item.visible = item.visible === false; });
+    }, `${item.visible === false ? '公开' : '隐藏'} ${title(item)}`));
+    const up = button('↑', 'icon-btn', () => moveItems([item.id], neighbors.up), `上移 ${title(item)}`);
+    const down = button('↓', 'icon-btn', () => moveItems([item.id], neighbors.down), `下移 ${title(item)}`);
+    up.disabled = neighbors.up === null; down.disabled = neighbors.down === null;
+    footer.append(up, down); body.append(footer); card.append(top, media, body); return card;
+  }
+  function renderSelection() {
+    const page = pageItems().items;
+    const count = page.filter(item => state.selected.has(item.id)).length;
+    $('select-page').checked = page.length > 0 && count === page.length;
+    $('select-page').indeterminate = count > 0 && count < page.length;
+    $('selection-bar').hidden = !state.selected.size;
+    $('selection-count').textContent = `已选 ${state.selected.size} 幅`;
+  }
+  function selectedCategory(ids) {
+    const items = ids.map(id => state.data.items.find(item => item.id === id));
+    if (!items.length || items.some(item => !item || item.category !== items[0].category)) throw new Error('移动前请选择同一分类的作品');
+    return items[0].category;
+  }
+  function moveItems(ids, position) {
+    try {
+      const category = selectedCategory(ids);
+      change(() => Order.move(state.data, category, ids, position));
+      toast(`已调整 ${ids.length} 幅作品的顺序，可撤销`);
+    } catch (error) { toast(error.message, true); }
+  }
+  function openMove(ids) {
+    try {
+      const category = selectedCategory(ids), items = Order.ordered(state.data, category);
+      moveRequest = { ids, category, max: items.length - ids.length + 1 };
+      const name = state.data.categories.find(cat => cat.id === category)?.name || category;
+      $('move-description').textContent = `「${name}」共 ${items.length} 幅作品，正在移动 ${ids.length} 幅。`;
+      $('move-position').max = String(moveRequest.max);
+      $('move-position').value = Math.min(moveRequest.max, items.findIndex(item => item.id === ids[0]) + 1);
+      $('move-dialog').showModal(); $('move-position').select();
+    } catch (error) { toast(error.message, true); }
+  }
+  function finishMove(position) {
+    moveItems(moveRequest.ids, position); $('move-dialog').close();
+  }
+  function beginDrag(event, item, card) {
+    if (event.button !== 0 || state.busy) return;
+    event.preventDefault();
+    const ids = state.selected.has(item.id) ? [...state.selected] : [item.id];
+    try { selectedCategory(ids); } catch (error) { toast(error.message, true); return; }
+    drag = { ids, category: item.category, startX: event.clientX, startY: event.clientY, active: false, card, target: null, after: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+  document.addEventListener('pointermove', event => {
+    if (!drag) return;
+    if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 6) return;
+    drag.active = true; drag.card.classList.add('dragging');
+    document.querySelectorAll('.drop-before,.drop-after').forEach(node => node.classList.remove('drop-before', 'drop-after'));
+    const target = document.elementFromPoint(event.clientX, event.clientY)?.closest('.asset');
+    drag.target = null;
+    if (target && target.dataset.category === drag.category && !drag.ids.includes(target.dataset.id)) {
+      const rect = target.getBoundingClientRect(); drag.after = event.clientX > rect.left + rect.width / 2;
+      drag.target = target.dataset.id; target.classList.add(drag.after ? 'drop-after' : 'drop-before');
+    }
+    if (event.clientY < 145) window.scrollBy(0, -18);
+    else if (event.clientY > innerHeight - 80) window.scrollBy(0, 18);
+  });
+  function endDrag(commit) {
+    if (!drag) return;
+    const current = drag; drag = null;
+    document.querySelectorAll('.dragging,.drop-before,.drop-after').forEach(node => node.classList.remove('dragging', 'drop-before', 'drop-after'));
+    if (commit && current.active && current.target) {
+      const rest = Order.ordered(state.data, current.category).filter(item => !current.ids.includes(item.id));
+      moveItems(current.ids, rest.findIndex(item => item.id === current.target) + 1 + Number(current.after));
+    }
+  }
+  document.addEventListener('pointerup', () => endDrag(true));
+  document.addEventListener('pointercancel', () => endDrag(false));
+  function field(label, value, onInput, { multiline = false, full = false, type = 'text', key = label } = {}) {
+    const wrapper = el('label', `field${full ? ' full' : ''}`, label);
+    const input = el(multiline ? 'textarea' : 'input');
+    if (!multiline) input.type = type;
+    input.value = value ?? '';
+    input.addEventListener('input', () => change(() => onInput(input.value), { render: false, key }));
+    input.addEventListener('blur', () => { state.editKey = null; });
+    wrapper.append(input); return wrapper;
+  }
+  function openItem(id) {
+    const item = state.data.items.find(work => work.id === id);
+    $('item-heading').textContent = title(item); $('item-file').textContent = `${item.categoryName || item.category} / ${item.fileName}`;
+    const media = el(item.mediaType === 'video' ? 'video' : 'img'); media.src = mediaURL(item.src);
+    if (item.mediaType === 'video') { media.controls = true; media.preload = 'metadata'; media.playsInline = true; }
+    else { media.alt = title(item); media.addEventListener('error', () => $('item-preview').replaceChildren(el('p', 'muted', '原文件无法读取，请同步素材目录。'))); }
+    $('item-preview').replaceChildren(media);
+    $('item-fields').replaceChildren(
+      field('作品标题', item.title, value => { item.title = value; }, { full: true, key: `title:${id}` }),
+      field('作品说明', item.description, value => { item.description = value; }, { multiline: true, full: true, key: `description:${id}` }),
+      field('标签（逗号分隔）', (item.tags || []).join('，'), value => { item.tags = value.split(/[,，]/).map(tag => tag.trim()).filter(Boolean); }, { full: true, key: `tags:${id}` })
+    );
+    $('item-dialog').showModal();
+  }
+  $('item-dialog').addEventListener('close', () => { $('item-preview').replaceChildren(); renderAssets(); });
+  function renderChapters() {
+    const cats = [...state.data.categories].sort((a, b) => a.order - b.order);
+    $('chapter-list').replaceChildren(...cats.map((cat, index) => {
+      const row = el('div', 'form-card chapter-card');
+      row.append(el('span', 'chapter-index', String(index + 1).padStart(2, '0')),
+        field('分类名称', cat.name, value => { cat.name = value; state.data.items.filter(item => item.category === cat.id).forEach(item => { item.categoryName = value; }); renderCategories(); }, { key: `cat-name:${cat.id}` }),
+        field('英文名称', cat.en, value => { cat.en = value; state.data.items.filter(item => item.category === cat.id).forEach(item => { item.categoryEn = value; }); }, { key: `cat-en:${cat.id}` }));
+      const controls = el('div', 'chapter-controls');
+      for (const direction of [-1, 1]) {
+        const move = button(direction === -1 ? '↑' : '↓', 'icon-btn', () => change(() => {
+          [cats[index], cats[index + direction]] = [cats[index + direction], cats[index]];
+          cats.forEach((category, i) => { category.order = i + 1; });
+          state.data.categories = cats;
+          state.data.items.forEach(item => { item.categoryOrder = cats.find(category => category.id === item.category)?.order; });
+        }), `${direction === -1 ? '上移' : '下移'}分类 ${cat.name}`);
+        move.disabled = index + direction < 0 || index + direction >= cats.length; controls.append(move);
+      }
+      row.append(controls); return row;
+    }));
+  }
+  function renderProfile() {
+    const profile = state.data.profile;
+    const specs = [['姓名', 'name'], ['职业身份', 'title'], ['邮箱', 'email'], ['电话', 'phone'], ['微信', 'wechat'], ['城市', 'location'], ['个人简介', 'bio', true], ['专业技能（逗号分隔）', 'skills'], ['首页 AI 工具说明', 'aiToolsIntro']];
+    $('profile-fields').replaceChildren(...specs.map(([label, key, multiline]) => field(label, key === 'skills' ? (profile.skills || []).join('，') : profile[key], value => {
+      profile[key] = key === 'skills' ? value.split(/[,，]/).map(item => item.trim()).filter(Boolean) : value;
+    }, { multiline, full: multiline || key === 'skills' || key === 'aiToolsIntro', key: `profile:${key}` })));
+    const experiences = profile.experiences || (profile.experiences = []);
+    $('experience-list').replaceChildren(...experiences.map((exp, index) => {
+      const card = el('div', `form-card${index === 0 ? ' latest' : ''}`);
+      const head = el('div', 'form-card-heading');
+      head.append(el('p', 'eyebrow', index === 0 ? '01 / 最近一份 · 大卡片' : `${String(index + 1).padStart(2, '0')} / 工作经历`));
+      for (const direction of [-1, 1]) {
+        const move = button(direction === -1 ? '↑' : '↓', 'icon-btn', () => change(() => {
+          [experiences[index], experiences[index + direction]] = [experiences[index + direction], experiences[index]];
+        }), `${direction === -1 ? '上移' : '下移'}经历 ${exp.company || index + 1}`);
+        move.disabled = index + direction < 0 || index + direction >= experiences.length; head.append(move);
+      }
+      head.append(button('删除', 'text-btn', () => { change(() => experiences.splice(index, 1)); toast('经历已移除，可以撤销'); }, `删除经历 ${exp.company || index + 1}`));
+      const fields = el('div', 'fields');
+      fields.append(...[['公司', 'company'], ['职位', 'role'], ['时间', 'period'], ['城市', 'location'], ['工作内容', 'description']].map(([label, key]) =>
+        field(label, exp[key], value => { exp[key] = value; }, { multiline: key === 'description', full: key === 'description', key: `exp:${index}:${key}` })));
+      card.append(head, fields); return card;
+    }));
+  }
+  function renderSettings() {
+    const settings = state.data.siteInfo;
+    $('settings-fields').replaceChildren(...[['浏览器标题', 'title'], ['导航品牌文字', 'brandName'], ['封面标题前半', 'heroTitlePrefix'], ['封面标题后半', 'heroTitleSuffix'], ['封面副标题', 'heroSubtitle'], ['页脚版权', 'footerCopyright']].map(([label, key]) =>
+      field(label, settings[key], value => { settings[key] = value; }, { full: ['heroSubtitle', 'footerCopyright'].includes(key), key: `site:${key}` })));
+  }
+  function openBackup() {
+    if (!state.data) return;
+    $('backup-json').value = JSON.stringify(state.data, null, 2); $('backup-dialog').showModal();
+  }
+  function openReview(heading, description, content, label, action, commit = false) {
+    $('review-heading').textContent = heading; $('review-description').textContent = description;
+    $('review-content').textContent = content; $('review-confirm').textContent = label;
+    $('commit-field').hidden = !commit; reviewAction = action; $('review-dialog').showModal();
+  }
+  function reloadReview() {
+    if (!dirty()) return load();
+    openReview('重新载入磁盘配置', '当前未保存的修改将被替换。需要保留时，请先关闭此窗口并导出备份。', '此操作会清空本页的撤销记录。', '放弃草稿并载入', load);
+  }
+  function toolsReady() {
+    if (!state.online) { toast('请启动本地管理后台后操作。', true); return false; }
+    if (dirty()) { $('tools-dialog').close(); toast('请先保存当前修改，再同步或发布。', true); return false; }
     return true;
-  });
-}
-
-// 渲染作品卡片列表
-function renderAssetsView() {
-  const filtered = getFilteredItems();
-  const total = filtered.length;
-  const startIdx = (state.page - 1) * state.pageSize;
-  const pageItems = filtered.slice(startIdx, startIdx + state.pageSize);
-
-  assetsGridRoot.innerHTML = '';
-
-  if (pageItems.length === 0) {
-    assetsGridRoot.innerHTML = `
-      <div style="grid-column: 1/-1; padding: 60px 0; text-align: center; color: var(--text-muted);">
-        <p style="font-size: 1.1rem; margin-bottom: 8px;">未找到匹配的作品素材</p>
-        <p style="font-size: 0.85rem;">请尝试调整上方筛选分类或清空搜索关键词</p>
-      </div>
-    `;
-    paginationRoot.innerHTML = '';
-    return;
   }
-
-  pageItems.forEach(item => {
-    const card = createAssetCard(item);
-    assetsGridRoot.appendChild(card);
-  });
-
-  renderPagination(total);
-}
-
-// 创建单个卡片 DOM
-function createAssetCard(item) {
-  const card = document.createElement('div');
-  card.className = `asset-card ${!item.visible ? 'hidden-item' : ''}`;
-  card.id = `card-${item.id}`;
-
-  const isVideo = item.mediaType === 'video';
-  const isGif = item.mediaType === 'gif';
-  const preview = mediaPreviews[item.src];
-  const thumbSrc = preview && preview.variants && preview.variants.length > 0
-    ? preview.variants[0].src
-    : item.src;
-  const durationText = preview && preview.duration ? `${Math.round(preview.duration)}s` : '';
-
-  // 计算本分类内的当前次序
-  const categoryItems = portfolioData.items.filter(it => it.category === item.category);
-  const rank = categoryItems.findIndex(it => it.id === item.id) + 1;
-
-  card.innerHTML = `
-    <div class="card-thumb-wrap" onclick="openMediaPreview('${item.id}')" title="点击放大预览/播放视频">
-      <img class="card-thumb" src="${thumbSrc}" alt="${escapeHtml(item.title || '')}" loading="lazy">
-      ${isVideo ? `<div class="badge-video">▶ 视频${durationText ? ` · ${durationText}` : ''}</div>` : ''}
-      ${isGif ? `<div class="badge-video" style="background:#8b5cf6;">GIF</div>` : ''}
-    </div>
-
-    <div class="card-body">
-      <div class="card-meta-line">
-        <span class="card-category-tag">${escapeHtml(item.categoryName || item.category)}</span>
-        <span class="card-order-badge">本章第 ${rank} 位</span>
-        <span class="card-index">${escapeHtml(item.fileName)}</span>
-      </div>
-
-      <input type="text" class="card-title-input" value="${escapeHtml(item.title || '')}" placeholder="输入作品标题...">
-      <input type="text" class="card-desc-input" value="${escapeHtml(item.description || '')}" placeholder="输入作品说明 (前台灯箱展示)...">
-
-      <div class="card-footer-controls">
-        <label class="toggle-wrap" title="切换是否在前台该章节画廊中展示">
-          <input type="checkbox" ${item.visible ? 'checked' : ''} class="item-visible-toggle">
-          <span class="toggle-switch"></span>
-          <span class="toggle-label">${item.visible ? '公开中' : '已隐藏'}</span>
-        </label>
-
-        <div class="card-order-controls">
-          <button type="button" class="order-btn" title="置顶到该章节最前" onclick="moveItem('${item.id}', 'top')">🔝 置顶</button>
-          <button type="button" class="order-btn" title="向前移一位" onclick="moveItem('${item.id}', 'up')">◀</button>
-          <button type="button" class="order-btn" title="向后移一位" onclick="moveItem('${item.id}', 'down')">▶</button>
-        </div>
-      </div>
-    </div>
-  `;
-
-  // 绑定即时同步事件
-  const titleInput = card.querySelector('.card-title-input');
-  titleInput.addEventListener('input', () => {
-    item.title = titleInput.value.trim();
-    markDirty();
-  });
-
-  const descInput = card.querySelector('.card-desc-input');
-  descInput.addEventListener('input', () => {
-    item.description = descInput.value.trim();
-    markDirty();
-  });
-
-  const toggle = card.querySelector('.item-visible-toggle');
-  const toggleLabel = card.querySelector('.toggle-label');
-  toggle.addEventListener('change', () => {
-    item.visible = toggle.checked;
-    toggleLabel.textContent = item.visible ? '公开中' : '已隐藏';
-    card.classList.toggle('hidden-item', !item.visible);
-    renderStatistics();
-    markDirty();
-  });
-
-  return card;
-}
-
-// 渲染分页
-function renderPagination(total) {
-  paginationRoot.innerHTML = '';
-  const totalPages = Math.ceil(total / state.pageSize);
-  if (totalPages <= 1) return;
-
-  const prevBtn = document.createElement('button');
-  prevBtn.className = 'btn btn-secondary btn-sm';
-  prevBtn.textContent = '◀ 上一页';
-  prevBtn.disabled = state.page <= 1;
-  prevBtn.onclick = () => {
-    state.page--;
-    renderAssetsView();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-  paginationRoot.appendChild(prevBtn);
-
-  const pageInfo = document.createElement('span');
-  pageInfo.style.fontSize = '0.85rem';
-  pageInfo.style.color = 'var(--text-muted)';
-  pageInfo.textContent = `第 ${state.page} / ${totalPages} 页 (共 ${total} 件)`;
-  paginationRoot.appendChild(pageInfo);
-
-  const nextBtn = document.createElement('button');
-  nextBtn.className = 'btn btn-secondary btn-sm';
-  nextBtn.textContent = '下一页 ▶';
-  nextBtn.disabled = state.page >= totalPages;
-  nextBtn.onclick = () => {
-    state.page++;
-    renderAssetsView();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-  paginationRoot.appendChild(nextBtn);
-}
-
-// 绑定筛选事件
-function setupFilterEvents() {
-  const searchInput = document.getElementById('asset-search');
-  let searchTimer;
-  searchInput.addEventListener('input', () => {
-    clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => {
-      state.keyword = searchInput.value;
-      state.page = 1;
-      renderAssetsView();
-    }, 250);
-  });
-
-  const statusSelect = document.getElementById('filter-status');
-  statusSelect.addEventListener('change', () => {
-    state.status = statusSelect.value;
-    state.page = 1;
-    renderAssetsView();
-  });
-
-  const typeSelect = document.getElementById('filter-type');
-  typeSelect.addEventListener('change', () => {
-    state.mediaType = typeSelect.value;
-    state.page = 1;
-    renderAssetsView();
-  });
-
-  // 批量操作按钮
-  document.getElementById('batch-visible-btn').onclick = () => {
-    const items = getFilteredItems();
-    items.forEach(it => it.visible = true);
-    renderStatistics();
-    renderAssetsView();
-    markDirty();
-    showToast(`已将当前筛选的 ${items.length} 个作品设为公开显示`, 'success');
-  };
-
-  document.getElementById('batch-hidden-btn').onclick = () => {
-    const items = getFilteredItems();
-    items.forEach(it => it.visible = false);
-    renderStatistics();
-    renderAssetsView();
-    markDirty();
-    showToast(`已将当前筛选的 ${items.length} 个作品设为隐藏`, 'info');
-  };
-
-  document.getElementById('batch-keep20-btn').onclick = () => {
-    if (state.category === 'all') {
-      showToast('请先选择具体分类（如 CG风格）后再使用此快捷精简功能！', 'error');
-      return;
-    }
-    const catItems = portfolioData.items.filter(it => it.category === state.category);
-    catItems.forEach((it, idx) => {
-      it.visible = idx < 20;
-    });
-    renderStatistics();
-    renderAssetsView();
-    markDirty();
-    showToast(`分类【${state.category}】已仅保留前 20 张公开，其余已设为隐藏`, 'success');
-  };
-}
-
-// 标签页切换
-function setupNavigation() {
-  document.querySelectorAll('.side-nav-btn').forEach(btn => {
-    btn.onclick = () => {
-      document.querySelectorAll('.side-nav-btn').forEach(b => b.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-
-      btn.classList.add('active');
-      const targetTabId = btn.dataset.tab;
-      const targetEl = document.getElementById(targetTabId);
-      if (targetEl) {
-        targetEl.classList.add('active');
-        window.scrollTo({ top: 0, behavior: 'instant' });
-      }
-    };
-  });
-}
-
-// ================= 排序与预览控制 =================
-
-// 作品分类内次序调整
-window.moveItem = function(itemId, direction) {
-  const itemIndex = portfolioData.items.findIndex(it => it.id === itemId);
-  if (itemIndex === -1) return;
-  const item = portfolioData.items[itemIndex];
-  const cat = item.category;
-
-  const catIndices = [];
-  portfolioData.items.forEach((it, idx) => {
-    if (it.category === cat) catIndices.push(idx);
-  });
-
-  const posInCat = catIndices.indexOf(itemIndex);
-  if (posInCat === -1) return;
-
-  if (direction === 'top') {
-    if (posInCat === 0) return;
-    portfolioData.items.splice(itemIndex, 1);
-    portfolioData.items.splice(catIndices[0], 0, item);
-  } else if (direction === 'up') {
-    if (posInCat === 0) return;
-    const prevIdx = catIndices[posInCat - 1];
-    portfolioData.items[itemIndex] = portfolioData.items[prevIdx];
-    portfolioData.items[prevIdx] = item;
-  } else if (direction === 'down') {
-    if (posInCat === catIndices.length - 1) return;
-    const nextIdx = catIndices[posInCat + 1];
-    portfolioData.items[itemIndex] = portfolioData.items[nextIdx];
-    portfolioData.items[nextIdx] = item;
-  }
-
-  markDirty();
-  renderAssetsView();
-  showToast(`已调整【${item.title || item.fileName}】排序`, 'info');
-};
-
-// 章节排序调整
-window.moveChapter = function(catId, direction) {
-  const cats = portfolioData.categories;
-  const idx = cats.findIndex(c => c.id === catId);
-  if (idx === -1) return;
-
-  if (direction === 'up' && idx > 0) {
-    const temp = cats[idx];
-    cats[idx] = cats[idx - 1];
-    cats[idx - 1] = temp;
-  } else if (direction === 'down' && idx < cats.length - 1) {
-    const temp = cats[idx];
-    cats[idx] = cats[idx + 1];
-    cats[idx + 1] = temp;
-  } else {
-    return;
-  }
-
-  cats.forEach((c, i) => { c.order = i + 1; });
-  markDirty();
-  initCategoryChips();
-  renderChaptersView();
-  showToast('章节呈现顺序已更新！前台目录将按此顺序显示。', 'success');
-};
-
-// 渲染章节列表管理
-function renderChaptersView() {
-  const root = document.getElementById('chapters-list-root');
-  if (!root || !portfolioData || !portfolioData.categories) return;
-  root.innerHTML = '';
-
-  const cats = portfolioData.categories;
-  cats.forEach((cat, idx) => {
-    const totalCount = portfolioData.items.filter(it => it.category === cat.id).length;
-    const visibleCount = portfolioData.items.filter(it => it.category === cat.id && it.visible).length;
-
-    const item = document.createElement('div');
-    item.className = 'chapter-manage-item';
-    item.innerHTML = `
-      <div class="chapter-meta">
-        <span class="chapter-num-badge">第 0${idx + 1} 章</span>
-        <div style="flex:1; display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-          <div>
-            <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">章节中文名称</label>
-            <input type="text" class="form-control cat-name-input" value="${escapeHtml(cat.name || '')}">
-          </div>
-          <div>
-            <label style="font-size:0.75rem; color:var(--text-muted); display:block; margin-bottom:4px;">英文副标题</label>
-            <input type="text" class="form-control cat-en-input" value="${escapeHtml(cat.en || '')}">
-          </div>
-        </div>
-        <div style="font-size:0.8rem; color:var(--text-muted); text-align:right; min-width:90px;">
-          <div>公开: <b style="color:var(--accent-green);">${visibleCount}</b> / ${totalCount}</div>
-          <div style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">ID: ${escapeHtml(cat.id)}</div>
-        </div>
-      </div>
-      <div style="display:flex; flex-direction:column; gap:4px;">
-        <button type="button" class="order-btn" title="上移此章节" ${idx === 0 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} onclick="moveChapter('${cat.id}', 'up')">⬆️ 上移</button>
-        <button type="button" class="order-btn" title="下移此章节" ${idx === cats.length - 1 ? 'disabled style="opacity:0.3;cursor:not-allowed;"' : ''} onclick="moveChapter('${cat.id}', 'down')">⬇️ 下移</button>
-      </div>
-    `;
-
-    const nameInput = item.querySelector('.cat-name-input');
-    nameInput.addEventListener('input', () => {
-      cat.name = nameInput.value.trim();
-      initCategoryChips();
-      markDirty();
-    });
-
-    const enInput = item.querySelector('.cat-en-input');
-    enInput.addEventListener('input', () => {
-      cat.en = enInput.value.trim();
-      markDirty();
-    });
-
-    root.appendChild(item);
-  });
-}
-
-// 灯箱媒体预览
-window.openMediaPreview = function(itemId) {
-  const item = portfolioData.items.find(it => it.id === itemId);
-  if (!item) return;
-
-  const modal = document.getElementById('admin-preview-modal');
-  const stage = document.getElementById('admin-preview-stage');
-  const title = document.getElementById('admin-preview-title');
-  const cat = document.getElementById('admin-preview-category');
-  const desc = document.getElementById('admin-preview-desc');
-
-  title.textContent = item.title || item.fileName;
-  cat.textContent = `${item.categoryName || item.category} · #${item.fileIndex}`;
-  desc.textContent = item.description || (item.tags || []).join(' / ') || '';
-
-  stage.innerHTML = '';
-  if (item.mediaType === 'video') {
-    const video = document.createElement('video');
-    video.src = item.src;
-    video.controls = true;
-    video.autoplay = true;
-    video.playsInline = true;
-    video.style.maxWidth = '100%';
-    video.style.maxHeight = '75vh';
-    stage.appendChild(video);
-  } else {
-    const img = document.createElement('img');
-    img.src = item.src;
-    img.alt = item.title || '';
-    img.style.maxWidth = '100%';
-    img.style.maxHeight = '75vh';
-    img.style.objectFit = 'contain';
-    stage.appendChild(img);
-  }
-
-  modal.classList.add('active');
-};
-
-window.closePreviewModal = function(e) {
-  if (e && e.target && e.target.closest && e.target.closest('.preview-modal-box') && !e.target.classList.contains('modal-close')) {
-    return;
-  }
-  const modal = document.getElementById('admin-preview-modal');
-  if (modal) {
-    const stage = document.getElementById('admin-preview-stage');
-    if (stage) stage.innerHTML = '';
-    modal.classList.remove('active');
-  }
-};
-
-// 个人资料与简历编辑初始化
-function initProfileView() {
-  if (!portfolioData || !portfolioData.profile) return;
-  const p = portfolioData.profile;
-
-  document.getElementById('prof-name').value = p.name || '';
-  document.getElementById('prof-title').value = p.title || '';
-  document.getElementById('prof-email').value = p.email || '';
-  document.getElementById('prof-phone').value = p.phone || '';
-  document.getElementById('prof-wechat').value = p.wechat || '';
-  document.getElementById('prof-location').value = p.location || '';
-  document.getElementById('prof-ai-tools').value = p.aiToolsIntro || '';
-  document.getElementById('prof-bio').value = p.bio || '';
-  document.getElementById('prof-skills').value = (p.skills || []).join(', ');
-
-  // 监听输入修改
-  ['prof-name', 'prof-title', 'prof-email', 'prof-phone', 'prof-wechat', 'prof-location', 'prof-ai-tools', 'prof-bio', 'prof-skills'].forEach(id => {
-    document.getElementById(id).addEventListener('input', () => {
-      syncProfileFromInputs();
-      markDirty();
-    });
-  });
-
-  renderExperiences();
-}
-
-function syncProfileFromInputs() {
-  portfolioData.profile.name = document.getElementById('prof-name').value.trim();
-  portfolioData.profile.title = document.getElementById('prof-title').value.trim();
-  portfolioData.profile.email = document.getElementById('prof-email').value.trim();
-  portfolioData.profile.phone = document.getElementById('prof-phone').value.trim();
-  portfolioData.profile.wechat = document.getElementById('prof-wechat').value.trim();
-  portfolioData.profile.location = document.getElementById('prof-location').value.trim();
-  portfolioData.profile.aiToolsIntro = document.getElementById('prof-ai-tools').value.trim();
-  portfolioData.profile.bio = document.getElementById('prof-bio').value.trim();
-  portfolioData.profile.skills = document.getElementById('prof-skills').value.split(/[,，]/).map(s => s.trim()).filter(Boolean);
-}
-
-// 渲染工作经历编辑列表
-function renderExperiences() {
-  const root = document.getElementById('experiences-editor-root');
-  root.innerHTML = '';
-  const exps = portfolioData.profile.experiences || [];
-
-  exps.forEach((exp, idx) => {
-    const card = document.createElement('div');
-    card.style.background = 'var(--bg-tertiary)';
-    card.style.border = '1px solid var(--border-color)';
-    card.style.borderRadius = 'var(--radius-sm)';
-    card.style.padding = '14px';
-    card.style.marginBottom = '12px';
-
-    card.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-        <span style="font-weight:700; color:#fff;">经历 #${idx + 1}</span>
-        <button class="btn btn-secondary btn-sm" style="color:var(--accent-red);" onclick="deleteExperience(${idx})">删除</button>
-      </div>
-      <div style="display:grid; grid-template-columns: 1.2fr 1fr 1.2fr 0.8fr; gap:10px; margin-bottom:10px;">
-        <input type="text" class="form-control exp-comp" value="${escapeHtml(exp.company || '')}" placeholder="公司名称">
-        <input type="text" class="form-control exp-role" value="${escapeHtml(exp.role || '')}" placeholder="职位角色">
-        <input type="text" class="form-control exp-period" value="${escapeHtml(exp.period || '')}" placeholder="时间区间 (如 2024.6 - 2024.12)">
-        <input type="text" class="form-control exp-loc" value="${escapeHtml(exp.location || '')}" placeholder="城市 (如 北京)">
-      </div>
-      <textarea class="form-control exp-desc" placeholder="工作内容详情说明...">${escapeHtml(exp.description || '')}</textarea>
-    `;
-
-    card.querySelector('.exp-comp').addEventListener('change', e => { exp.company = e.target.value.trim(); markDirty(); });
-    card.querySelector('.exp-role').addEventListener('change', e => { exp.role = e.target.value.trim(); markDirty(); });
-    card.querySelector('.exp-period').addEventListener('change', e => { exp.period = e.target.value.trim(); markDirty(); });
-    card.querySelector('.exp-loc').addEventListener('change', e => { exp.location = e.target.value.trim(); markDirty(); });
-    card.querySelector('.exp-desc').addEventListener('change', e => { exp.description = e.target.value.trim(); markDirty(); });
-
-    root.appendChild(card);
-  });
-}
-
-window.deleteExperience = function(idx) {
-  portfolioData.profile.experiences.splice(idx, 1);
-  renderExperiences();
-  markDirty();
-};
-
-document.getElementById('btn-add-experience').onclick = () => {
-  portfolioData.profile.experiences = portfolioData.profile.experiences || [];
-  portfolioData.profile.experiences.push({
-    company: '新公司名称',
-    role: '职位名称',
-    period: '2026 - 至今',
-    location: '北京',
-    description: '负责相关设计工作...'
-  });
-  renderExperiences();
-  markDirty();
-};
-
-// 全局站点设置初始化
-function initSettingsView() {
-  if (!portfolioData || !portfolioData.siteInfo) return;
-  const s = portfolioData.siteInfo;
-
-  document.getElementById('site-title').value = s.title || '';
-  document.getElementById('site-brand').value = s.brandName || '';
-  document.getElementById('site-hero-prefix').value = s.heroTitlePrefix || '';
-  document.getElementById('site-hero-suffix').value = s.heroTitleSuffix || '';
-  document.getElementById('site-hero-sub').value = s.heroSubtitle || '';
-  document.getElementById('site-footer').value = s.footerCopyright || '';
-
-  ['site-title', 'site-brand', 'site-hero-prefix', 'site-hero-suffix', 'site-hero-sub', 'site-footer'].forEach(id => {
-    document.getElementById(id).addEventListener('change', () => {
-      syncSettingsFromInputs();
-      markDirty();
-    });
-  });
-}
-
-function syncSettingsFromInputs() {
-  portfolioData.siteInfo.title = document.getElementById('site-title').value.trim();
-  portfolioData.siteInfo.brandName = document.getElementById('site-brand').value.trim();
-  portfolioData.siteInfo.heroTitlePrefix = document.getElementById('site-hero-prefix').value.trim();
-  portfolioData.siteInfo.heroTitleSuffix = document.getElementById('site-hero-suffix').value.trim();
-  portfolioData.siteInfo.heroSubtitle = document.getElementById('site-hero-sub').value.trim();
-  portfolioData.siteInfo.footerCopyright = document.getElementById('site-footer').value.trim();
-}
-
-// 按钮动作绑定
-function setupActionButtons() {
-  // 保存所有修改
-  document.getElementById('btn-save-all').onclick = saveAllChanges;
-
-  // 重新扫描素材
-  document.getElementById('btn-rescan').onclick = async () => {
-    if (!confirm('重新扫描将检测本地 images/ 目录是否有新增图片/视频。是否继续？')) return;
-    showToast('正在重新扫描本地素材...', 'info');
+  $('rescan').addEventListener('click', async () => {
+    if (!toolsReady()) return;
+    busy(true);
     try {
-      const res = await fetch('/api/rescan', { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message, 'success');
-        await loadPortfolioData();
-      } else {
-        showToast('扫描失败: ' + data.message, 'error');
-      }
-    } catch (e) {
-      showToast('本地服务未响应，请确保 scripts/server.js 正在运行', 'error');
-    }
-  };
-
-  // 触发生成/更新预览海报 (调用 build-previews.py)
-  const buildBtn = document.getElementById('btn-build-previews');
-  if (buildBtn) {
-    buildBtn.onclick = async () => {
-      showToast('正在分析资产并生成 WebP 缩略图与视频海报...', 'info');
-      try {
-        const res = await fetch('/api/build-previews', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-          showToast(data.message, 'success');
-          await loadPortfolioData();
-        } else {
-          showToast('生成预览失败: ' + data.message, 'error');
-        }
-      } catch (e) {
-        showToast('本地服务未响应，请确保 scripts/server.js 正在运行', 'error');
-      }
-    };
-  }
-
-  // 弹窗控制
-  document.getElementById('btn-export-modal').onclick = () => {
-    syncProfileFromInputs();
-    syncSettingsFromInputs();
-    document.getElementById('json-textarea').value = JSON.stringify(portfolioData, null, 2);
-    document.getElementById('export-modal').classList.add('active');
-  };
-
-  document.getElementById('btn-github-modal').onclick = async () => {
-    if (isServerOnline) {
-      if (!confirm('确定要将本地已保存的全部配置、海报与文件改动一键推送到 GitHub 远程仓库吗？\n\n推送后 GitHub Pages 将自动部署上线（约 1-2 分钟生效）。')) return;
-      showToast('🚀 正在向 GitHub 推送更新中，请稍候...', 'info');
-      try {
-        const res = await fetch('/api/git-push', { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-          showToast(data.message, 'success');
-          alert('🎉 恭喜！已成功发布到 GitHub！\n\n线上网站地址：' + (data.siteUrl || 'https://zhangbling1.github.io') + '\n\nGitHub Pages 通常需要 1-2 分钟构建生效，稍后刷新页面即可查看最新效果。');
-        } else {
-          showToast('推送失败: ' + data.message, 'error');
-          alert('Git 推送遇到问题：\n' + data.message);
-        }
-      } catch (e) {
-        showToast('请求本地服务出错: ' + e.message, 'error');
-      }
-    } else {
-      const savedToken = localStorage.getItem('gh_portfolio_token') || '';
-      if (savedToken) document.getElementById('gh-token').value = savedToken;
-      document.getElementById('github-modal').classList.add('active');
-    }
-  };
-
-  document.getElementById('btn-copy-json').onclick = () => {
-    navigator.clipboard.writeText(JSON.stringify(portfolioData, null, 2))
-      .then(() => showToast('已将配置 JSON 复制到剪贴板！', 'success'));
-  };
-
-  document.getElementById('btn-download-json').onclick = () => {
-    const blob = new Blob([JSON.stringify(portfolioData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'portfolio-data.json';
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast('已开始下载 portfolio-data.json', 'success');
-  };
-
-  document.getElementById('btn-import-json').onclick = () => {
-    try {
-      const raw = document.getElementById('json-textarea').value.trim();
-      const parsed = JSON.parse(raw);
-      if (!parsed.items) throw new Error('JSON 格式缺少 items 字段');
-      portfolioData = parsed;
-      closeModals();
-      initCategoryChips();
-      renderStatistics();
-      renderAssetsView();
-      initProfileView();
-      initSettingsView();
-      markDirty();
-      showToast('配置导入成功，请点击【保存修改配置】以生效！', 'success');
-    } catch (e) {
-      showToast('JSON 格式不合法: ' + e.message, 'error');
-    }
-  };
-
-  // GitHub 一键推送
-  document.getElementById('btn-gh-push').onclick = pushToGitHub;
-}
-
-// 保存所有修改到本地
-async function saveAllChanges() {
-  syncProfileFromInputs();
-  syncSettingsFromInputs();
-
-  showToast('正在保存配置...', 'info');
-
-  if (isServerOnline) {
-    try {
-      const res = await fetch('/api/save', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(portfolioData)
+      const result = await json('/api/rescan', { revision: state.revision, preview: true });
+      const s = result.summary;
+      const changes = Object.entries({ '新增（保持隐藏）': s.added, '同名格式替换': s.replaced, '移除缺失文件的记录': s.removed }).map(([label, files]) => `${label} · ${files.length}\n${files.join('\n') || '无'}`).join('\n\n');
+      $('tools-dialog').close();
+      openReview('同步素材变化', '原有标题、可见状态与顺序会保留。保存前会自动备份旧配置。', changes, '确认同步', async () => {
+        busy(true);
+        try { const updated = await json('/api/rescan', { revision: state.revision }); setSnapshot(updated); toast('素材已同步到本地，新作品可在「已隐藏」中查看。'); }
+        catch (error) { state.error = error.message; toast(error.message, true); }
+        finally { busy(false); }
       });
-      const data = await res.json();
-      if (data.success) {
-        showToast(data.message, 'success');
-        markDirty(false);
-      } else {
-        showToast('保存失败: ' + data.message, 'error');
-      }
-    } catch (err) {
-      showToast('请求本地服务出错: ' + err.message, 'error');
-    }
-  } else {
-    // 静态离线环境降级处理
-    const blob = new Blob([JSON.stringify(portfolioData, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'portfolio-data.json';
-    a.click();
-    URL.revokeObjectURL(url);
-
-    showToast('未检测到本地 Node 服务，已为您自动下载最新的 portfolio-data.json。替换至 data/ 目录即可！', 'info');
-    markDirty(false);
-  }
-}
-
-// GitHub API 一键直连发布
-async function pushToGitHub() {
-  const token = document.getElementById('gh-token').value.trim();
-  const repo = document.getElementById('gh-repo').value.trim();
-  const commitMsg = document.getElementById('gh-commit-msg').value.trim() || 'Update portfolio config';
-
-  if (!token) {
-    showToast('请输入 GitHub Token！', 'error');
-    return;
-  }
-
-  localStorage.setItem('gh_portfolio_token', token);
-  showToast('正在通过 GitHub API 获取当前文件版本...', 'info');
-
-  try {
-    const filePath = 'data/portfolio-data.json';
-    const getUrl = `https://api.github.com/repos/${repo}/contents/${filePath}`;
-
-    let sha = null;
-    const getRes = await fetch(getUrl, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    });
-
-    if (getRes.ok) {
-      const fileMeta = await getRes.json();
-      sha = fileMeta.sha;
-    }
-
-    showToast('正在向 GitHub 提交更新...', 'info');
-
-    // 格式化 Base64
-    syncProfileFromInputs();
-    syncSettingsFromInputs();
-    const jsonStr = JSON.stringify(portfolioData, null, 2);
-    const contentBase64 = btoa(unescape(encodeURIComponent(jsonStr)));
-
-    const putRes = await fetch(getUrl, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/vnd.github.v3+json',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        message: commitMsg,
-        content: contentBase64,
-        sha: sha || undefined
-      })
-    });
-
-    if (putRes.ok) {
-      showToast('🎉 成功发布到 GitHub！GitHub Pages 将在 1-2 分钟内自动部署更新。', 'success');
-      markDirty(false);
-      closeModals();
-    } else {
-      const errData = await putRes.json();
-      showToast('GitHub 提交失败: ' + (errData.message || '权限或配置错误'), 'error');
-    }
-  } catch (err) {
-    showToast('GitHub API 请求出错: ' + err.message, 'error');
-  }
-}
-
-// 辅助方法
-window.closeModals = function() {
-  document.querySelectorAll('.modal-overlay').forEach(m => m.classList.remove('active'));
-};
-
-function previewMedia(src, isVideo) {
-  // 简易灯箱预览
-  window.open(src, '_blank');
-}
-
-function showToast(message, type = 'info') {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.innerHTML = `<span>${type === 'success' ? '✅' : (type === 'error' ? '❌' : 'ℹ️')}</span> <span>${escapeHtml(message)}</span>`;
-  toastContainer.appendChild(toast);
-
-  setTimeout(() => {
-    toast.style.opacity = '0';
-    toast.style.transform = 'translateY(10px)';
-    setTimeout(() => toast.remove(), 300);
-  }, 3500);
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
-}
+    } catch (error) { toast(error.message, true); } finally { busy(false); }
+  });
+  $('build-previews').addEventListener('click', async () => {
+    if (!toolsReady()) return;
+    busy(true); toast('正在生成预览图，素材较多时需要一些时间。');
+    try { const result = await json('/api/build-previews', {}); state.previews = await json('data/media-previews.json'); renderAssets(); toast(result.message); }
+    catch (error) { toast(`预览图未完成：${error.message}`, true); } finally { busy(false); }
+  });
+  $('publish-review').addEventListener('click', async () => {
+    if (!toolsReady()) return;
+    busy(true);
+    try {
+      const status = await json('/api/git-status'); $('tools-dialog').close();
+      openReview('发布到 GitHub', `将提交以下全部改动并推送到 ${status.branch} 分支（另有 ${status.ahead} 个本地提交）。`, `${status.remote}\n\n${status.changes || '没有未提交的文件改动。'}`, '确认提交并推送', async () => {
+        busy(true);
+        try { const result = await json('/api/git-push', { revision: state.revision, review: status.review, commitMsg: $('commit-message').value }); toast(result.message); }
+        catch (error) { toast(`发布未完成：${error.message}`, true); } finally { busy(false); }
+      }, true);
+    } catch (error) { toast(error.message, true); } finally { busy(false); }
+  });
+  $('review-confirm').addEventListener('click', async () => { $('review-dialog').close(); if (reviewAction) await reviewAction(); });
+  $('save').addEventListener('click', save);
+  $('undo').addEventListener('click', () => history('undo'));
+  $('redo').addEventListener('click', () => history('redo'));
+  $('search').addEventListener('input', event => { state.keyword = event.target.value.trim(); resetFilter(); });
+  $('status-filter').addEventListener('change', event => { state.status = event.target.value; resetFilter(); });
+  $('type-filter').addEventListener('change', event => { state.type = event.target.value; resetFilter(); });
+  $('page-size').addEventListener('change', event => { state.pageSize = event.target.value === 'all' ? 'all' : Number(event.target.value); resetFilter(); });
+  $('select-page').addEventListener('change', event => {
+    pageItems().items.forEach(item => event.target.checked ? state.selected.add(item.id) : state.selected.delete(item.id)); renderAssets();
+  });
+  $('selection-clear').addEventListener('click', () => { state.selected.clear(); renderAssets(); });
+  $('selection-move').addEventListener('click', () => openMove([...state.selected]));
+  for (const [id, visible] of [['selection-show', true], ['selection-hide', false]]) $(id).addEventListener('click', () => {
+    change(() => state.data.items.filter(item => state.selected.has(item.id)).forEach(item => { item.visible = visible; }));
+    toast(`已${visible ? '公开' : '隐藏'} ${state.selected.size} 幅作品，可撤销`);
+  });
+  for (const [id, compact] of [['view-comfort', false], ['view-compact', true]]) $(id).addEventListener('click', () => {
+    $('assets-grid').classList.toggle('compact', compact);
+    $('view-comfort').classList.toggle('active', !compact); $('view-compact').classList.toggle('active', compact);
+    $('view-comfort').setAttribute('aria-pressed', String(!compact)); $('view-compact').setAttribute('aria-pressed', String(compact));
+  });
+  $('move-form').addEventListener('submit', event => { event.preventDefault(); finishMove(Number($('move-position').value)); });
+  $('move-first').addEventListener('click', () => finishMove(1));
+  $('move-last').addEventListener('click', () => finishMove(moveRequest.max));
+  $('add-experience').addEventListener('click', () => {
+    change(() => state.data.profile.experiences.unshift({ company: '', role: '', period: '', location: '', description: '' }));
+    $('experience-list').querySelector('input')?.focus(); toast('新经历已放在最前面，填写后保存即可。');
+  });
+  document.querySelectorAll('[data-section]').forEach(node => node.addEventListener('click', () => {
+    if (!state.data) return;
+    document.querySelectorAll('[data-section]').forEach(nav => { nav.classList.toggle('active', nav === node); nav.setAttribute('aria-current', nav === node ? 'page' : 'false'); });
+    document.querySelectorAll('.panel').forEach(panel => panel.classList.toggle('active', panel.id === node.dataset.section));
+    window.scrollTo({ top: 0 });
+  }));
+  $('backup').addEventListener('click', openBackup);
+  $('maintenance').addEventListener('click', () => {
+    $('tools-note').textContent = state.online ? '扫描前先查看变化清单。同步与发布均需要先保存草稿。' : '当前为静态预览。请启动本地管理后台以使用这些功能。';
+    ['rescan', 'build-previews', 'publish-review'].forEach(id => { $(id).disabled = !state.online; });
+    $('tools-dialog').showModal();
+  });
+  $('download').addEventListener('click', () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' }));
+    const a = el('a'); a.href = url; a.download = 'portfolio-data.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    toast('已导出当前配置；导出不会替代本地保存。');
+  });
+  $('import-file').addEventListener('change', async event => {
+    const file = event.target.files[0]; if (!file) return;
+    if (file.size > 20 * 1024 * 1024) { toast('备份超过 20 MB', true); return; }
+    $('backup-json').value = await file.text(); event.target.value = '';
+  });
+  $('import').addEventListener('click', () => {
+    try { const data = Order.validate(JSON.parse($('backup-json').value)); change(() => { state.data = data; state.selected.clear(); }); $('backup-dialog').close(); toast('已导入为草稿。可撤销，保存后生效。'); }
+    catch (error) { toast(`导入失败：${error.message}`, true); }
+  });
+  document.querySelectorAll('[data-close]').forEach(node => node.addEventListener('click', () => node.closest('dialog').close()));
+  document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('click', event => { if (event.target === dialog && !state.busy) {
+    const rect = dialog.getBoundingClientRect();
+    if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
+  } }));
+  window.addEventListener('beforeunload', event => { if (dirty()) { event.preventDefault(); event.returnValue = ''; } });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') endDrag(false);
+    if (!(event.ctrlKey || event.metaKey)) return;
+    if (event.key.toLowerCase() === 's') { event.preventDefault(); save(); }
+    const editing = event.target.closest('input,textarea,[contenteditable]');
+    if (!editing && !document.querySelector('dialog[open]') && event.key.toLowerCase() === 'z') { event.preventDefault(); history(event.shiftKey ? 'redo' : 'undo'); }
+  });
+  load();
+})();

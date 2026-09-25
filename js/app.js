@@ -8,11 +8,11 @@
   const chaptersRoot = $('chapters');
   const playIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15L19.5 12Z"/></svg>';
   const downIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-6-6 6 6 6-6"/></svg>';
-  const chevronIcon = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const narrowScreen = matchMedia('(max-width: 760px)');
   const mediumScreen = matchMedia('(max-width: 1100px)');
   const finePointer = matchMedia('(hover: hover) and (pointer: fine)');
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  const chapterBatchSize = 30;
   // Which codec each video uses comes with its poster; the browser says whether it can decode it.
   const videoTypes = { av1: 'video/mp4; codecs="av01.0.08M.08"', h264: 'video/mp4; codecs="avc1.640028"', hevc: 'video/mp4; codecs="hvc1.1.6.L120.90"', vp9: 'video/webm; codecs="vp09.00.40.08"' };
   const videoProbe = document.createElement('video');
@@ -80,7 +80,7 @@
   // siteInfo.workOrder open their chapter; the rest follow sortOrder.
   // Plates are numbered once through the whole book.
   function buildBook(items, data) {
-    const opening = new Map((data.siteInfo?.workOrder || []).map((id, index) => [id, index]));
+    const compareWorks = PortfolioOrder.compare(data);
     const categories = [...(data.categories || [])].sort((a, b) => (a.order || 0) - (b.order || 0));
     const groups = new Map(categories.map(category => [category.id, { category, items: [] }]));
     for (const item of items) {
@@ -91,14 +91,15 @@
     state.plates = [];
     for (const { category, items: group } of groups.values()) {
       if (!group.length) continue;
-      group.sort((a, b) => (opening.get(a.id) ?? Infinity) - (opening.get(b.id) ?? Infinity) || (a.sortOrder || 0) - (b.sortOrder || 0));
+      group.sort(compareWorks);
       const number = state.chapters.length + 1;
-      const chapter = { number, id: `chapter-${number}`, category, plates: [], expanded: false };
+      const chapter = { number, id: `chapter-${number}`, category, plates: [], limit: 0 };
       for (const item of group) {
         const preview = state.previews[item.src];
-        const plate = { item, chapter, number: state.plates.length + 1, known: Boolean(preview), crop: '' };
-        plate.ratio = preview ? preview.width / preview.height : item.mediaType === 'video' ? 16 / 9 : 4 / 3;
-        plate.small = preview ? isSmall(item, preview.width, preview.height) : false;
+        const known = preview?.width > 0 && preview?.height > 0;
+        const plate = { item, chapter, number: state.plates.length + 1, known, crop: '', width: known ? preview.width : 0, height: known ? preview.height : 0 };
+        plate.ratio = known ? plate.width / plate.height : item.mediaType === 'video' ? 16 / 9 : 4 / 3;
+        plate.small = isSmall(item, plate.width || Infinity, plate.height || Infinity);
         chapter.plates.push(plate);
         state.plates.push(plate);
       }
@@ -210,8 +211,13 @@
     const skills = element('ul', 'chips');
     skills.append(...(profile.skills || []).map(skill => element('li', 'chip', skill)));
     $('resume-skills').replaceChildren(skills);
-    $('resume-exps').replaceChildren(...experiences.map(experience => {
+    // Two balanced desktop rows for up to seven roles, with a larger latest role.
+    const firstRow = experiences.length > 4 ? 3 : Math.min(2, experiences.length);
+    const lastRow = experiences.length - firstRow;
+    $('resume-exps').replaceChildren(...experiences.map((experience, index) => {
       const card = element('li', 'experience');
+      const span = index < firstRow ? (index === 0 ? (firstRow === 1 ? 12 : 6) : 6 / (firstRow - 1)) : 12 / Math.min(4, lastRow);
+      card.style.setProperty('--experience-span', span);
       card.append(element('p', 'experience-period', String(experience.period || '').replace(/\s*-\s*/, ' — ')),
         element('h3', '', experience.company || ''),
         element('p', 'experience-role', [experience.role, experience.location].filter(Boolean).join(' · ')));
@@ -370,6 +376,52 @@
 
   /* ---------- Contents ---------- */
 
+  // Scanning/ordering can put an artwork first before it has a preview entry.
+  // Previews are an optimization; the original must still produce a cover.
+  function mountContentsMedia(link, frame, item) {
+    const sources = previewSet(item);
+    const original = mediaURL(item.src);
+    const markLoaded = () => link.classList.add('is-loaded');
+    const showFailure = () => {
+      frame.replaceChildren(element('span', 'media-failure', '封面暂不可用'));
+      markLoaded();
+    };
+    const showVideo = image => {
+      if (image) image.remove();
+      const video = element('video');
+      video.muted = true;
+      video.playsInline = true;
+      video.preload = 'metadata';
+      video.dataset.src = original;
+      video.setAttribute('aria-hidden', 'true');
+      video.addEventListener('loadeddata', markLoaded, { once: true });
+      video.addEventListener('error', () => {
+        videoObserver.unobserve(video);
+        showFailure();
+      }, { once: true });
+      frame.append(video);
+      videoObserver.observe(video);
+    };
+    if (item.mediaType === 'video' && !sources.length) return showVideo();
+    const image = element('img');
+    image.alt = '';
+    image.decoding = 'async';
+    image.sizes = '(max-width: 760px) 84px, (max-width: 1100px) 24vw, 340px';
+    if (sources.length) image.dataset.srcset = sources.map(source => `${source.src} ${source.width}w`).join(', ');
+    image.dataset.src = sources[0]?.src || original;
+    let usingOriginal = !sources.length;
+    image.addEventListener('load', markLoaded, { once: true });
+    image.addEventListener('error', () => {
+      if (item.mediaType === 'video') return showVideo(image);
+      if (usingOriginal) return showFailure();
+      usingOriginal = true;
+      image.removeAttribute('srcset');
+      image.src = original;
+    });
+    frame.append(image);
+    plateLoader.observe(link);
+  }
+
   // Each chapter is a card: its opening plate in front, the colours of the next
   // two peeking out behind like a stack of prints.
   function renderContents() {
@@ -385,18 +437,7 @@
       const frame = element('span', 'toc-frame');
       const tone = toneOf(lead.item);
       if (tone) frame.style.setProperty('--tone', tone);
-      const sources = previewSet(lead.item);
-      if (sources.length) {
-        const image = element('img');
-        image.alt = '';
-        image.decoding = 'async';
-        image.sizes = '(max-width: 760px) 84px, (max-width: 1100px) 24vw, 340px';
-        image.dataset.srcset = sources.map(source => `${source.src} ${source.width}w`).join(', ');
-        image.dataset.src = sources[0].src;
-        image.addEventListener('load', () => link.classList.add('is-loaded'), { once: true });
-        frame.append(image);
-        plateLoader.observe(link);
-      }
+      mountContentsMedia(link, frame, lead.item);
       if (lead.item.mediaType === 'video') frame.append(videoBadge(lead.item));
       cover.append(frame);
       const count = element('span', 'toc-count', `${chapter.plates.length} 幅`);
@@ -416,7 +457,7 @@
   }
 
   function renderChapters() {
-    chaptersRoot.replaceChildren(...state.chapters.map(chapter => {
+    chaptersRoot.replaceChildren(...state.chapters.map((chapter, index) => {
       const section = element('section', 'chapter wrap');
       section.id = chapter.id;
       section.setAttribute('aria-labelledby', `${chapter.id}-title`);
@@ -439,12 +480,25 @@
       const more = element('button', 'more-button glass');
       more.type = 'button';
       more.setAttribute('aria-controls', box.id);
-      more.addEventListener('click', () => toggleChapter(chapter));
+      more.addEventListener('click', () => expandChapter(chapter));
+      const collapse = element('button', 'chapter-collapse', '收起本章');
+      collapse.type = 'button';
+      collapse.setAttribute('aria-controls', box.id);
+      collapse.addEventListener('click', () => collapseChapter(chapter));
+      const nextChapter = state.chapters[index + 1];
+      const next = element('a', 'chapter-next', nextChapter ? `下一类 · ${nextChapter.category.name}` : '返回目录');
+      next.href = nextChapter ? `#${nextChapter.id}` : '#contents';
+      next.insertAdjacentHTML('beforeend', downIcon);
+      const progress = element('p', 'chapter-progress');
+      progress.setAttribute('role', 'status');
+      progress.setAttribute('aria-atomic', 'true');
+      const actions = element('div', 'chapter-actions');
+      actions.append(more, collapse, next);
       const foot = element('div', 'chapter-foot');
-      foot.append(more);
+      foot.append(progress, actions);
       section.append(head, box, foot);
       revealObserver.observe(section);
-      Object.assign(chapter, { section, box, more, foot });
+      Object.assign(chapter, { section, box, more, collapse, progress, foot });
       return section;
     }));
   }
@@ -607,6 +661,8 @@
   function learnRatio(plate, width, height) {
     if (!(width > 0 && height > 0)) return;
     plate.ratio = width / height;
+    plate.width = width;
+    plate.height = height;
     plate.known = true;
     plate.small = isSmall(plate.item, width, height);
     measureChapter(plate.chapter);
@@ -615,27 +671,41 @@
 
   /* ---------- Justified rows ---------- */
 
-  // Greedy justified rows: close a row as soon as it is no taller than the
-  // target, keeping whichever break lands closer to the target height.
-  function justify(ratios, width, gap, target) {
+  // A landscape shape is not permission to make a full-width plate. Keep
+  // smaller originals sharp and reserve a compact scale for icons/stickers.
+  function plateHeightLimit(plate, ratio, width, pixelRatio) {
+    const maxWidth = plate.small ? 300 : !plate.known ? 480 : plate.ratio >= 1.25 ? 640 : 480;
+    const density = Math.max(1.5, Math.min(2, pixelRatio || 1));
+    const sourceLimit = plate.known ? Math.min(plate.width / ratio, plate.height) / density : Infinity;
+    return Math.min(width / ratio, maxWidth / ratio, sourceLimit);
+  }
+
+  // Pack neighbours until the row fits its smallest original. A previous
+  // break is allowed only within every plate's size limit; short final rows
+  // keep their natural scale rather than stretching a lone image.
+  function justify(ratios, width, gap, target, limits) {
     const rows = [];
     let start = 0;
     while (start < ratios.length) {
       let sum = 0;
       let row = null;
+      let ceiling = Infinity;
       for (let end = start; end < ratios.length && !row; end++) {
+        const previousCeiling = ceiling;
+        ceiling = Math.min(ceiling, limits[end]);
         sum += ratios[end];
         const height = (width - (end - start) * gap) / sum;
-        if (height > target) continue;
+        const desired = Math.min(target, ceiling);
+        if (height > desired) continue;
         const previous = end > start ? (width - (end - start - 1) * gap) / (sum - ratios[end]) : Infinity;
-        row = Math.log(previous / target) < Math.log(target / height)
+        row = previous <= previousCeiling && previous <= target * 1.18 && Math.abs(Math.log(previous / target)) < Math.abs(Math.log(height / desired))
           ? { start, end: end - 1, height: previous }
           : { start, end, height };
       }
       if (!row) {
-        // The remainder cannot fill a row; stretch it only if that stays modest.
         const full = (width - (ratios.length - 1 - start) * gap) / sum;
-        row = full <= target * 1.25 ? { start, end: ratios.length - 1, height: full } : { start, end: ratios.length - 1, height: target, ragged: true };
+        const height = Math.min(full, target, ceiling);
+        row = { start, end: ratios.length - 1, height, ragged: height < full };
       }
       rows.push(row);
       start = row.end + 1;
@@ -654,6 +724,7 @@
     const caption = read('--caption');
     const perRow = read(chapter.small ? '--per-row-small' : '--per-row');
     const target = Math.min(read('--max-h'), Math.max(read('--min-h'), (width - (perRow - 1) * gap) / (perRow * chapter.medianRatio)));
+    const previewCount = narrowScreen.matches ? 6 : 10;
     // Plates narrower than --min-w show their top; very wide ones are cropped at 2.4:1.
     const minRatio = read('--min-w') / target;
     const ratios = chapter.plates.map(plate => {
@@ -668,43 +739,42 @@
       }
       return crop === 'top' ? minRatio : crop === 'center' ? 2.4 : plate.ratio;
     });
-    const rows = justify(ratios, width, gap, target);
-    // A closed chapter shows whole rows up to about ten plates.
-    let visibleRows = rows.length;
-    if (!chapter.expanded) {
-      const preview = narrowScreen.matches ? 6 : 10;
-      let count = 0;
-      for (let index = 0; index < rows.length; index++) {
-        count += rows[index].end - rows[index].start + 1;
-        if (count >= preview) { visibleRows = index + 1; break; }
-      }
-      if (chapter.plates.length - count <= 2) visibleRows = rows.length;
-    }
+    const limits = chapter.plates.map((plate, index) => plateHeightLimit(plate, ratios[index], width, window.devicePixelRatio));
+    const rows = justify(ratios, width, gap, target, limits);
+    // Paginate complete rows, not an already-truncated list of images. Only
+    // the actual end of the chapter may have an unfinished final row.
+    const through = count => rows.find(row => row.end + 1 >= count)?.end + 1 || chapter.plates.length;
+    const visibleCount = through(chapter.limit || previewCount);
+    chapter.visibleCount = visibleCount;
+    chapter.nextLimit = Math.min(chapter.plates.length, Math.max(chapter.limit + chapterBatchSize, visibleCount + 1));
+    const nextCount = through(chapter.nextLimit);
+    chapter.plates.forEach((plate, index) => { plate.figure.hidden = index >= visibleCount; });
     let top = 0;
-    rows.forEach((row, index) => {
-      const shown = index < visibleRows;
-      const height = Math.round(row.height);
+    rows.filter(row => row.start < visibleCount).forEach(row => {
+      const height = row.height;
       let left = 0;
       for (let position = row.start; position <= row.end; position++) {
         const plate = chapter.plates[position];
-        plate.figure.hidden = !shown;
-        if (!shown) continue;
-        const plateWidth = position === row.end && !row.ragged ? width - left : Math.round(ratios[position] * row.height);
+        const plateWidth = position === row.end && !row.ragged ? width - left : ratios[position] * height;
         plate.figure.style.width = `${plateWidth}px`;
         plate.figure.style.transform = `translate(${left}px,${top}px)`;
         plate.media.style.height = `${height}px`;
         const image = plate.media.querySelector('img');
-        if (image) image.sizes = `${plateWidth}px`;
+        if (image) image.sizes = `${Math.ceil(plateWidth)}px`;
         left += plateWidth + gap;
       }
-      if (shown) top += height + caption + rowGap;
+      top += height + caption + rowGap;
     });
     box.style.height = `${Math.max(0, top - rowGap)}px`;
-    const collapsible = visibleRows < rows.length || chapter.expanded;
-    chapter.foot.hidden = !collapsible;
-    chapter.more.setAttribute('aria-expanded', String(chapter.expanded));
-    chapter.more.replaceChildren(document.createTextNode(chapter.expanded ? '收起本章' : `展开全部 ${chapter.plates.length} 幅`));
-    chapter.more.insertAdjacentHTML('beforeend', chevronIcon);
+    const remaining = chapter.plates.length - visibleCount;
+    chapter.progress.textContent = `已展示 ${visibleCount} / ${chapter.plates.length} 幅${remaining ? ` · 还有 ${remaining} 幅` : ' · 已全部展示'}`;
+    chapter.more.hidden = !remaining;
+    chapter.collapse.hidden = !chapter.limit || visibleCount <= through(previewCount);
+    chapter.more.setAttribute('aria-expanded', String(Boolean(chapter.limit)));
+    chapter.more.replaceChildren(document.createTextNode(chapter.limit
+      ? `再展开 ${nextCount - visibleCount} 幅`
+      : `展开至 ${nextCount} 幅`));
+    chapter.more.insertAdjacentHTML('beforeend', downIcon);
   }
 
   function layoutBook() {
@@ -718,12 +788,23 @@
     layoutFrame = requestAnimationFrame(layoutBook);
   }
 
-  function toggleChapter(chapter) {
-    // Keep the button where it is on screen when a chapter closes above it.
-    const before = chapter.more.getBoundingClientRect().top;
-    chapter.expanded = !chapter.expanded;
+  function expandChapter(chapter) {
+    const firstNew = chapter.visibleCount;
+    const scrollTop = window.scrollY;
+    chapter.limit = chapter.nextLimit;
     layoutChapter(chapter);
-    if (!chapter.expanded) window.scrollBy({ top: chapter.more.getBoundingClientRect().top - before, behavior: 'instant' });
+    // Keep reading from the new images, including when the last button hides.
+    chapter.plates[firstNew]?.figure.querySelector('button').focus({ preventScroll: true });
+    window.scrollTo({ top: scrollTop, behavior: 'instant' });
+    updateRunningHead();
+  }
+
+  function collapseChapter(chapter) {
+    const before = chapter.foot.getBoundingClientRect().top;
+    chapter.limit = 0;
+    layoutChapter(chapter);
+    chapter.more.focus({ preventScroll: true });
+    window.scrollBy({ top: chapter.foot.getBoundingClientRect().top - before, behavior: 'instant' });
     updateRunningHead();
   }
 

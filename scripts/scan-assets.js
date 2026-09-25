@@ -1,13 +1,9 @@
 const fs = require('fs');
 const path = require('path');
+const Order = require('../js/portfolio-order.js');
 
 const ROOT_DIR = path.resolve(__dirname, '..');
-const IMAGES_DIR = path.join(ROOT_DIR, 'images');
 const DATA_DIR = path.join(ROOT_DIR, 'data');
-
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
 
 // 分类元数据映射
 const CATEGORY_MAP = {
@@ -34,8 +30,9 @@ const CUSTOM_TITLES = {
 };
 
 // 扫描所有素材
-function scanAllAssets() {
-  const dirs = fs.readdirSync(IMAGES_DIR, { withFileTypes: true })
+function scanAllAssets(rootDir = ROOT_DIR) {
+  const imagesDir = path.join(rootDir, 'images');
+  const dirs = fs.readdirSync(imagesDir, { withFileTypes: true })
     .filter(d => d.isDirectory())
     .map(d => d.name);
 
@@ -52,7 +49,7 @@ function scanAllAssets() {
       featuredIndices: []
     };
 
-    const dirPath = path.join(IMAGES_DIR, dirName);
+    const dirPath = path.join(imagesDir, dirName);
     const files = fs.readdirSync(dirPath)
       .filter(f => validExts.has(path.extname(f).toLowerCase()))
       .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
@@ -100,29 +97,6 @@ function scanAllAssets() {
   });
 
   return allAssets;
-}
-
-const allAssets = scanAllAssets();
-console.log(`[Scan] 扫描完毕！共找到 ${allAssets.length} 个媒体素材。`);
-
-// 生成 all-assets.json
-fs.writeFileSync(
-  path.join(DATA_DIR, 'all-assets.json'),
-  JSON.stringify(allAssets, null, 2),
-  'utf-8'
-);
-console.log(`[Scan] 已输出全量索引: data/all-assets.json`);
-
-// 检查是否已有 portfolio-data.json
-const portfolioDataPath = path.join(DATA_DIR, 'portfolio-data.json');
-let existingConfig = null;
-if (fs.existsSync(portfolioDataPath)) {
-  try {
-    existingConfig = JSON.parse(fs.readFileSync(portfolioDataPath, 'utf-8'));
-    console.log(`[Scan] 检测到已有 portfolio-data.json，保留原有定制配置。`);
-  } catch (e) {
-    console.warn(`[Scan] 读取已有配置失败，将重新生成。`);
-  }
 }
 
 // 基础配置文件结构
@@ -194,40 +168,68 @@ const initialPortfolioConfig = {
     en: c.en,
     order: c.order
   })),
-  items: allAssets
+  items: []
 };
 
-if (!existingConfig) {
-  fs.writeFileSync(portfolioDataPath, JSON.stringify(initialPortfolioConfig, null, 2), 'utf-8');
-  console.log(`[Scan] 已成功生成初始发布配置: data/portfolio-data.json`);
-} else {
-  // 如果已有配置，把新增的文件合进去，但保留用户对现有 item 的 visible、featured、title 等修改
-  const existingItemMap = new Map();
-  (existingConfig.items || []).forEach(it => existingItemMap.set(it.fileKey, it));
-
-  const mergedItems = allAssets.map(scannedItem => {
-    const saved = existingItemMap.get(scannedItem.fileKey);
-    if (saved) {
-      return {
-        ...scannedItem,
-        title: saved.title || scannedItem.title,
-        description: saved.description || '',
-        tags: saved.tags || scannedItem.tags,
-        visible: saved.visible !== undefined ? saved.visible : scannedItem.visible,
-        featured: saved.featured !== undefined ? saved.featured : scannedItem.featured,
-        sortOrder: saved.sortOrder !== undefined ? saved.sortOrder : scannedItem.sortOrder
-      };
+function mergeAssets(existing, scanned) {
+  const data = structuredClone(existing || initialPortfolioConfig);
+  const savedByFile = new Map(data.items.map(item => [item.fileKey, item]));
+  const oldOrder = new Map(Order.ordered(data).map((item, index) => [item.id, index]));
+  const scannedKeys = new Set(scanned.map(item => item.fileKey));
+  const stem = item => item.fileKey.replace(/\.[^/.]+$/, '');
+  const unused = data.items.filter(item => !scannedKeys.has(item.fileKey));
+  const usedIds = new Set();
+  const added = [], replaced = [];
+  data.items = scanned.map(asset => {
+    let saved = savedByFile.get(asset.fileKey);
+    if (!saved) {
+      // A single same-name replacement (webp -> png) keeps its edits and position.
+      const candidates = unused.filter(item => stem(item) === stem(asset) && !usedIds.has(item.id));
+      if (candidates.length === 1 && scanned.filter(item => stem(item) === stem(asset)).length === 1) {
+        saved = candidates[0]; replaced.push(asset.fileKey);
+      }
     }
-    return scannedItem;
+    let item = saved ? { ...asset, ...saved, src: asset.src, fileKey: asset.fileKey, fileName: asset.fileName,
+      ext: asset.ext, mediaType: asset.mediaType } : { ...asset, visible: existing ? false : asset.visible };
+    if (!saved) added.push(asset.fileKey);
+    const base = item.id;
+    let suffix = 1;
+    // Reserve old IDs even if a new file with the same stem appears earlier in the scan.
+    while (usedIds.has(item.id) || (!saved && data.items.some(old => old.id === item.id))) item.id = `${base}_${suffix++}`;
+    usedIds.add(item.id);
+    return item;
   });
-
-  existingConfig.items = mergedItems;
-  existingConfig.categories = Object.values(CATEGORY_MAP).map(c => ({
-    id: c.id,
-    name: c.name,
-    en: c.en,
-    order: c.order
-  }));
-  fs.writeFileSync(portfolioDataPath, JSON.stringify(existingConfig, null, 2), 'utf-8');
-  console.log(`[Scan] 已合并最新素材并保留用户自定义配置: data/portfolio-data.json`);
+  for (const asset of scanned) {
+    if (!data.categories.some(cat => cat.id === asset.category)) data.categories.push({ id: asset.category,
+      name: asset.categoryName, en: asset.categoryEn, order: data.categories.length + 1 });
+  }
+  const removed = (existing?.items || []).filter(item => !usedIds.has(item.id)).map(item => item.fileKey);
+  for (const cat of data.categories) {
+    const items = data.items.filter(item => item.category === cat.id).sort((a, b) =>
+      (oldOrder.get(a.id) ?? Infinity) - (oldOrder.get(b.id) ?? Infinity) || a.fileIndex - b.fileIndex);
+    items.forEach((item, index) => Object.assign(item, { categoryName: cat.name, categoryEn: cat.en, categoryOrder: cat.order, sortOrder: index }));
+  }
+  data.siteInfo.workOrder = (data.siteInfo.workOrder || []).filter(id => usedIds.has(id));
+  Order.validate(data);
+  return { data, summary: { added, replaced, removed } };
 }
+
+function rescan(rootDir = ROOT_DIR, existing) {
+  return mergeAssets(existing, scanAllAssets(rootDir));
+}
+
+if (require.main === module) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  const filename = path.join(DATA_DIR, 'portfolio-data.json');
+  // Invalid existing JSON must never be silently replaced by defaults.
+  const existing = fs.existsSync(filename) ? JSON.parse(fs.readFileSync(filename, 'utf8')) : null;
+  const scanned = scanAllAssets();
+  const result = mergeAssets(existing, scanned);
+  if (existing) fs.copyFileSync(filename, `${filename}.bak`);
+  fs.writeFileSync(`${filename}.tmp`, JSON.stringify(result.data, null, 2));
+  fs.renameSync(`${filename}.tmp`, filename);
+  fs.writeFileSync(path.join(DATA_DIR, 'all-assets.json'), JSON.stringify(scanned, null, 2));
+  console.log(`[Scan] ${scanned.length} 个素材；新增 ${result.summary.added.length}，替换 ${result.summary.replaced.length}，移除 ${result.summary.removed.length}。原有编辑与排序已保留。`);
+}
+
+module.exports = { scanAllAssets, mergeAssets, rescan };
