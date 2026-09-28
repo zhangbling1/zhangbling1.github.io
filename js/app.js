@@ -39,6 +39,17 @@
     return url.origin === location.origin ? url.href : '';
   }
 
+  // The hosted build ships only the preview tiers, so full files are read from the
+  // origin that still carries them; locally they sit beside the page.
+  const mediaBase = typeof window.__PORTFOLIO_MEDIA_BASE__ === 'string' ? window.__PORTFOLIO_MEDIA_BASE__ : '';
+  function resolveOriginal(item) {
+    const local = mediaURL(item.src);
+    if (!local) return Promise.resolve('');
+    return Promise.resolve(mediaBase
+      ? `${mediaBase}/${item.src.split('/').map(encodeURIComponent).join('/')}`
+      : local);
+  }
+
   async function readJSON(path) {
     const response = await fetch(path, { cache: 'no-cache' });
     if (!response.ok) throw new Error(`Could not load ${path}: ${response.status}`);
@@ -537,9 +548,12 @@
         motion.playsInline = true;
         motion.setAttribute('aria-hidden', 'true');
         motion.addEventListener('playing', () => plate.figure.classList.add('is-playing'), { once: true });
-        motion.src = mediaURL(plate.item.src);
+        resolveOriginal(plate.item).then(url => {
+          if (!url || !motion.isConnected) return;
+          motion.src = url;
+          motion.play().catch(() => {});
+        });
         plate.media.append(motion);
-        motion.play().catch(() => {});
       }, 280);
     });
     button.addEventListener('pointerleave', stop);
@@ -951,6 +965,7 @@
     chaptersRoot.querySelectorAll('video').forEach(video => video.pause());
     const holder = $('lightbox-media');
     const original = mediaURL(item.src);
+    // The hosted build hides the original link, so the copy must not point at it.
     const fail = () => holder.replaceChildren(element('p', 'media-failure', '这个文件暂时无法预览，可以用右下角的链接打开原文件。'));
     if (item.mediaType === 'video') {
       const poster = previewSet(item).at(-1)?.src || '';
@@ -960,13 +975,17 @@
         video.playsInline = true;
         video.preload = 'auto';
         if (poster) video.poster = poster;
-        video.addEventListener('error', fail, { once: true });
-        video.src = original;
-        holder.append(video);
         // Sound is allowed by the click that opened the viewer; if not, start muted.
-        video.play().catch(() => {
+        const play = () => video.play().catch(() => {
           video.muted = true;
           video.play().catch(() => {});
+        });
+        video.addEventListener('error', fail, { once: true });
+        holder.append(video);
+        resolveOriginal(item).then(url => {
+          if (!url) return fail();
+          video.src = url;
+          play();
         });
       } else {
         const still = element('img');
@@ -997,19 +1016,27 @@
         if (!preview) fit(image.naturalWidth, image.naturalHeight);
         holder.classList.remove('is-pending');
       });
+      // One recovery step: ask for the best available copy, then give up.
+      let attempts = 0;
       image.addEventListener('error', () => {
-        if (image.src !== original) image.src = original;
-        else fail();
+        attempts += 1;
+        if (attempts > 2) return fail();
+        resolveOriginal(item).then(url => {
+          if (url && url !== image.src) image.src = url;
+          else fail();
+        });
       });
       image.src = quick || original;
       holder.append(image);
-      if (quick && quick !== original) {
-        const full = new Image();
-        full.src = original;
-        full.decode().then(() => {
-          if (state.viewerIndex === index && image.isConnected) image.src = original;
-        }).catch(() => {});
-      }
+      // Swap in a sharper copy only once it has decoded, so the preview never flashes away.
+      const sharpen = src => {
+        const probe = new Image();
+        probe.src = src;
+        return probe.decode().then(() => {
+          if (state.viewerIndex === index && image.isConnected) image.src = src;
+        });
+      };
+      if (quick) resolveOriginal(item).then(url => url && sharpen(url)).catch(() => {});
     }
     lightViewer(plate, index);
     const tags = (item.tags || []).filter(tag => tag !== item.categoryName && tag !== item.categoryEn);
@@ -1017,8 +1044,13 @@
     $('lb-title').textContent = realTitle(item) || `图版 ${pad(plate.number, 3)}`;
     $('lb-description').textContent = item.description || '';
     $('lb-counter').textContent = `${pad(plate.number, 3)} / ${pad(state.plates.length, 3)}`;
-    $('lb-original').href = original;
+    // The link follows wherever this build keeps the full file.
+    const link = $('lb-original');
     $('lb-original-text').textContent = item.mediaType === 'video' ? '查看原视频' : '查看原图';
+    resolveOriginal(item).then(url => {
+      link.hidden = !url;
+      if (url) link.href = url;
+    });
     $('lb-prev').disabled = $('lb-next').disabled = state.plates.length < 2;
     for (const offset of [1, -1]) {
       const neighbour = state.plates[(index + offset + state.plates.length) % state.plates.length];
