@@ -66,6 +66,12 @@ const held = frames.slice(1).filter((frame, i) => frame === frames[i]).length;
 assert(held < frames.length * 0.05, `${held}/${frames.length - 1} refreshes held the previous finished-color pose.`);
 console.log(`PASS: 120 Hz playback — ${held} held poses across ${frames.length} samples.`);
 
+// The legs never close round a patch of ground (a window in the belly):
+// besides the outline, only the rider's arm gap and the bit are drawn.
+const loops = Math.max(...frames.map(data => data.split('M').length - 1));
+assert(loops <= 3, `A pose drew ${loops} loops; legs have closed round a gap again.`);
+console.log(`PASS: no gaps closed in by the legs — at most ${loops} loops a pose.`);
+
 // On either side of every pose boundary, including the stride wrap, the same
 // outline vertices must be present. Tiny epsilon motion is allowed; a lost
 // extremity or a shifted contour starting point is not.

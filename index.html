@@ -12,12 +12,16 @@
     // reader prefers less motion. js/intro.js takes it from here.
     (function () {
       var root = document.documentElement;
-      var end = function () { root.classList.remove('intro'); root.style.overflow = ''; };
+      var end = function () {
+        root.classList.remove('intro');
+        root.style.overflow = '';
+        if (document.body) document.body.style.marginRight = '';
+      };
       try {
         if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         root.classList.add('intro');
         var script = document.createElement('script');
-        script.src = 'js/intro.js?v=2026-09-28b';
+        script.src = 'js/intro.js?v=2026-09-28e';
         script.onerror = end;
         // Lifts the page if the opening never gets going.
         window.introFailsafe = setTimeout(end, 9000);

@@ -1,5 +1,7 @@
 /* The opening: a rider gallops across the page while the book loads, drawn
    first as a few dots, then as a study, then in ink, and finally finished.
+   Meanwhile eleven cameras photograph the stride, one pose each, and the view
+   eases in on the horse.
    The horse is Eadweard Muybridge's The Horse in Motion (1878, public domain):
    eleven photographs of Sallie Gardner at a gallop, traced into outlines.
    Where the browser allows, it is drawn in a worker, so the page building
@@ -65,6 +67,22 @@
     [15.2,-157.2, [44.5], 25.3,-81.5,31,-50.5,-87.2,25.2,78.4,-127.8,14.5],
     [13.2,-160.2, [-19], 25.3,-84.5,31,-50.5,-89.5,25.2,71.9,-133.2,15.6],
   ];
+  // Where legs in an outline close round a patch of ground, by outline:
+  // [x, y, gap]. Carried from one outline to the next, such a patch swells
+  // out of nothing and collapses into slivers, a window in the belly. Where
+  // a hoof only touches another leg, the outline is cut open there by `gap`;
+  // where legs overlap (gap 0), the patch is filled in.
+  const OPEN = {
+    2: [[6, -31, 3], [26, -36, 3], [-58, -51, 0]],
+    3: [[8, -33, 3], [22, -37, 3], [-51, -51, 0]],
+    4: [[8, -31, 3], [25, -36, 3], [-47, -52, 0]],
+    5: [[5, -31, 3], [-43, -51, 0]],
+    6: [[11, -30, 3], [-39, -50, 0]],
+    7: [[17, -34, 3], [-34, -43, 0]],
+    14: [[81, -57, 3]], 15: [[83, -55, 3]], 16: [[79, -54, 3]],
+    23: [[-106, -56, 0]], 24: [[-109, -57, 0]], 25: [[-109, -54, 0]],
+    29: [[20, -26, 3], [-73, -57, 0]], 30: [[12, -34, 3], [-69, -55, 0]], 31: [[10, -32, 3], [-70, -56, 0]],
+  };
   const N = FRAMES.length;               // 33 outlines a stride
   const PHOTOS = META.length;            // 11 of them photographs
   const STRIDE = 0.55;                   // seconds a stride
@@ -77,6 +95,13 @@
   const clamp = (v, lo = 0, hi = 1) => Math.min(hi, Math.max(lo, v));
   const ramp = (v, a, b) => clamp((v - a) / (b - a));
   const smooth = (v, a, b) => { const t = ramp(v, a, b); return t * t * (3 - 2 * t); };
+  // The eleven guides stand for Muybridge's eleven cameras. Each fires as the
+  // horse reaches the pose it photographed, a few in one stride, so their
+  // pictures come in four bursts while the horse is drawn.
+  const shotAt = c => (1 + Math.floor(c / 3) + c / PHOTOS) * STRIDE - 1 / 120;
+  // A new picture comes up in the red of its flash and settles into ink.
+  const [red, ink] = [SEAL, INK].map(tone => tone.split(',').map(Number));
+  const develop = t => red.map((v, i) => Math.round(v + (ink[i] - v) * t)).join(', ');
 
   /* ---------- A steady gallop ----------
      Traced at small size, the eleven photographs disagree about the rider's
@@ -112,6 +137,48 @@
         } else if (command === 'z') loops.push(points);
       }
       return loops;
+    }
+
+    // Opens a patch of ground (a hole) into the outline across the thinnest
+    // bridge of body near a point, leaving a straight-sided gap; with no gap,
+    // fills the patch in. The outline runs round the body one way and holes
+    // the other, so the cut joins the side before it to the hole's far side.
+    function open(loops, cuts = []) {
+      let [outer, ...holes] = loops;
+      const distance = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+      for (const [x, y, gap] of cuts) {
+        const reach = hole => Math.min(...hole.map(p => distance(p, [x, y])));
+        const hole = holes.reduce((a, b) => (reach(b) < reach(a) ? b : a));
+        holes = holes.filter(h => h !== hole);
+        if (!gap) continue;
+        let bridge = null;
+        hole.forEach((p, i) => {
+          if (distance(p, [x, y]) > 6) return;
+          outer.forEach((q, j) => { const d = distance(p, q); if (!bridge || d < bridge.d) bridge = { i, j, d }; });
+        });
+        const p = hole[bridge.i], q = outer[bridge.j];
+        const v = [(p[1] - q[1]) / bridge.d, (q[0] - p[0]) / bridge.d];
+        const side = pt => (pt[0] - p[0]) * v[0] + (pt[1] - p[1]) * v[1];
+        // From the bridge along a loop until it leaves the cut, stopping
+        // exactly on the cut's edge.
+        const leave = (pts, from, step) => {
+          let i = from, before = pts[from];
+          for (;;) {
+            i = wrap(i + step, pts.length);
+            const s = side(pts[i]);
+            if (Math.abs(s) >= gap / 2) {
+              const b = side(before), t = (Math.sign(s) * gap / 2 - b) / (s - b);
+              return { i, edge: [before[0] + (pts[i][0] - before[0]) * t, before[1] + (pts[i][1] - before[1]) * t] };
+            }
+            before = pts[i];
+          }
+        };
+        const run = (pts, from, to) => { const out = [pts[from]]; for (let i = from; i !== to; i = wrap(i + 1, pts.length)) out.push(pts[wrap(i + 1, pts.length)]); return out; };
+        const a = leave(outer, bridge.j, -1), b = leave(outer, bridge.j, 1);
+        const c = leave(hole, bridge.i, -1), d = leave(hole, bridge.i, 1);
+        outer = [b.edge, ...run(outer, b.i, a.i), a.edge, d.edge, ...run(hole, d.i, c.i), c.edge];
+      }
+      return [outer, ...holes];
     }
 
     // A closed outline measured by arc length from its topmost point, the hat.
@@ -230,7 +297,7 @@
       return into;
     }
 
-    const frames = FRAMES.map(parse);
+    const frames = FRAMES.map((d, i) => open(parse(d), OPEN[i]));
     const outer = frames.map(loops => ring(loops[0]));
 
     // The steady upper outline.
@@ -462,6 +529,9 @@
       : callback => setTimeout(() => callback(performance.now()), 1000 / 60);
     const dust = [], sparks = [];
     const batches = Array.from({ length: 32 }, () => []);
+    const shots = Array.from({ length: PHOTOS }, (_, c) => ({ at: shotAt(c), path: null }));
+    const cameraX = new Float64Array(PHOTOS), cellX = new Float64Array(PHOTOS), cellY = new Float64Array(PHOTOS);
+    const flash = new Float64Array(PHOTOS);
     let width = 0, height = 0, ratio = 1, rule = null, ready = false, hidden = false;
     let time = 0, step = 0, last = 0, beat = 0, leftAt = -1, pending = 0, done = false, stage = -1, percent = -1, shown = -1, eaten = null;
 
@@ -515,14 +585,24 @@
       const f = Math.floor(position) % N;
       const gap = 3;
       const P = motion.at(position), M = motion.meta(position);
+      // A camera that has fired keeps the pose it caught.
+      if (leftAt < 0) shots.forEach((shot, c) => { if (!shot.path && time >= shot.at) shot.path = motion.at(c * 3); });
       // Horse and rider are about 290 by 185 plate pixels, centred 18 behind x = 0.
-      const k = Math.min(width * (width < 700 ? 0.9 : 0.53) / 290, height * 0.43 / 185);
-      const home = width * 0.5 + 18 * k;
+      const fit = Math.min(width * (width < 700 ? 0.9 : 0.53) / 290, height * 0.43 / 185);
+      const ground = Math.round(height * (width < 700 ? 0.55 : 0.6) + 10 * fit) + 0.5;
+      // The view eases in on horse and rider while they are drawn, and comes
+      // to rest on the usual framing. The plate behind them is farther off:
+      // it grows less, so they gain on it.
+      const push = 1 - smooth(time, 0, MIN);
+      const cx = width * 0.5, cy = ground - 92 * fit;
+      const near = 1 - 0.065 * push, far = 1 - 0.02 * push;
+      const k = fit * near, gy = cy + (ground - cy) * near;
+      const plate = cameras(fit, ground, cx, cy, far);
+      const home = cx + 18 * k;
       // Leaving, the horse breaks into a sprint and comes apart from the tail
       // forward, while the backdrop clears.
       const ox = home - (1 - smooth(time, 0, 1.1)) * 9 * k + exit * exit * width * 0.55;
       const speed = 2 * exit * width * 0.55 / EXIT;
-      const gy = Math.round(height * (width < 700 ? 0.55 : 0.6) + 10 * k) + 0.5;
       const clear = 1 - ramp(exit, 0, 0.45);
       const solid = smooth(e, 0.43, 0.62);
       const finesse = smooth(e, 0.64, 0.85);
@@ -531,7 +611,7 @@
 
       ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
       ctx.clearRect(0, 0, width, height);
-      backdrop(e, k, home, gy, clear);
+      backdrop(e, k, gy, plate, clear);
       if (solid > 0) shadow(ox, gy, k, solid * clear);
 
       ctx.save();
@@ -580,6 +660,7 @@
         finishDrawing(P, M, finesse, k);
         rim(P, finesse, k);
       }
+      if (solid > 0) slits(P, ox, k, solid);
       ctx.restore();
       if (edge !== null) ember(P, edge, k);
       ctx.restore();
@@ -752,9 +833,30 @@
       });
     }
 
-    // A quiet drawing plate. Registration marks stay still while the ground
-    // moves, so the composition has an anchor throughout the stride.
-    function backdrop(e, k, home, gy, clear) {
+    // Where the cameras and the frames of the strip stand in this frame, and
+    // how much of each flash is left. The cameras keep a legible spacing where
+    // the screen allows; on a narrow one the strip wraps onto two rows so its
+    // pictures stay readable.
+    function cameras(fit, ground, cx, cy, far) {
+      const spacing = clamp(37 * fit, 48, (width - 48) / 10), rows = spacing < 40 ? 2 : 1;
+      const across = Math.ceil(PHOTOS / rows);
+      const step = (rows > 1 ? Math.min(64, (width - 32) / across) : spacing) * far;
+      const plate = { k: fit * far, gy: cy + (ground - cy) * far, w: step * 0.84, h: step * 0.52 };
+      const top = plate.gy + 34 * plate.k;
+      for (let c = 0; c < PHOTOS; c++) {
+        const row = Math.floor(c / across), count = row ? PHOTOS - across : across, i = c - row * across;
+        cameraX[c] = cx + (c - 5) * spacing * far;
+        cellX[c] = rows > 1 ? cx + (i - (count - 1) / 2) * step : cameraX[c];
+        cellY[c] = top + row * (plate.h + 8);
+        flash[c] = time >= shots[c].at ? Math.exp((shots[c].at - time) / 0.07) : 0;
+      }
+      return plate;
+    }
+
+    // A quiet drawing plate: the eleven cameras and, under the track, the
+    // strip their pictures go into. Registration marks stay still while the
+    // ground moves, so the composition has an anchor throughout the stride.
+    function backdrop(e, k, gy, plate, clear) {
       const grid = smooth(e, 0.02, 0.14) * clear;
       if (grid <= 0) return;
       if (!rule) {
@@ -768,31 +870,87 @@
       ctx.fillStyle = rule;
       ctx.fillRect(width * 0.06, gy, width * 0.88, 0.75);
       ctx.globalAlpha = 1;
-      const gap = 37 * k, top = gy - 204 * k;
+      const top = plate.gy - 204 * plate.k;
       const guides = grid * (1 - smooth(e, 0.52, 0.85) * 0.86);
       ctx.font = '500 9px Manrope, ui-sans-serif, system-ui, sans-serif';
       ctx.textAlign = 'center';
-      for (let j = -5; j <= 5; j++) {
-        const x = Math.round(home - 18 * k + j * gap);
-        if (x < 24 || x > width - 24) continue;
+      for (let c = 0; c < PHOTOS; c++) {
+        const x = cameraX[c], lit = flash[c], fired = time >= shots[c].at;
+        if (x < 18 || x > width - 18) continue;
         ctx.fillStyle = `rgba(${INK}, ${0.06 * guides})`;
-        ctx.fillRect(x, top, 1, gy - top);
-        ctx.fillStyle = `rgba(${INK}, ${0.24 * grid})`;
-        ctx.fillText(String(j + 6).padStart(2, '0'), x + 0.5, top - 10);
-        ctx.fillStyle = `rgba(${INK}, ${0.16 * grid})`;
-        ctx.fillRect(x - 3, top, 7, 0.75);
-        ctx.fillRect(x, top - 3, 0.75, 7);
+        ctx.fillRect(x - 0.5, top, 1, gy - top);
+        // The flash: the guide lights up red in a soft glow, and fades.
+        if (lit > 0.01) {
+          const glow = ctx.createLinearGradient(x - 9, 0, x + 9, 0);
+          glow.addColorStop(0, `rgba(${SEAL}, 0)`);
+          glow.addColorStop(0.5, `rgba(${SEAL}, ${0.12 * lit * grid})`);
+          glow.addColorStop(1, `rgba(${SEAL}, 0)`);
+          ctx.fillStyle = glow;
+          ctx.fillRect(x - 9, top, 18, gy - top);
+          ctx.fillStyle = `rgba(${SEAL}, ${0.8 * lit * grid})`;
+          ctx.fillRect(x - 0.5, top, 1, gy - top);
+        }
+        // A camera that has fired keeps its number in red.
+        const tone = fired ? SEAL : INK;
+        ctx.fillStyle = `rgba(${tone}, ${(fired ? 0.6 + 0.4 * lit : 0.24) * grid})`;
+        ctx.fillText(String(c + 1).padStart(2, '0'), x, top - 10);
+        ctx.fillStyle = `rgba(${tone}, ${(fired ? 0.42 + 0.5 * lit : 0.16) * grid})`;
+        ctx.fillRect(x - 3.5, top, 7, 0.75);
+        ctx.fillRect(x - 0.375, top - 3, 0.75, 7);
       }
-      ctx.strokeStyle = `rgba(${INK}, ${0.08 * grid})`;
+      // Marks on the track: the nearer the row, the faster it passes.
       ctx.lineWidth = 0.7;
-      ctx.beginPath();
-      const travel = time * 220 * k;
-      for (let i = 0; i < 14; i++) {
-        const x = ((i * width / 10 - travel) % width + width) % width;
-        const y = gy + 6 + (i % 3) * 4;
-        ctx.moveTo(x, y); ctx.lineTo(x + (5 + i % 4 * 5) * k, y);
+      for (let row = 0; row < 3; row++) {
+        const pace = 0.75 + row * 0.3, travel = time * 220 * k * pace;
+        ctx.strokeStyle = `rgba(${INK}, ${(0.065 + row * 0.02) * grid})`;
+        ctx.beginPath();
+        for (let i = row; i < 14; i += 3) {
+          const x = ((i * width / 10 - travel) % width + width) % width;
+          const y = gy + 6 + row * 4.5 * pace;
+          ctx.moveTo(x, y); ctx.lineTo(x + (5 + i % 4 * 5) * k * pace, y);
+        }
+        ctx.stroke();
       }
+      strip(plate, grid);
+    }
+
+    // Under the track, a frame for each camera's picture. It flashes with its
+    // camera, and the picture develops inside.
+    function strip({ w, h }, grid) {
+      const s = Math.min((w - 8) / 290, (h - 6) / 185);
+      ctx.lineWidth = 0.75;
+      ctx.strokeStyle = `rgba(${INK}, ${0.14 * grid})`;
+      ctx.beginPath();
+      for (let c = 0; c < PHOTOS; c++) ctx.rect(cellX[c] - w / 2, cellY[c], w, h);
       ctx.stroke();
+      for (let c = 0; c < PHOTOS; c++) {
+        const shot = shots[c];
+        if (!shot.path) continue;
+        if (flash[c] > 0.01) {
+          ctx.strokeStyle = `rgba(${SEAL}, ${0.7 * flash[c] * grid})`;
+          ctx.strokeRect(cellX[c] - w / 2, cellY[c], w, h);
+        }
+        const t = smooth(time - shot.at, 0, 0.5);
+        ctx.save();
+        ctx.translate(cellX[c] + 18 * s, cellY[c] + (h + 185 * s) / 2);
+        ctx.scale(s, s);
+        ctx.fillStyle = `rgba(${develop(t)}, ${(0.45 + 0.45 * t) * grid})`;
+        ctx.fill(shot.path);
+        ctx.restore();
+      }
+    }
+
+    // Where a camera fires, a thin slit of its light crosses the drawing.
+    function slits(P, ox, k, alpha) {
+      if (!flash.some(lit => lit > 0.02)) return;
+      ctx.save();
+      ctx.clip(P);
+      for (let c = 0; c < PHOTOS; c++) {
+        if (flash[c] <= 0.02) continue;
+        ctx.fillStyle = `rgba(255, 236, 218, ${0.6 * flash[c] * alpha})`;
+        ctx.fillRect((cameraX[c] - ox) / k - 0.7 / k, -200, 1.4 / k, 202);
+      }
+      ctx.restore();
     }
 
     function shadow(ox, gy, k, alpha) {
@@ -936,6 +1094,18 @@
 
   const measure = () => ({ width: splash.clientWidth, height: splash.clientHeight, ratio: Math.min(window.devicePixelRatio || 1, 2), hidden: document.hidden });
 
+  // With the scrollbar hidden behind the paper, the page underneath would be
+  // laid out wider than it will be, and jump narrower once it is handed
+  // back. The body keeps the margin the scrollbar will take. (A reserved
+  // scrollbar-gutter would also shrink vw units and cut the paper short.)
+  function hold() {
+    const probe = document.createElement('div');
+    probe.style.cssText = 'position:absolute;top:-100px;width:100px;height:100px;overflow:scroll;visibility:hidden';
+    document.body.appendChild(probe);
+    document.body.style.marginRight = `${probe.offsetWidth - probe.clientWidth}px`;
+    probe.remove();
+  }
+
   // Should the drawing ever fall silent while the page is in view, the page
   // is released rather than left behind the paper.
   function arm() {
@@ -995,6 +1165,7 @@
     worker?.terminate();
     root.classList.remove('intro');
     root.style.overflow = '';
+    document.body.style.marginRight = '';
     inertNodes.forEach(node => { node.inert = false; });
     inertNodes = [];
     const restoreFocus = document.activeElement !== splash && splash?.contains(document.activeElement);
@@ -1023,6 +1194,7 @@
     splash = document.getElementById('splash');
     canvas = document.getElementById('splash-canvas');
     if (!splash || !canvas) return finish();
+    hold();
     stages = [...splash.querySelectorAll('.splash-stages li')];
     count = document.getElementById('splash-count');
     statusText = document.getElementById('splash-status-text');
@@ -1046,7 +1218,8 @@
     } else {
       local(false);
     }
-    window.addEventListener('resize', () => send({ type: 'size', ...measure() }), { signal: events.signal });
+    // Zooming changes the scrollbar's width as well as the paper's size.
+    window.addEventListener('resize', () => { hold(); send({ type: 'size', ...measure() }); }, { signal: events.signal });
     document.addEventListener('visibilitychange', () => {
       send({ type: 'hidden', hidden: document.hidden });
       if (!document.hidden && watchdog) arm();
