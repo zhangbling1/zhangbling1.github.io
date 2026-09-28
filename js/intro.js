@@ -420,8 +420,7 @@
       return path;
     }
 
-    // Details hang on features of the outline as drawn: the scarf on the
-    // rider's nape, the eye on the head. Chest and quarters lie inside the
+    // The eye hangs on the head as drawn. Chest and quarters lie inside the
     // body; for them a smooth periodic fit of the measured circles is enough.
     function attach(x, y, count) {
       evaluate(upper, 0, upperPoints);
@@ -429,7 +428,7 @@
       const c = centre(nearest.map(k => upperPoints[k]));
       return { nearest, dx: x - c[0], dy: y - c[1] };
     }
-    const nape = attach(META[0][0], META[0][1], 3), head = attach(META[0][9], META[0][10], 12);
+    const head = attach(META[0][9], META[0][10], 12);
     const feature = f => { const c = centre(f.nearest.map(k => upperPoints[k])); return [c[0] + f.dx, c[1] + f.dy]; };
     const fitted = n => {
       const values = META.map(m => m[n]), P = values.length, terms = [values.reduce((s, x) => s + x, 0) / P];
@@ -441,9 +440,10 @@
       return phase => terms[0] + terms[1] * Math.cos(TAU * phase) + terms[2] * Math.sin(TAU * phase) + terms[3] * Math.cos(2 * TAU * phase) + terms[4] * Math.sin(2 * TAU * phase);
     };
     const circles = [3, 4, 5, 6, 7, 8, 11].map(n => [n, fitted(n)]);
-    // A row shaped like META for the phase last drawn by at().
+    // A row shaped like META for the phase last drawn by at(); the nape
+    // columns are no longer drawn.
     function meta(position) {
-      const phase = wrap(position, N) / N, row = [...feature(nape), [], 0, 0, 0, 0, 0, 0, ...feature(head), 0];
+      const phase = wrap(position, N) / N, row = [0, 0, [], 0, 0, 0, 0, 0, 0, ...feature(head), 0];
       for (const [n, value] of circles) row[n] = value(phase);
       return row;
     }
@@ -544,8 +544,6 @@
         cut(edge);
         ctx.clip();
       }
-      // 04 精修, behind everything: the rider's scarf, tied at the nape.
-      if (finesse > 0) scarf(M, finesse);
       // 01 构想: the outline as a string of dots.
       const dots = smooth(e, 0, 0.08) * (1 - smooth(e, 0.2, 0.34));
       if (dots > 0) {
@@ -842,32 +840,6 @@
       ctx.restore();
     }
 
-    // Two ends of a scarf, tied at the nape and streaming back behind the
-    // head. They are drawn behind the rider, so only the loose ends show, and
-    // they ripple at the screen's own rate, between the frames.
-    function scarf(M, alpha) {
-      const x0 = M[0] + 2, y0 = M[1];
-      ctx.globalAlpha = alpha;
-      const silk = ctx.createLinearGradient(x0 - 55, y0 - 5, x0, y0 + 4);
-      silk.addColorStop(0, '#e99465');
-      silk.addColorStop(0.6, '#cb4b31');
-      silk.addColorStop(1, '#862b22');
-      ctx.fillStyle = silk;
-      for (const [length, width, phase, drop] of [[50, 2.7, 0, 0], [34, 1.8, 1.3, 2.2]]) {
-        const edge = [];
-        for (let i = 0; i <= 18; i++) {
-          const u = i / 18;
-          edge.push([x0 - u * length, y0 + (drop - 4) * u + Math.sin(time * 12 - u * 7 + phase) * (0.3 + u * 4.5), width * (1 - 0.78 * u)]);
-        }
-        ctx.beginPath();
-        edge.forEach(([x, y, w], i) => (i ? ctx.lineTo(x, y - w) : ctx.moveTo(x, y - w)));
-        for (let i = edge.length - 1; i >= 0; i--) ctx.lineTo(edge[i][0], edge[i][1] + edge[i][2]);
-        ctx.closePath();
-        ctx.fill();
-      }
-      ctx.globalAlpha = 1;
-    }
-
     // Each hoof on the track throws back a little dirt.
     function kick(f, ox, gy, k, finesse, emit) {
       if (f !== shown) {
@@ -958,7 +930,7 @@
   const stageNames = ['捕捉灵感的形状', '梳理线条与结构', '赋予形体与力量', '让想象跃然纸上'];
   let splash, canvas, stages, count, statusText, worker = null, send = () => {};
   let inertNodes = [], revealTimer = 0;
-  let ready = Boolean(window.bookReady), seen = false, leftAt = 0, done = false, watchdog = 0;
+  let ready = Boolean(window.bookReady), leftAt = 0, done = false, watchdog = 0;
   root.style.overflow = 'hidden';
   document.addEventListener('book:ready', () => { ready = true; send({ type: 'ready' }); }, { once: true, signal: events.signal });
 
@@ -980,7 +952,6 @@
         clearTimeout(window.introFailsafe);
         break;
       case 'stage':
-        seen = true;
         stages.forEach((node, i) => {
           node.classList.toggle('is-on', i <= message.n);
           node.classList.toggle('is-current', i === message.n);
@@ -1029,8 +1000,6 @@
     const restoreFocus = document.activeElement !== splash && splash?.contains(document.activeElement);
     splash?.remove();
     if (restoreFocus) document.querySelector('.brand')?.focus({ preventScroll: true });
-    // Only an opening that was actually on screen counts as seen.
-    if (seen) try { sessionStorage.setItem('zn-intro', '1'); } catch (error) { /* private mode */ }
   }
 
   // Draw on the page itself; after a failed worker, on a fresh canvas.

@@ -8,18 +8,16 @@
   <title>张宁 | AI视觉设计师</title>
   <meta name="description" content="张宁的个人作品集。游戏美术、角色原画、平面视觉与 AI 创作。">
   <script>
-    // Open with the galloping horse the first time the book is opened in a tab
-    // (every time with ?intro), but not for a link into a chapter or when the
+    // Open with the galloping horse every time the book is loaded, unless the
     // reader prefers less motion. js/intro.js takes it from here.
     (function () {
       var root = document.documentElement;
       var end = function () { root.classList.remove('intro'); root.style.overflow = ''; };
       try {
-        var asked = /[?&]intro\b/.test(location.search);
-        if (matchMedia('(prefers-reduced-motion: reduce)').matches || (!asked && ((location.hash && location.hash !== '#home') || sessionStorage.getItem('zn-intro')))) return;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
         root.classList.add('intro');
         var script = document.createElement('script');
-        script.src = 'js/intro.js?v=2026-09-28';
+        script.src = 'js/intro.js?v=2026-09-28b';
         script.onerror = end;
         // Lifts the page if the opening never gets going.
         window.introFailsafe = setTimeout(end, 9000);
