@@ -328,23 +328,25 @@
     });
     const upperPoints = upperIndex.map(() => [0, 0]);
 
-    // The legs, from the chest round to the croup, carried between outlines
-    // with a light filter across neighbours, as the whole outline was before.
-    const LOWER = 300;
+    // The legs, from the chest round to the croup, carried between outlines.
+    // Hooves and joints are only a few pixels across, so the legs are sampled
+    // finely, only the tracing's grain is smoothed along each outline, and
+    // each point is blended with just the outlines either side of it. Wider
+    // blending in time melts the hooves and leaves legs like noodles.
+    const LOWER = 500;
     const lower = outer.map((r, i) => {
       const u0 = param(i, FRONT);
       let u1 = param(i, REAR);
       while (u1 <= u0) u1 += 1;
-      return Array.from({ length: LOWER }, (_, k) => pointAt(r, u0 + (u1 - u0) * k / (LOWER - 1)));
+      const arc = Array.from({ length: LOWER }, (_, k) => pointAt(r, u0 + (u1 - u0) * k / (LOWER - 1)));
+      return arc.map((p, k) => k < 2 || k > LOWER - 3 ? p : p.map((_, axis) =>
+        (arc[k - 2][axis] + 4 * arc[k - 1][axis] + 6 * p[axis] + 4 * arc[k + 1][axis] + arc[k + 2][axis]) / 16));
     });
     const links = lower.map((a, i) => match(a, lower[(i + 1) % N]));
     const legs = lower.map((arc, i) => arc.map((point, j) => {
       const previous = wrap(i - 1, N), next = (i + 1) % N;
-      const back = links[previous].backward[j], forward = links[i].forward[j];
-      const before = onLine(lower[previous], back), after = onLine(lower[next], forward);
-      const before2 = onLine(lower[wrap(i - 2, N)], along(links[wrap(i - 2, N)].backward, back));
-      const after2 = onLine(lower[(i + 2) % N], along(links[next].forward, forward));
-      return point.map((value, axis) => value * 0.375 + (before[axis] + after[axis]) * 0.25 + (before2[axis] + after2[axis]) * 0.0625);
+      const before = onLine(lower[previous], links[previous].backward[j]), after = onLine(lower[next], links[i].forward[j]);
+      return point.map((value, axis) => value * 0.5 + (before[axis] + after[axis]) * 0.25);
     }));
     const strides = legs.map((arc, i) => {
       const next = (i + 1) % N;
@@ -396,11 +398,12 @@
     });
 
     // Where two nearby stretches of the outline cross, the little loop between
-    // them is cut away, so the drawn edge never folds over itself.
+    // them is cut away, so the drawn edge never folds over itself. Loops up to
+    // about 35 plate pixels round are caught at the legs' drawn spacing.
     const side = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
     function untangle(pts) {
       for (let i = 0; i < pts.length - 3; i++) {
-        for (let k = 2; k <= 14 && i + k + 1 < pts.length; k++) {
+        for (let k = 2; k <= 24 && i + k + 1 < pts.length; k++) {
           const a = pts[i], b = pts[i + 1], c = pts[i + k], d = pts[i + k + 1];
           const d1 = side(a, b, c), d2 = side(a, b, d), d3 = side(c, d, a), d4 = side(c, d, b);
           if (d1 * d2 < 0 && d3 * d4 < 0) {
@@ -429,7 +432,7 @@
       return run;
     };
     // An open line redrawn as a fixed number of evenly spaced points.
-    const DRAWN = 360;
+    const DRAWN = 600;
     function evenly(pts, count) {
       const run = lengthsOf(pts), total = run[pts.length - 1], out = [];
       let k = 0;
@@ -987,13 +990,17 @@
     }
 
     // Light from above: the outline, nudged down and clipped to the body,
-    // leaves a thin bright edge along the back, the crest and the rider.
+    // leaves a thin bright edge along the back, the crest and the rider. It
+    // fades out below the belly; along thin legs it reads as a glossy tube.
     function rim(P, alpha, k) {
       ctx.save();
       ctx.clip(P);
       ctx.translate(0, 1.3 / k);
       ctx.lineWidth = 1.6 / k;
-      ctx.strokeStyle = `rgba(255, 234, 216, ${0.32 * alpha})`;
+      const light = ctx.createLinearGradient(0, -100, 0, -62);
+      light.addColorStop(0, `rgba(255, 234, 216, ${0.32 * alpha})`);
+      light.addColorStop(1, 'rgba(255, 234, 216, 0)');
+      ctx.strokeStyle = light;
       ctx.stroke(P);
       ctx.restore();
     }
