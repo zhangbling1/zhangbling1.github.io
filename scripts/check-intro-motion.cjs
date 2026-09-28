@@ -23,6 +23,12 @@ class DrawingPath {
     if (this.outer) this.outline.push([x, y]);
     this.data += `L${x},${y}`;
   }
+  // The outline is drawn as a curve through its points; record where each
+  // piece of the curve ends.
+  quadraticCurveTo(cx, cy, x, y) {
+    if (this.outer) this.outline.push([x, y]);
+    this.data += `Q${cx},${cy},${x},${y}`;
+  }
   closePath() { this.data += 'Z'; }
 }
 

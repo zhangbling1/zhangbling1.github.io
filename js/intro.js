@@ -78,40 +78,19 @@
   const ramp = (v, a, b) => clamp((v - a) / (b - a));
   const smooth = (v, a, b) => { const t = ramp(v, a, b); return t * t * (3 - 2 * t); };
 
-  // Match the outline by position and contour order, not by its SVG command
-  // index. The photographed poses have different starting points and topology.
-  function motionContours() {
+  /* ---------- A steady gallop ----------
+     Traced at small size, the eleven photographs disagree about the rider's
+     outline by a pixel or two, so drawn one after another he trembles. The
+     upper outline (croup, back, rider, neck and head) is therefore followed
+     point by point through the whole stride, and each point keeps only the
+     slow harmonics a gallop has: the rider the fewest. The legs change shape
+     too quickly for that; they are carried from one outline to the next and
+     meet the steady outline on the chest and the croup. */
+  function steadyMotion() {
     const wrap = (i, n) => (i % n + n) % n;
-    const dist = (a, b) => (a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2;
-    const at = (points, index) => {
-      const i = Math.floor(index), t = index - i;
-      const a = points[wrap(i, points.length)], b = points[wrap(i + 1, points.length)];
-      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
-    };
-    const mapped = (values, index) => {
-      const i = Math.floor(index), t = index - i;
-      return values[i] + (values[Math.min(i + 1, values.length - 1)] - values[i]) * t;
-    };
-    function contour(points, count) {
-      let start = 0;
-      for (let i = 1; i < points.length; i++) {
-        if (points[i][1] < points[start][1]) start = i;
-      }
-      points = [...points.slice(start), ...points.slice(0, start)];
-      points.push(points[0]);
-      const lengths = [0];
-      for (let i = 1; i < points.length; i++) lengths.push(lengths[i - 1] + Math.sqrt(dist(points[i], points[i - 1])));
-      const length = lengths[lengths.length - 1], result = [];
-      let segment = 0;
-      for (let i = 0; i < count; i++) {
-        const position = i * length / count;
-        while (segment < lengths.length - 2 && lengths[segment + 1] < position) segment++;
-        const t = (position - lengths[segment]) / (lengths[segment + 1] - lengths[segment] || 1);
-        const a = points[segment], b = points[segment + 1];
-        result.push([a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
-      }
-      return result;
-    }
+    const centre = points => points.reduce((s, p) => [s[0] + p[0] / points.length, s[1] + p[1] / points.length], [0, 0]);
+
+    // The stored cubic outlines as closed polylines.
     function parse(d) {
       const tokens = d.match(/[Mcz]|-?\d+(?:\.\d+)?/g), loops = [];
       let i = 0, x = 0, y = 0, points = [];
@@ -123,19 +102,37 @@
         } else if (command === 'c') {
           while (i < tokens.length && !/[Mcz]/.test(tokens[i])) {
             const x1 = x + number(), y1 = y + number(), x2 = x + number(), y2 = y + number(), x3 = x + number(), y3 = y + number();
-            const steps = Math.max(2, Math.ceil((Math.hypot(x1 - x, y1 - y) + Math.hypot(x2 - x1, y2 - y1) + Math.hypot(x3 - x2, y3 - y2)) / 2));
+            const steps = Math.max(2, Math.ceil((Math.hypot(x1 - x, y1 - y) + Math.hypot(x2 - x1, y2 - y1) + Math.hypot(x3 - x2, y3 - y2)) / 1.5));
             for (let s = 1; s <= steps; s++) {
               const t = s / steps, u = 1 - t;
               points.push([u ** 3 * x + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t ** 3 * x3, u ** 3 * y + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t ** 3 * y3]);
             }
             x = x3; y = y3;
           }
-        } else if (command === 'z') {
-          loops.push(contour(points, loops.length ? 64 : 320));
-        }
+        } else if (command === 'z') loops.push(points);
       }
       return loops;
     }
+
+    // A closed outline measured by arc length from its topmost point, the hat.
+    function ring(points) {
+      let start = 0;
+      for (let i = 1; i < points.length; i++) if (points[i][1] < points[start][1]) start = i;
+      const pts = [...points.slice(start), ...points.slice(0, start), points[start]];
+      const lengths = new Float64Array(pts.length);
+      for (let i = 1; i < pts.length; i++) lengths[i] = lengths[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]);
+      return { pts, lengths, total: lengths[pts.length - 1] };
+    }
+    function pointAt(r, u) {
+      const s = (u - Math.floor(u)) * r.total, L = r.lengths;
+      let lo = 0, hi = L.length - 1;
+      while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (L[mid] <= s) lo = mid; else hi = mid; }
+      const t = (s - L[lo]) / (L[hi] - L[lo] || 1), a = r.pts[lo], b = r.pts[hi];
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    }
+    const sample = (r, count) => Array.from({ length: count }, (_, i) => pointAt(r, i / count));
+
+    // Match two sampled outlines by position and order (dynamic time warping).
     function match(a, b) {
       const n = a.length, m = b.length, stride = m + 1;
       const cost = new Float64Array((n + 1) * stride).fill(Infinity);
@@ -145,80 +142,312 @@
       for (let i = 1; i <= n; i++) {
         for (let j = Math.max(1, i - band); j <= Math.min(m, i + band); j++) {
           const index = i * stride + j;
-          let previous = cost[index - stride - 1], direction = 0;
-          if (cost[index - stride] + 0.6 < previous) { previous = cost[index - stride] + 0.6; direction = 1; }
-          if (cost[index - 1] + 0.6 < previous) { previous = cost[index - 1] + 0.6; direction = 2; }
-          cost[index] = previous + dist(a[i - 1], b[j - 1]);
+          let best = cost[index - stride - 1], direction = 0;
+          if (cost[index - stride] + 0.6 < best) { best = cost[index - stride] + 0.6; direction = 1; }
+          if (cost[index - 1] + 0.6 < best) { best = cost[index - 1] + 0.6; direction = 2; }
+          const dx = a[i - 1][0] - b[j - 1][0], dy = a[i - 1][1] - b[j - 1][1];
+          cost[index] = best + dx * dx + dy * dy;
           route[index] = direction;
         }
       }
       const forward = Array.from({ length: n }, () => []), backward = Array.from({ length: m }, () => []), pairs = [];
       let i = n, j = m;
       while (i > 0 && j > 0) {
-        forward[i - 1].push(j - 1); backward[j - 1].push(i - 1);
-        pairs.push([i - 1, j - 1]);
+        forward[i - 1].push(j - 1); backward[j - 1].push(i - 1); pairs.push([i - 1, j - 1]);
         const direction = route[i * stride + j];
         if (direction !== 2) i--;
         if (direction !== 1) j--;
       }
-      const average = values => values.reduce((sum, value) => sum + value, 0) / values.length;
+      const average = values => values.length ? values.reduce((s, v) => s + v, 0) / values.length : 0;
       return { forward: forward.map(average), backward: backward.map(average), pairs: pairs.reverse() };
     }
+    const along = (values, index) => {
+      const i = Math.max(0, Math.min(values.length - 1, Math.floor(index))), t = index - i;
+      return values[i] + ((i + 1 < values.length ? values[i + 1] : values[i]) - values[i]) * t;
+    };
+    const onLine = (points, index) => {
+      const i = Math.max(0, Math.min(points.length - 1, Math.floor(index))), t = Math.max(0, index - i);
+      const a = points[i], b = points[Math.min(points.length - 1, i + 1)];
+      return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t];
+    };
+
+    // Carry points once around the stride, outline to outline, and spread the
+    // small mismatch where the loop closes evenly over it. A matching is a
+    // staircase; followed 33 times its flat steps would pile points into
+    // clumps, so it is averaged into an even rise first.
+    function follow(rings, anchors) {
+      const samples = rings.map(r => sample(r, anchors));
+      const even = values => values.map((_, i) => {
+        let sum = 0;
+        for (let k = -4; k <= 4; k++) {
+          const j = i + k;
+          sum += j < 0 ? values[0] + j : j >= values.length ? values[values.length - 1] + j - values.length + 1 : values[j];
+        }
+        return Math.min(values.length - 1, Math.max(0, sum / 9));
+      });
+      const links = samples.map((s, i) => even(match(s, samples[(i + 1) % N]).forward));
+      const track = [Float64Array.from({ length: anchors }, (_, j) => j)];
+      for (let i = 1; i <= N; i++) track.push(track[i - 1].map(v => along(links[i - 1], v)));
+      const drift = track[N].map((v, j) => v - j);
+      return track.slice(0, N).map((row, i) => row.map((v, j) => (v - drift[j] * i / N) / anchors));
+    }
+
+    // Each point's path as a periodic Fourier series, keeping the slow
+    // harmonics: up to the fourth for the rider, the sixth for the horse.
+    const H = 6;
+    const RIDER = [1, 1, 1, 0.55, 0.12, 0, 0];
+    const BODY = [1, 1, 1, 1, 0.75, 0.3, 0.06];
+    function series(paths, weigh) {
+      const count = paths.length, stride = 2 + 4 * H, out = new Float64Array(count * stride);
+      for (let q = 0; q < count; q++) {
+        const path = paths[q], base = q * stride, [mx, my] = centre(path), w = weigh(mx, my);
+        out[base] = mx; out[base + 1] = my;
+        for (let h = 1; h <= H; h++) {
+          let cx = 0, sx = 0, cy = 0, sy = 0;
+          for (let i = 0; i < N; i++) {
+            const c = Math.cos(TAU * h * i / N), s = Math.sin(TAU * h * i / N);
+            cx += path[i][0] * c; sx += path[i][0] * s; cy += path[i][1] * c; sy += path[i][1] * s;
+          }
+          const k = 2 / N * w[h], o = base + 2 + (h - 1) * 4;
+          out[o] = cx * k; out[o + 1] = sx * k; out[o + 2] = cy * k; out[o + 3] = sy * k;
+        }
+      }
+      return { out, count, stride };
+    }
+    const harmonics = new Float64Array(2 * H);
+    function evaluate(s, phase, into) {
+      for (let h = 1; h <= H; h++) { harmonics[2 * h - 2] = Math.cos(TAU * h * phase); harmonics[2 * h - 1] = Math.sin(TAU * h * phase); }
+      for (let q = 0; q < s.count; q++) {
+        const base = q * s.stride;
+        let x = s.out[base], y = s.out[base + 1];
+        for (let h = 0; h < H; h++) {
+          const o = base + 2 + h * 4, c = harmonics[2 * h], d = harmonics[2 * h + 1];
+          x += s.out[o] * c + s.out[o + 1] * d;
+          y += s.out[o + 2] * c + s.out[o + 3] * d;
+        }
+        into[q][0] = x; into[q][1] = y;
+      }
+      return into;
+    }
+
     const frames = FRAMES.map(parse);
-    const links = frames.map((frame, i) => match(frame[0], frames[(i + 1) % N][0]));
-    // Suppress tracing noise across adjacent photographs. Matching keeps this
-    // filter attached to the same part of the horse as the legs change pose.
-    const bodies = frames.map((frame, i) => frame[0].map((point, j) => {
+    const outer = frames.map(loops => ring(loops[0]));
+
+    // The steady upper outline.
+    const ANCHORS = 240, POINTS = 480;
+    const track = follow(outer, ANCHORS);
+    const param = (i, q) => {
+      const a = wrap(q, POINTS) * ANCHORS / POINTS, j = Math.floor(a), t = a - j;
+      const u0 = track[i][j], u1 = j + 1 < ANCHORS ? track[i][j + 1] : track[i][0] + 1;
+      return u0 + (u1 - u0) * t;
+    };
+    const raw = Array.from({ length: POINTS }, (_, q) => outer.map((r, i) => pointAt(r, param(i, q))));
+    const means = raw.map(centre);
+    const nearestTo = (x, y, from, to) => {
+      let best = from;
+      for (let q = from; q < to; q++) if (Math.hypot(means[q][0] - x, means[q][1] - y) < Math.hypot(means[best][0] - x, means[best][1] - y)) best = q;
+      return best;
+    };
+    // The seams sit where the outline is calm: on the chest above the forelegs
+    // and on the croup ahead of the tail, which flails too much to follow.
+    const FRONT = nearestTo(60, -89, 0, POINTS / 2), REAR = nearestTo(-80, -108, POINTS / 2, POINTS);
+    const upperIndex = [];
+    for (let q = REAR; q !== FRONT + 1; q = (q + 1) % POINTS) upperIndex.push(q);
+    // The rider is above the horse's back, between the croup and the neck.
+    const riderWeight = (x, y) => smooth(-y, 116, 132) * smooth(x, -40, -26) * (1 - smooth(x, 48, 60));
+    const upper = series(upperIndex.map(q => raw[q]), (x, y) => {
+      const r = riderWeight(x, y);
+      return RIDER.map((v, h) => r * v + (1 - r) * BODY[h]);
+    });
+    const upperPoints = upperIndex.map(() => [0, 0]);
+
+    // The legs, from the chest round to the croup, carried between outlines
+    // with a light filter across neighbours, as the whole outline was before.
+    const LOWER = 300;
+    const lower = outer.map((r, i) => {
+      const u0 = param(i, FRONT);
+      let u1 = param(i, REAR);
+      while (u1 <= u0) u1 += 1;
+      return Array.from({ length: LOWER }, (_, k) => pointAt(r, u0 + (u1 - u0) * k / (LOWER - 1)));
+    });
+    const links = lower.map((a, i) => match(a, lower[(i + 1) % N]));
+    const legs = lower.map((arc, i) => arc.map((point, j) => {
       const previous = wrap(i - 1, N), next = (i + 1) % N;
       const back = links[previous].backward[j], forward = links[i].forward[j];
-      const before = at(frames[previous][0], back), after = at(frames[next][0], forward);
-      const before2 = at(frames[wrap(i - 2, N)][0], mapped(links[wrap(i - 2, N)].backward, back));
-      const after2 = at(frames[(i + 2) % N][0], mapped(links[next].forward, forward));
+      const before = onLine(lower[previous], back), after = onLine(lower[next], forward);
+      const before2 = onLine(lower[wrap(i - 2, N)], along(links[wrap(i - 2, N)].backward, back));
+      const after2 = onLine(lower[(i + 2) % N], along(links[next].forward, forward));
       return point.map((value, axis) => value * 0.375 + (before[axis] + after[axis]) * 0.25 + (before2[axis] + after2[axis]) * 0.0625);
     }));
-    const center = points => points.reduce((sum, p) => [sum[0] + p[0] / points.length, sum[1] + p[1] / points.length], [0, 0]);
-    const pairs = frames.map((frame, i) => {
+    const strides = legs.map((arc, i) => {
       const next = (i + 1) % N;
-      const body = links[i].pairs.map(([j, index]) => {
-        const p = bodies[i][j], q = bodies[next][index];
-        const before = at(bodies[wrap(i - 1, N)], links[wrap(i - 1, N)].backward[j]);
-        const after = at(bodies[(i + 2) % N], links[next].forward[index]);
-        return [p, q, p.map((v, axis) => (q[axis] - before[axis]) * 0.5), q.map((v, axis) => (after[axis] - p[axis]) * 0.5)];
+      return links[i].pairs.map(([j, k]) => {
+        const p = arc[j], q = legs[next][k];
+        const before = onLine(legs[wrap(i - 1, N)], links[wrap(i - 1, N)].backward[j]);
+        const after = onLine(legs[(i + 2) % N], links[next].forward[k]);
+        return [p, q, [(q[0] - before[0]) * 0.5, (q[1] - before[1]) * 0.5], [(after[0] - p[0]) * 0.5, (after[1] - p[1]) * 0.5]];
       });
-      // Interior openings are small and may appear or disappear as legs cross.
-      // Pair nearby openings; an unmatched opening shrinks to its own centre.
-      const remaining = new Set(frames[next].slice(1)), holes = [];
-      for (const hole of frame.slice(1)) {
-        const c = center(hole);
+    });
+
+    // The gap between the rider's arm and body is in every photograph, so it
+    // is followed and steadied like the rider.
+    const ARM = [25, -122];
+    const armLoops = frames.map(loops => loops.slice(1).reduce((best, hole) => {
+      const c = centre(hole), d = Math.hypot(c[0] - ARM[0], c[1] - ARM[1]);
+      return d < best.d ? { hole, d } : best;
+    }, { hole: null, d: 30 }).hole);
+    let arm = null;
+    if (armLoops.every(Boolean)) {
+      const rings = armLoops.map(ring), armTrack = follow(rings, 48);
+      arm = series(Array.from({ length: 96 }, (_, q) => {
+        const a = q / 2, j = Math.floor(a), t = a - j;
+        return rings.map((r, i) => {
+          const u0 = armTrack[i][j], u1 = j + 1 < 48 ? armTrack[i][j + 1] : armTrack[i][0] + 1;
+          return pointAt(r, u0 + (u1 - u0) * t);
+        });
+      }), () => RIDER);
+    }
+    // Openings between crossing legs, and at the bit, come and go; they are
+    // carried from one outline to the next and shrink away without a partner.
+    const loose = frames.map((loops, i) => loops.slice(1).filter(hole => hole !== armLoops[i]).map(hole => sample(ring(hole), 48)));
+    const holePairs = loose.map((holes, i) => {
+      const remaining = new Set(loose[(i + 1) % N]), pairs = [];
+      for (const hole of holes) {
+        const c = centre(hole);
         let closest = null, distance = 28 ** 2;
         for (const candidate of remaining) {
-          const d = dist(c, center(candidate));
+          const k = centre(candidate), d = (c[0] - k[0]) ** 2 + (c[1] - k[1]) ** 2;
           if (d < distance) { closest = candidate; distance = d; }
         }
-        if (closest) remaining.delete(closest);
-        const target = closest || hole.map(() => c);
-        const mapping = closest ? match(hole, target).pairs : hole.map((_, j) => [j, j]);
-        holes.push(mapping.map(([a, b]) => [hole[a], target[b]]));
+        if (closest) {
+          remaining.delete(closest);
+          pairs.push(match(hole, closest).pairs.map(([a, b]) => [hole[a], closest[b]]));
+        } else pairs.push(hole.map(p => [p, c]));
       }
-      for (const hole of remaining) {
-        const c = center(hole);
-        holes.push(hole.map(p => [c, p]));
-      }
-      return { body, holes };
+      for (const hole of remaining) { const c = centre(hole); pairs.push(hole.map(p => [c, p])); }
+      return pairs;
     });
-    function add(path, points) {
-      path.moveTo(points[0][0], points[0][1]);
-      for (let i = 1; i < points.length; i++) path.lineTo(points[i][0], points[i][1]);
+
+    // Where two nearby stretches of the outline cross, the little loop between
+    // them is cut away, so the drawn edge never folds over itself.
+    const side = (p, q, r) => (q[0] - p[0]) * (r[1] - p[1]) - (q[1] - p[1]) * (r[0] - p[0]);
+    function untangle(pts) {
+      for (let i = 0; i < pts.length - 3; i++) {
+        for (let k = 2; k <= 14 && i + k + 1 < pts.length; k++) {
+          const a = pts[i], b = pts[i + 1], c = pts[i + k], d = pts[i + k + 1];
+          const d1 = side(a, b, c), d2 = side(a, b, d), d3 = side(c, d, a), d4 = side(c, d, b);
+          if (d1 * d2 < 0 && d3 * d4 < 0) {
+            const t = d3 / (d3 - d4);
+            pts.splice(i + 1, k, [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+            break;
+          }
+        }
+      }
+      return pts;
+    }
+    // Drawn as a curve through the points rather than straight chords.
+    function add(path, pts) {
+      const n = pts.length;
+      path.moveTo((pts[n - 1][0] + pts[0][0]) / 2, (pts[n - 1][1] + pts[0][1]) / 2);
+      for (let i = 0; i < n; i++) {
+        const p = pts[i], q = pts[(i + 1) % n];
+        path.quadraticCurveTo(p[0], p[1], (p[0] + q[0]) / 2, (p[1] + q[1]) / 2);
+      }
       path.closePath();
     }
-    return position => {
-      const index = Math.floor(position) % N, t = position - Math.floor(position), u = 1 - t;
-      const pair = pairs[index], path = new Path2D();
-      const h0 = (1 + 2 * t) * u * u, h1 = t * t * (3 - 2 * t), h2 = t * u * u, h3 = -t * t * u;
-      add(path, pair.body.map(([a, b, v, w]) => [0, 1].map(axis => h0 * a[axis] + h1 * b[axis] + h2 * v[axis] + h3 * w[axis])));
-      for (const hole of pair.holes) add(path, hole.map(([a, b]) => a.map((v, axis) => v * u + b[axis] * t)));
-      return path;
+
+    const lengthsOf = pts => {
+      const run = new Float64Array(pts.length);
+      for (let k = 1; k < pts.length; k++) run[k] = run[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]);
+      return run;
     };
+    // An open line redrawn as a fixed number of evenly spaced points.
+    const DRAWN = 360;
+    function evenly(pts, count) {
+      const run = lengthsOf(pts), total = run[pts.length - 1], out = [];
+      let k = 0;
+      for (let c = 0; c < count; c++) {
+        const target = total * c / (count - 1);
+        while (k < pts.length - 2 && run[k + 1] < target) k++;
+        const span = run[k + 1] - run[k], t = span > 0 ? Math.min(1, (target - run[k]) / span) : 0;
+        out.push([pts[k][0] + (pts[k + 1][0] - pts[k][0]) * t, pts[k][1] + (pts[k + 1][1] - pts[k][1]) * t]);
+      }
+      return out;
+    }
+    const armPoints = arm ? Array.from({ length: arm.count }, () => [0, 0]) : null;
+    const outline = [];
+    function at(position) {
+      position = wrap(position, N);
+      const phase = position / N, i = Math.floor(position), t = position - i, u = 1 - t;
+      evaluate(upper, phase, upperPoints);
+      // The legs between two outlines, eased at both ends onto the seams by
+      // distance along them, then redrawn at even spacing: the pairings change
+      // at every outline, the drawn edge must not.
+      const h0 = (1 + 2 * t) * u * u, h1 = t * t * (3 - 2 * t), h2 = t * u * u, h3 = -t * t * u;
+      const arc = strides[i].map(([a, b, v, w]) => [h0 * a[0] + h1 * b[0] + h2 * v[0] + h3 * w[0], h0 * a[1] + h1 * b[1] + h2 * v[1] + h3 * w[1]]);
+      const front = upperPoints[upperPoints.length - 1], rear = upperPoints[0], last = arc.length - 1;
+      const fx = front[0] - arc[0][0], fy = front[1] - arc[0][1], rx = rear[0] - arc[last][0], ry = rear[1] - arc[last][1];
+      const run = lengthsOf(arc), total = run[last] || 1;
+      for (let k = 0; k <= last; k++) {
+        const s = run[k] / total, a = 1 - smooth(s, 0, 0.22), b = 1 - smooth(1 - s, 0, 0.22);
+        arc[k][0] += fx * a + rx * b;
+        arc[k][1] += fy * a + ry * b;
+      }
+      const even = evenly(arc, DRAWN);
+      outline.length = 0;
+      for (const p of upperPoints) outline.push([p[0], p[1]]);
+      for (let k = 1; k < DRAWN - 1; k++) outline.push(even[k]);
+      const path = new Path2D();
+      add(path, untangle(outline));
+      if (arm) add(path, evaluate(arm, phase, armPoints));
+      // Loose openings near the steady outline move as it was moved.
+      for (const hole of holePairs[i]) {
+        const pts = hole.map(([a, b]) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]);
+        const c = centre(pts);
+        let best = -1, distance = 18 ** 2;
+        upperIndex.forEach((q, k) => {
+          const p = raw[q][i], n = raw[q][(i + 1) % N], x = p[0] + (n[0] - p[0]) * t, y = p[1] + (n[1] - p[1]) * t;
+          const d = (x - c[0]) ** 2 + (y - c[1]) ** 2;
+          if (d < distance) { best = k; distance = d; }
+        });
+        if (best >= 0) {
+          const p = raw[upperIndex[best]][i], n = raw[upperIndex[best]][(i + 1) % N];
+          const dx = upperPoints[best][0] - (p[0] + (n[0] - p[0]) * t), dy = upperPoints[best][1] - (p[1] + (n[1] - p[1]) * t);
+          for (const point of pts) { point[0] += dx; point[1] += dy; }
+        }
+        add(path, pts);
+      }
+      return path;
+    }
+
+    // Details hang on features of the outline as drawn: the scarf on the
+    // rider's nape, the eye on the head. Chest and quarters lie inside the
+    // body; for them a smooth periodic fit of the measured circles is enough.
+    function attach(x, y, count) {
+      evaluate(upper, 0, upperPoints);
+      const nearest = upperPoints.map((p, k) => [Math.hypot(p[0] - x, p[1] - y), k]).sort((a, b) => a[0] - b[0]).slice(0, count).map(([, k]) => k);
+      const c = centre(nearest.map(k => upperPoints[k]));
+      return { nearest, dx: x - c[0], dy: y - c[1] };
+    }
+    const nape = attach(META[0][0], META[0][1], 3), head = attach(META[0][9], META[0][10], 12);
+    const feature = f => { const c = centre(f.nearest.map(k => upperPoints[k])); return [c[0] + f.dx, c[1] + f.dy]; };
+    const fitted = n => {
+      const values = META.map(m => m[n]), P = values.length, terms = [values.reduce((s, x) => s + x, 0) / P];
+      for (let h = 1; h <= 2; h++) {
+        let a = 0, b = 0;
+        values.forEach((x, i) => { a += x * Math.cos(TAU * h * i / P); b += x * Math.sin(TAU * h * i / P); });
+        terms.push(2 / P * a, 2 / P * b);
+      }
+      return phase => terms[0] + terms[1] * Math.cos(TAU * phase) + terms[2] * Math.sin(TAU * phase) + terms[3] * Math.cos(2 * TAU * phase) + terms[4] * Math.sin(2 * TAU * phase);
+    };
+    const circles = [3, 4, 5, 6, 7, 8, 11].map(n => [n, fitted(n)]);
+    // A row shaped like META for the phase last drawn by at().
+    function meta(position) {
+      const phase = wrap(position, N) / N, row = [...feature(nape), [], 0, 0, 0, 0, 0, 0, ...feature(head), 0];
+      for (const [n, value] of circles) row[n] = value(phase);
+      return row;
+    }
+    return { at, meta };
   }
 
   /* ---------- Drawing: in a worker when it can be, else on the page ---------- */
@@ -226,8 +455,7 @@
   function engine(canvas, post) {
     const ctx = canvas.getContext('2d');
     if (!ctx || typeof Path2D !== 'function') return () => post({ type: 'fail' });
-    const paths = FRAMES.map(d => new Path2D(d.replace(/-?\d+/g, n => n / Q)));
-    const contourAt = motionContours();
+    const motion = steadyMotion();
     const scope = typeof self !== 'undefined' ? self : window;
     const raf = scope.requestAnimationFrame
       ? scope.requestAnimationFrame.bind(scope)
@@ -242,14 +470,6 @@
       canvas.width = Math.round(width * ratio);
       canvas.height = Math.round(height * ratio);
       rule = null;
-    }
-
-    // The material and scarf use the same continuous phase as the contour.
-    // Cubic interpolation removes the velocity kinks of linear keyframes.
-    function meta(f) {
-      const i = Math.floor(f / 3), t = (f % 3) / 3;
-      const a = META[i], b = META[(i + 1) % PHOTOS], before = META[(i + PHOTOS - 1) % PHOTOS], after = META[(i + 2) % PHOTOS];
-      return a.map((v, n) => n === 2 ? [] : 0.5 * (2 * v + (b[n] - before[n]) * t + (2 * before[n] - 5 * v + 4 * b[n] - after[n]) * t * t + (3 * v - before[n] - 3 * b[n] + after[n]) * t * t * t));
     }
 
     function leave() {
@@ -288,13 +508,13 @@
         post({ type: 'done' });
         return;
       }
-      // All stages use the same continuous stride. Fidelity changes the
-      // drawing, never the cadence or the horse's anatomy.
+      // Every stage draws the same steady, continuous stride. Fidelity
+      // changes the drawing, never the cadence or the horse's anatomy.
       const phase = ((time + 1 / 120) / STRIDE) % 1;
       const position = phase * N;
       const f = Math.floor(position) % N;
       const gap = 3;
-      const P = e > 0.6 ? contourAt(position) : paths[f], M = meta(e > 0.6 ? position : f);
+      const P = motion.at(position), M = motion.meta(position);
       // Horse and rider are about 290 by 185 plate pixels, centred 18 behind x = 0.
       const k = Math.min(width * (width < 700 ? 0.9 : 0.53) / 290, height * 0.43 / 185);
       const home = width * 0.5 + 18 * k;
@@ -345,7 +565,7 @@
         ctx.lineWidth = 1 / k;
         for (const [back, alpha] of [[2, 0.09], [1, 0.19]]) {
           ctx.strokeStyle = `rgba(${SEAL}, ${alpha * study})`;
-          ctx.stroke(paths[(f + N - back * gap) % N]);
+          ctx.stroke(motion.at(position - back * gap));
         }
         ctx.lineWidth = 1.2 / k;
         ctx.strokeStyle = `rgba(${INK}, ${0.85 * study})`;
