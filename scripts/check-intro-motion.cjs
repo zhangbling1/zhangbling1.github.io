@@ -1,28 +1,26 @@
 /* Run with: node scripts/check-intro-motion.cjs [intro.js]
-   Execute the production worker against a deterministic clock and record the
-   finished-color fill. The horse is a flipbook of traced frames; checks that
-   the frames come in order at an even pace, that the stride loops without a
-   jump, that nothing sinks below the track, and that a hoof on the track only
-   slides back from one frame to the next.
-   No browser, image library or installed npm dependency is required. */
+   Run the production drawing worker with a deterministic animation clock.
+   Check actual finished-color silhouettes, including refreshes between the
+   traced poses: no held frames, no contour jumps, no feet below the track,
+   and no forward skating while a hoof is planted. No npm dependencies. */
 const fs = require('node:fs');
 const vm = require('node:vm');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 
-// An intro.js to check may be given; the site's own is the default.
 const source = fs.readFileSync(process.argv[2] ? path.resolve(process.argv[2]) : path.join(__dirname, '../js/intro.js'), 'utf8');
 const stride = Number(source.match(/const STRIDE = ([\d.]+)/)[1]);
+const keyCount = 15;
+const start = 2.5 - 1 / 120; // Align to the production clock's first key pose.
 
-// Records each subpath as the points its curve passes through.
 class DrawingPath {
-  constructor() { this.data = ''; this.pieces = []; }
-  moveTo(x, y) { this.pieces.push([[x, y]]); this.data += `M${x},${y}`; }
-  lineTo(x, y) { this.pieces[this.pieces.length - 1]?.push([x, y]); this.data += `L${x},${y}`; }
-  quadraticCurveTo(cx, cy, x, y) { this.pieces[this.pieces.length - 1]?.push([x, y]); this.data += `Q${cx},${cy},${x},${y}`; }
+  constructor() { this.pieces = []; }
+  moveTo(x, y) { this.pieces.push([[x, y]]); }
+  lineTo(x, y) { this.pieces[this.pieces.length - 1]?.push([x, y]); }
+  quadraticCurveTo(cx, cy, x, y) { this.pieces[this.pieces.length - 1]?.push([x, y]); }
   rect() {}
-  closePath() { this.data += 'Z'; }
-  addPath(other) { this.pieces.push(...other.pieces.map(p => p.slice())); this.data += other.data; }
+  closePath() {}
+  addPath(other) { this.pieces.push(...other.pieces.map(p => p.slice())); }
 }
 
 function harness() {
@@ -53,35 +51,32 @@ function harness() {
   };
 }
 
-// Two strides of the finished horse at 60 Hz: the frames in order.
+const signature = frame => JSON.stringify(frame.pieces.map(p => p.map(([x, y]) => [Math.round(x * 1e5), Math.round(y * 1e5)])));
 const sample = harness(), shown = [];
-for (let i = 0; i <= Math.round(2 * stride * 60); i++) shown.push(sample(2.5 + i / 60));
+for (let i = 0; i <= Math.round(2 * stride * 120); i++) shown.push(sample(start + i / 120));
 const points = shown.flatMap(f => f.pieces.flat());
 assert(points.flat().every(Number.isFinite), 'Invalid outline coordinate.');
-const frames = [];
-for (const f of shown) if (!frames.length || frames[frames.length - 1].data !== f.data) frames.push(f);
-const distinct = [...new Set(frames.map(f => f.data))];
-const count = distinct.length;
-const runs = [];
-let run = 1;
-for (let i = 1; i < shown.length; i++) {
-  if (shown[i].data === shown[i - 1].data) run++;
-  else { runs.push(run); run = 1; }
+for (const hz of [60, 120]) {
+  const frames = shown.filter((_, i) => i % (120 / hz) === 0), ids = frames.map(signature);
+  const held = ids.slice(1).filter((id, i) => id === ids[i]).length;
+  assert.equal(held, 0, `${held} refreshes held the previous pose at ${hz} Hz.`);
+  console.log(`PASS: every refresh advances the horse at ${hz} Hz (${frames.length - 1} refreshes, no held poses).`);
 }
-const order = frames.map(f => distinct.indexOf(f.data));
-const inOrder = order.every((k, i) => i === 0 || k === (order[i - 1] + 1) % count);
-assert(inOrder, `Frames came out of order: ${order.join(' ')}.`);
-const inner = runs.slice(1);
-assert(Math.min(...inner) >= 2 && Math.max(...inner) <= 2, `Frames held for ${Math.min(...inner)}..${Math.max(...inner)} refreshes at 60 Hz; expected an even 2.`);
-console.log(`PASS: ${count} frames a stride, in order, each held for 2 refreshes at 60 Hz.`);
 
-// Nothing goes below the track (y = 0 in drawing units).
 const lowest = Math.max(...points.map(([, y]) => y));
-assert(lowest <= 1e-6, `The drawing reached ${lowest.toFixed(3)} below the track.`);
-console.log('PASS: nothing sinks below the track.');
+assert(lowest <= 1e-6, `A hoof overshot the track by ${lowest.toFixed(3)} drawing units.`);
+console.log('PASS: no interpolated pose sinks below the track.');
 
-// The stride loops: from the last frame back to the first is a step like any
-// other, not a jump. A step is how far the outline moves between frames.
+// The head and throat are a solid silhouette. Tiny gaps carried over from
+// the video trace used to appear only around poses 11–13, then disappear.
+const headGaps = shown.flatMap(f => f.pieces.slice(1)).filter(p => {
+  if (p.length < 3 || !p.every(([x, y]) => x > 60 && y < -90)) return false;
+  const area = p.reduce((sum, a, i) => { const b = p[(i + 1) % p.length]; return sum + a[0] * b[1] - b[0] * a[1]; }, 0);
+  return Math.abs(area) > 0.1;
+});
+assert.equal(headGaps.length, 0, 'The head/throat contains a flickering opening.');
+console.log('PASS: the head and throat stay solid throughout the stride.');
+
 function distance(a, b) {
   let largest = 0;
   for (const [x, y] of a) {
@@ -91,30 +86,41 @@ function distance(a, b) {
   }
   return Math.sqrt(largest);
 }
-const outline = f => f.pieces[0];
-const loop = distinct.map(d => shown.find(f => f.data === d));
-const steps = loop.map((f, i) => {
-  const g = loop[(i + 1) % count];
-  return Math.max(distance(outline(f), outline(g)), distance(outline(g), outline(f)));
-});
-const wrapStep = steps[count - 1], typical = steps.slice(0, -1).sort((a, b) => a - b)[Math.floor((count - 1) / 2)];
-assert(wrapStep <= Math.max(...steps.slice(0, -1)) + 1e-9, `The loop jumps ${wrapStep.toFixed(1)} units from the last frame to the first; the frames step at most ${Math.max(...steps.slice(0, -1)).toFixed(1)}.`);
-console.log(`PASS: the stride loops without a jump — ${wrapStep.toFixed(1)} units from last to first, ${typical.toFixed(1)} a typical frame.`);
+const separation = (a, b) => Math.max(distance(a.pieces[0], b.pieces[0]), distance(b.pieces[0], a.pieces[0]));
 
-// A hoof on the track only ever slides back until it lifts: from one frame
-// to the next, no patch of outline on the ground moves forward.
-const contacts = loop.map(f => {
+// Approach each key pose from either side, including the last-to-first join.
+// This catches a change of point correspondence that resets the silhouette.
+const seams = harness(), epsilon = 0.000001;
+let seam = 0;
+for (let i = 1; i <= keyCount; i++) {
+  const at = start + i * stride / keyCount;
+  const before = seams(at - epsilon), after = seams(at + epsilon);
+  seam = Math.max(seam, separation(before, after));
+}
+assert(seam < 0.1, `The contour jumps ${seam.toFixed(3)} units at a key pose.`);
+const loop = separation(shown[0], shown[Math.round(stride * 120)]);
+assert(loop < 0.1, `The loop drifts ${loop.toFixed(3)} units in one stride.`);
+console.log(`PASS: all ${keyCount} pose joins are continuous (largest seam ${seam.toFixed(4)} units); the stride repeats without drift.`);
+
+// The original contact poses remain physically grounded. Sampling exact keys
+// avoids treating a different, newly landing hoof as the one that just left.
+const contactsAt = harness(), contacts = [];
+for (let i = 0; i < keyCount; i++) {
+  const f = contactsAt(start + i * stride / keyCount);
   const xs = f.pieces.flat().filter(([, y]) => y > -2).map(([x]) => x).sort((a, b) => a - b), feet = [];
-  for (const x of xs) { const foot = feet[feet.length - 1]; if (foot && x - foot[foot.length - 1] < 5) foot.push(x); else feet.push([x]); }
-  return feet.map(foot => (foot[0] + foot[foot.length - 1]) / 2);
-});
+  for (const x of xs) {
+    const foot = feet[feet.length - 1];
+    if (foot && x - foot[foot.length - 1] < 5) foot.push(x); else feet.push([x]);
+  }
+  contacts.push(feet.map(foot => (foot[0] + foot[foot.length - 1]) / 2));
+}
 let skid = -Infinity;
 contacts.forEach((feet, i) => {
-  const next = contacts[(i + 1) % count];
-  for (const x of next) {
+  for (const x of contacts[(i + 1) % keyCount]) {
     const from = feet.filter(b => x - b > -60 && x - b < 20);
-    if (from.length) skid = Math.max(skid, x - Math.max(...from.filter(b => b >= x - 60)));
+    if (from.length) skid = Math.max(skid, x - Math.max(...from));
   }
 });
-assert(skid < 2, `A planted hoof skated ${skid.toFixed(1)} drawing units forward in one frame.`);
-console.log(`PASS: planted hooves only slide back — the least they slide is ${(-skid).toFixed(1)} units a frame.`);
+assert(Number.isFinite(skid), 'No consecutive ground contacts were sampled.');
+assert(skid < 2, `A planted hoof skated ${skid.toFixed(1)} units forward.`);
+console.log(`PASS: planted hooves move backward along the track (at least ${(-skid).toFixed(1)} units between contact poses).`);
