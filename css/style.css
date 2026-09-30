@@ -221,6 +221,10 @@ svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColo
 .cover-lead { margin-top: clamp(20px, 2vw, 30px); font-size: clamp(21px, 1.9vw, 28px); font-weight: 300; line-height: 1.55; letter-spacing: .06em; color: var(--ink-3); }
 .cover-lead span { display: block; }
 .cover-lead span:last-child { font-weight: 400; color: var(--ink); }
+/* The lead's closing line catches a slow sweep of seal-warm light. */
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .cover-lead span:last-child { background: linear-gradient(100deg, var(--ink) 0%, var(--ink) 28%, #ffb08a 42%, var(--seal-hot) 50%, #ffb08a 58%, var(--ink) 72%, var(--ink) 100%); background-size: 200% 100%; background-position: 150% 0; -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-fill-color: transparent; }
+}
 .facts { display: grid; gap: 6px; margin-top: clamp(28px, 3vw, 40px); padding-top: 18px; border-top: 1px solid var(--rule); font-size: 13px; }
 .facts > div { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; }
 .facts dt { color: var(--ink-3); }
@@ -502,6 +506,7 @@ body.viewer-open { overflow: hidden; }
 @keyframes plate-in { from { opacity: 0; transform: translateY(26px) scale(.985); } }
 @keyframes num-in { from { opacity: 0; transform: translateY(40%); } }
 @keyframes drop { from { opacity: 0; transform: translateY(-16px); } }
+@keyframes lead-sweep { 0%, 10% { background-position: 150% 0; } 46%, 100% { background-position: -50% 0; } }
 @media (prefers-reduced-motion: no-preference) {
   .masthead .brand, .masthead .main-nav { animation: drop .8s var(--liquid) .15s backwards; }
   .cover-label { animation: rise .9s var(--liquid) .05s backwards; }
@@ -509,7 +514,7 @@ body.viewer-open { overflow: hidden; }
   .cover h1 .line + .line > span { animation-delay: .19s; }
   .cover-role { animation: rise .9s var(--liquid) .34s backwards; }
   .cover-lead span:first-child { animation: rise .9s var(--liquid) .42s backwards; }
-  .cover-lead span:last-child { animation: rise .9s var(--liquid) .5s backwards; }
+  .cover-lead span:last-child { animation: rise .9s var(--liquid) .5s backwards, lead-sweep 7.5s linear 1.9s infinite; }
   .facts { animation: rise .9s var(--liquid) .6s backwards; }
   .reel-col { animation: col-in 1.2s var(--liquid) calc(var(--i, 0) * 120ms + 80ms) backwards; }
   /* Plates and chapter heads rise into place as they scroll into view. */
