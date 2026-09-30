@@ -213,21 +213,14 @@ svg { width: 18px; height: 18px; flex-shrink: 0; fill: none; stroke: currentColo
 .cover h1 { margin: clamp(22px, 2.6vw, 40px) 0 clamp(26px, 3vw, 44px) -.05em; font-size: clamp(60px, 8.6vw, 136px); font-weight: 300; line-height: .9; letter-spacing: -.045em; }
 .cover h1 .line { display: block; overflow: hidden; padding-bottom: .08em; margin-bottom: -.08em; }
 .cover h1 .line > span { display: block; }
-.cover-role { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; font-size: 17px; font-weight: 500; letter-spacing: .08em; }
-.cover-role span + span { font-size: 14px; font-weight: 400; letter-spacing: .04em; color: var(--ink-3); }
-.cover-lead { margin-top: clamp(16px, 1.6vw, 24px); font-size: clamp(22px, 2vw, 30px); font-weight: 300; line-height: 1.5; letter-spacing: .05em; color: var(--ink-2); }
+/* Name, then title after a hairline, as in the masthead's brand. */
+.cover-role { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 0; font-size: 17px; font-weight: 500; letter-spacing: .08em; }
+.cover-role span + span { display: inline-flex; align-items: center; font-size: 15px; font-weight: 400; letter-spacing: .06em; color: var(--ink-2); }
+.cover-role span + span::before { content: ''; width: 1px; height: 13px; margin: 0 14px; background: var(--rule); }
+/* The line in two tones: what AI brings, then what the designer does. */
+.cover-lead { margin-top: clamp(20px, 2vw, 30px); font-size: clamp(21px, 1.9vw, 28px); font-weight: 300; line-height: 1.55; letter-spacing: .06em; color: var(--ink-3); }
 .cover-lead span { display: block; }
-.cover-lead span:last-child { font-weight: 500; color: var(--ink); }
-/* A band of seal light passes through the second line every few seconds. */
-@supports ((-webkit-background-clip: text) or (background-clip: text)) {
-  .cover-lead span:last-child {
-    background: linear-gradient(100deg, var(--ink) 0 33%, #c7361f 43%, var(--seal-hot) 50%, #c7361f 57%, var(--ink) 67% 100%) 100% 0 / 260% 100% no-repeat;
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-    -webkit-text-fill-color: transparent;
-  }
-}
+.cover-lead span:last-child { font-weight: 400; color: var(--ink); }
 .facts { display: grid; gap: 6px; margin-top: clamp(28px, 3vw, 40px); padding-top: 18px; border-top: 1px solid var(--rule); font-size: 13px; }
 .facts > div { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; }
 .facts dt { color: var(--ink-3); }
@@ -505,7 +498,6 @@ body.viewer-open { overflow: hidden; }
 /* ---------- Motion (only when it is welcome) ---------- */
 @keyframes rise { from { opacity: 0; transform: translateY(22px); } }
 @keyframes line-rise { from { transform: translateY(104%); } }
-@keyframes sheen { 0% { background-position: 100% 0; } 34%, 100% { background-position: 0 0; } }
 @keyframes col-in { from { opacity: 0; transform: translateY(48px); } }
 @keyframes plate-in { from { opacity: 0; transform: translateY(26px) scale(.985); } }
 @keyframes num-in { from { opacity: 0; transform: translateY(40%); } }
@@ -517,7 +509,7 @@ body.viewer-open { overflow: hidden; }
   .cover h1 .line + .line > span { animation-delay: .19s; }
   .cover-role { animation: rise .9s var(--liquid) .34s backwards; }
   .cover-lead span:first-child { animation: rise .9s var(--liquid) .42s backwards; }
-  .cover-lead span:last-child { animation: rise .9s var(--liquid) .5s backwards, sheen 7.5s cubic-bezier(.45, .05, .35, 1) 1.5s infinite; }
+  .cover-lead span:last-child { animation: rise .9s var(--liquid) .5s backwards; }
   .facts { animation: rise .9s var(--liquid) .6s backwards; }
   .reel-col { animation: col-in 1.2s var(--liquid) calc(var(--i, 0) * 120ms + 80ms) backwards; }
   /* Plates and chapter heads rise into place as they scroll into view. */

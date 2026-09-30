@@ -178,7 +178,7 @@
     for (const id of ['brand-seal', 'about-seal', 'footer-seal']) $(id).textContent = seal;
   }
 
-  // The tagline breaks after its first comma; the second half carries the sheen.
+  // The tagline breaks after its first comma; the second half is set darker.
   function setLead(text) {
     const parts = String(text).trim().match(/^(.+?[，,；;])\s*(.+)$/);
     $('hero-sub').replaceChildren(...(parts ? parts.slice(1) : [String(text).trim()]).map(line => element('span', '', line)));
@@ -194,8 +194,9 @@
     $('resume-bio').textContent = profile.bio || '';
     $('fact-location').hidden = !profile.location;
     $('hero-location').textContent = profile.location || '';
-    const aiIntro = profile.aiToolsIntro || '熟练使用 Codex · Claude · Antigravity 协同创作';
-    if ($('hero-ai-tools')) $('hero-ai-tools').textContent = aiIntro;
+    // Tool names never break across lines; the dots between them may.
+    const tools = String(profile.aiToolsIntro || 'ComfyUI · Midjourney · Codex · Claude · Antigravity').split(/\s*[·•、，,]\s*/).filter(Boolean);
+    if ($('hero-ai-tools')) $('hero-ai-tools').replaceChildren(...tools.flatMap((tool, i) => (i ? [' · ', element('span', '', tool)] : [element('span', '', tool)])));
     const experiences = profile.experiences || [];
     const years = experiences.flatMap(experience => String(experience.period || '').match(/\d{4}/g) || []).map(Number);
     $('cover-label').querySelector('.years')?.remove();
