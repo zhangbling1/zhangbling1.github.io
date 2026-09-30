@@ -12,16 +12,65 @@
     // reader prefers less motion. js/intro.js takes it from here.
     (function () {
       var root = document.documentElement;
+      var navigation = performance.getEntriesByType && performance.getEntriesByType('navigation')[0];
+      var reloading = navigation ? navigation.type === 'reload' : performance.navigation && performance.navigation.type === 1;
+      var pendingTop = reloading;
+      var holdingRestoration = reloading;
+      var restoration = history.scrollRestoration;
+      var shown = document.readyState === 'complete';
+      var introFinished = false;
+      var settleFrame = 0;
+      var resetScroll = function () {
+        if (pendingTop) window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      };
+      var release = function () {
+        if (!holdingRestoration) return;
+        pendingTop = holdingRestoration = false;
+        history.scrollRestoration = restoration;
+        window.removeEventListener('hashchange', cancelTop);
+        window.removeEventListener('wheel', cancelOnInput);
+        window.removeEventListener('touchstart', cancelOnInput);
+        window.removeEventListener('keydown', cancelOnKey);
+      };
+      var settle = function () {
+        if (!holdingRestoration || !shown || !introFinished || settleFrame) return;
+        // Keep native restoration disabled through pageshow and the intro exit.
+        settleFrame = requestAnimationFrame(function () { resetScroll(); release(); });
+      };
+      var cancelTop = function () { pendingTop = false; settle(); };
+      var cancelOnInput = function () { if (introFinished) cancelTop(); };
+      var cancelOnKey = function (event) {
+        if (['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].indexOf(event.key) !== -1) cancelOnInput();
+      };
+      window.PortfolioEntry = {
+        resetScroll: resetScroll,
+        finishIntro: function () { introFinished = true; resetScroll(); settle(); }
+      };
+      if (reloading) {
+        // The old fragment is also read by route() and the asynchronous book
+        // loader. Remove it before either can revisit a chapter on refresh.
+        history.scrollRestoration = 'manual';
+        history.replaceState(history.state, '', location.pathname + location.search);
+        resetScroll();
+        document.addEventListener('DOMContentLoaded', resetScroll, { once: true });
+        window.addEventListener('pageshow', function () { shown = true; resetScroll(); settle(); }, { once: true });
+        // Once the cover is usable, an intentional navigation takes precedence.
+        window.addEventListener('hashchange', cancelTop);
+        window.addEventListener('wheel', cancelOnInput, { passive: true });
+        window.addEventListener('touchstart', cancelOnInput, { passive: true });
+        window.addEventListener('keydown', cancelOnKey);
+      }
       var end = function () {
         root.classList.remove('intro');
         root.style.overflow = '';
         if (document.body) document.body.style.marginRight = '';
+        window.PortfolioEntry.finishIntro();
       };
       try {
-        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        if (matchMedia('(prefers-reduced-motion: reduce)').matches) return end();
         root.classList.add('intro');
         var script = document.createElement('script');
-        script.src = 'js/intro.js?v=2026-09-30b';
+        script.src = 'js/intro.js?v=2026-09-30-entry';
         script.onerror = end;
         // Lifts the page if the opening never gets going.
         window.introFailsafe = setTimeout(end, 9000);

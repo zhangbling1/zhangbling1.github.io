@@ -1133,6 +1133,7 @@
   function leave() {
     if (leftAt || done) return;
     leftAt = performance.now();
+    window.PortfolioEntry?.resetScroll();
     splash.classList.add('is-leaving');
     // The cover starts its own entrance while the paper lifts.
     revealTimer = setTimeout(() => root.classList.remove('intro'), 300);
@@ -1155,6 +1156,7 @@
     const restoreFocus = document.activeElement !== splash && splash?.contains(document.activeElement);
     splash?.remove();
     if (restoreFocus) document.querySelector('.brand')?.focus({ preventScroll: true });
+    window.PortfolioEntry?.finishIntro();
   }
 
   // Draw on the page itself; after a failed worker, on a fresh canvas.
