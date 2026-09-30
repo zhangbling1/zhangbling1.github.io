@@ -10,9 +10,11 @@ const ARTIFACT_LIMIT = 50 * 1024 * 1024;
 const SHIPPED_TIER = /-(400|640)\.webp$/;
 const MEDIA_BASE = 'https://zhangbling1.github.io';
 const STATIC_FILES = [
-  'index.html', 'css/style.css', 'js/app.js', 'js/intro.js', 'js/portfolio-order.js',
+  'index.html', 'css/style.css', 'css/work-tools.css',
+  'js/app.js', 'js/intro.js', 'js/portfolio-order.js', 'js/tool-art.js', 'js/work-tools.js',
   'assets/favicon.svg', 'assets/fonts/manrope-latin.woff2', 'assets/fonts/manrope-variable.ttf',
-  'assets/fonts/OFL-Manrope.txt', 'data/portfolio-data.json'
+  'assets/fonts/OFL-Manrope.txt', 'data/portfolio-data.json', 'data/work-tools.json',
+  'assets/toolkit/media-batch.svg', 'assets/toolkit/capture-studio.svg', 'assets/toolkit/game-debug.svg'
 ];
 
 const readJSON = relative => JSON.parse(fs.readFileSync(path.join(ROOT, relative), 'utf8'));

@@ -130,14 +130,19 @@
   async function loadData() {
     chaptersRoot.setAttribute('aria-busy', 'true');
     try {
-      const [data, previews] = await Promise.all([
+      const [data, previews, tools] = await Promise.all([
         readJSON('data/portfolio-data.json'),
-        readJSON('data/media-previews.json').catch(() => ({}))
+        readJSON('data/media-previews.json').catch(() => ({})),
+        readJSON('data/work-tools.json').catch(() => null)
       ]);
       if (!Array.isArray(data.items)) throw new Error('Invalid portfolio data');
       state.data = data;
       state.previews = previews;
       buildBook(data.items.filter(item => item.visible !== false && mediaURL(item.src)), data);
+      // Tool case studies have their own catalog so rescanning artwork never removes them.
+      const toolChapter = window.PortfolioTools?.chapter(tools, state.chapters.length + 1);
+      if (toolChapter) state.chapters.push(toolChapter);
+      $('nav-tools-btn').hidden = !toolChapter;
       applySiteInfo(data.siteInfo || {});
       applyProfile(data.profile || {});
       reel.plates = pickReel(15);
@@ -438,6 +443,7 @@
   // two peeking out behind like a stack of prints.
   function renderContents() {
     $('toc').replaceChildren(...state.chapters.map(chapter => {
+      if (chapter.tools) return window.PortfolioTools.contents(chapter);
       const [lead, second, third] = chapter.plates;
       const link = element('a', 'toc-card');
       link.href = `#${chapter.id}`;
@@ -464,12 +470,18 @@
       return item;
     }));
     const videos = state.plates.filter(plate => plate.item.mediaType === 'video').length;
-    $('contents-note').textContent = `${state.chapters.length} 个章节 · ${state.plates.length} 幅作品${videos ? `，含视频 ${videos} 段` : ''}`;
-    $('colophon-count').textContent = `收录图版 ${state.plates.length} 幅`;
+    const tools = state.chapters.reduce((total, chapter) => total + (chapter.tools?.length || 0), 0);
+    $('contents-note').textContent = `${state.chapters.length} 个章节 · ${state.plates.length} 幅作品${videos ? `，含视频 ${videos} 段` : ''}${tools ? ` · ${tools} 款工作工具` : ''}`;
+    $('colophon-count').textContent = `收录图版 ${state.plates.length} 幅${tools ? ` · 工作工具 ${tools} 款` : ''}`;
   }
 
   function renderChapters() {
     chaptersRoot.replaceChildren(...state.chapters.map((chapter, index) => {
+      if (chapter.tools) {
+        chapter.section = window.PortfolioTools.render(chapter);
+        revealObserver.observe(chapter.section);
+        return chapter.section;
+      }
       const section = element('section', 'chapter wrap');
       section.id = chapter.id;
       section.setAttribute('aria-labelledby', `${chapter.id}-title`);
@@ -1075,14 +1087,16 @@
   function route() {
     const hash = decodeURIComponent(location.hash);
     const about = hash === '#about' || hash === '#resume';
+    const tools = hash === '#work-tools';
     if (hash !== '#contact') {
       $('portfolio-view').hidden = about;
       $('resume-view').hidden = !about;
-      $('nav-portfolio-btn').classList.toggle('is-active', !about);
-      $('nav-resume-btn').classList.toggle('is-active', about);
-      $('nav-portfolio-btn').toggleAttribute('aria-current', !about);
-      $('nav-resume-btn').toggleAttribute('aria-current', about);
-      (about ? $('nav-resume-btn') : $('nav-portfolio-btn')).setAttribute('aria-current', 'page');
+      const selected = about ? 'nav-resume-btn' : tools ? 'nav-tools-btn' : 'nav-portfolio-btn';
+      for (const id of ['nav-portfolio-btn', 'nav-tools-btn', 'nav-resume-btn']) {
+        $(id).classList.toggle('is-active', id === selected);
+        if (id === selected) $(id).setAttribute('aria-current', 'page');
+        else $(id).removeAttribute('aria-current');
+      }
       moveLens(activeLink());
     }
     requestAnimationFrame(() => {
