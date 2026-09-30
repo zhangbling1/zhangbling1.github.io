@@ -19,6 +19,7 @@
   let toastTimer;
   let layoutFrame;
   let headFrame;
+  let navHeld = 0;
   let bookWidth = 0;
 
   const pad = (value, size = 2) => String(value).padStart(size, '0');
@@ -288,6 +289,17 @@
       track.plates.push(plate);
       track.length += extent(plate);
     }
+    // The AI tools drift among the works: one is in view as the page opens,
+    // the others sit further along their tracks and arrive later.
+    const slots = reel.tracks === 3 ? [[1, 1], [0, 4], [2, 3]] : [[0, 1], [1, 3], [0, 5]];
+    reel.tools = (state.chapters.find(chapter => chapter.tools)?.tools || [])
+      .map((tool, index) => ({ tool, number: index + 1, ratio: window.PortfolioTools.tileRatio(tool) }));
+    reel.tools.forEach((entry, index) => {
+      const [column, position] = slots[index % slots.length];
+      const track = tracks[column];
+      track.plates.splice(Math.min(position, track.plates.length), 0, entry);
+      track.length += extent(entry);
+    });
     reel.deferred = [];
     holder.replaceChildren(...tracks.map((track, index) => {
       // A loop must outrun the window, or its seam would show.
@@ -319,6 +331,15 @@
   }
 
   function reelTile(plate, across, eager) {
+    if (plate.tool) {
+      const tile = element('span', 'reel-tile is-tool is-loaded');
+      tile.dataset.tool = plate.tool.id;
+      tile.style.setProperty('--ratio', plate.ratio.toFixed(4));
+      const label = badge('AI 工具');
+      label.firstElementChild.replaceWith(element('i'));
+      tile.append(window.PortfolioTools.tile(plate.tool), label);
+      return tile;
+    }
     const { item } = plate;
     const ratio = tileRatio(plate);
     const tile = element('span', 'reel-tile');
@@ -370,14 +391,17 @@
     reel.shown = plate;
     const text = $('reel-card-text');
     const apply = () => {
-      if (plate) {
+      if (plate?.tool) {
+        $('reel-label').textContent = `AI 工具 · ${pad(plate.number)}`;
+        $('reel-title').textContent = plate.tool.name;
+      } else if (plate) {
         $('reel-label').textContent = `图版 ${pad(plate.number, 3)} · ${plate.item.categoryName || plate.chapter.category.name}`;
         $('reel-title').textContent = realTitle(plate.item) || plate.chapter.category.name;
       } else {
         const english = element('span', '', 'Selected Works');
         english.lang = 'en';
         $('reel-label').replaceChildren('精选作品', english);
-        $('reel-title').textContent = `${state.plates.length} 幅作品 · ${state.chapters.length} 个章节`;
+        $('reel-title').textContent = `${state.plates.length} 幅作品 · ${reel.tools?.length ? `${reel.tools.length} 款 AI 工具` : `${state.chapters.length} 个章节`}`;
       }
       text.classList.remove('is-swapping');
     };
@@ -854,6 +878,7 @@
     }
     const head = $('running-head');
     if (current) head.style.setProperty('--progress', progress.toFixed(3));
+    if (!$('portfolio-view').hidden && performance.now() > navHeld) markNav(current?.tools ? 'nav-tools-btn' : 'nav-portfolio-btn');
     if (current === state.runningChapter) return;
     state.runningChapter = current;
     if (current) {
@@ -1084,20 +1109,28 @@
 
   /* ---------- Views ---------- */
 
+  // 作品 and AI 工具 share one view, so the masthead marks whichever is on
+  // screen; a link just followed keeps its mark while the page travels to it.
+  function markNav(id) {
+    if (activeLink()?.id === id) return;
+    for (const key of ['nav-portfolio-btn', 'nav-tools-btn', 'nav-resume-btn']) {
+      $(key).classList.toggle('is-active', key === id);
+      if (key === id) $(key).setAttribute('aria-current', 'page');
+      else $(key).removeAttribute('aria-current');
+    }
+    moveLens(activeLink());
+  }
+
   function route() {
     const hash = decodeURIComponent(location.hash);
     const about = hash === '#about' || hash === '#resume';
-    const tools = hash === '#work-tools';
+    const tools = hash === '#work-tools' || hash.startsWith('#tool-');
     if (hash !== '#contact') {
       $('portfolio-view').hidden = about;
       $('resume-view').hidden = !about;
-      const selected = about ? 'nav-resume-btn' : tools ? 'nav-tools-btn' : 'nav-portfolio-btn';
-      for (const id of ['nav-portfolio-btn', 'nav-tools-btn', 'nav-resume-btn']) {
-        $(id).classList.toggle('is-active', id === selected);
-        if (id === selected) $(id).setAttribute('aria-current', 'page');
-        else $(id).removeAttribute('aria-current');
-      }
+      markNav(about ? 'nav-resume-btn' : tools ? 'nav-tools-btn' : 'nav-portfolio-btn');
       moveLens(activeLink());
+      navHeld = performance.now() + 1200;
     }
     requestAnimationFrame(() => {
       layoutBook();
@@ -1144,13 +1177,19 @@
   window.addEventListener('load', hydrateReel, { once: true });
 
   const reelWindow = $('reel-window');
+  // A work opens in the viewer; a tool takes the reader to its demonstration.
   reelWindow.addEventListener('click', event => {
     const tile = event.target.closest('.reel-tile');
-    if (tile) openViewer(Number(tile.dataset.index));
+    if (!tile) return;
+    if (!tile.dataset.tool) return openViewer(Number(tile.dataset.index));
+    const target = `#tool-${tile.dataset.tool}`;
+    if (location.hash === target) route();
+    else location.hash = target;
   });
   reelWindow.addEventListener('pointerover', event => {
     const tile = event.target.closest('.reel-tile');
-    if (tile && event.pointerType === 'mouse') showReelCard(state.plates[Number(tile.dataset.index)]);
+    if (!tile || event.pointerType !== 'mouse') return;
+    showReelCard(tile.dataset.tool ? reel.tools.find(entry => entry.tool.id === tile.dataset.tool) : state.plates[Number(tile.dataset.index)]);
   });
   reelWindow.addEventListener('pointerleave', () => { if (reel.shown) showReelCard(null); });
   $('reel-toggle').addEventListener('click', () => {

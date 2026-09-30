@@ -1,5 +1,5 @@
-/* Catalog and hosted-package regressions. The build uses a disposable folder,
-   leaving the user's existing dist/ previews and original tools untouched. */
+/* Catalog, demo data and hosted-package regressions for the tools chapter. The
+   build uses a disposable folder, leaving the user's existing dist/ untouched. */
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
@@ -8,56 +8,64 @@ const assert = require('node:assert/strict');
 const root = path.resolve(__dirname, '..');
 const source = fs.readFileSync(path.join(root, 'js/work-tools.js'), 'utf8');
 const catalog = JSON.parse(fs.readFileSync(path.join(root, 'data/work-tools.json'), 'utf8'));
-const scope = { window: {} };
-vm.runInNewContext(source.replace('window.PortfolioTools = { chapter, contents, render };',
-  'window.PortfolioTools = { chapter, contents, render }; window.models = { outputName, planCount, filterRecords, debugRecords };'), scope);
+const exported = source.match(/window\.PortfolioTools = \{.*\};/)?.[0];
+assert.ok(exported, 'work-tools.js must publish window.PortfolioTools on one line');
+const scope = { window: {}, matchMedia: () => ({ matches: false }) };
+vm.runInNewContext(source.replace(exported, `${exported} window.models = { filterRecords, debugRecords, debugExample, captureOrder, media };`), scope);
 const tools = scope.window.PortfolioTools;
 const models = scope.window.models;
 let count = 0;
 const check = (name, fn) => { fn(); count++; console.log(`PASS ${name}`); };
 
-check('Three distinct tools share a chapter without becoming numbered image plates', () => {
+check('Three tools share one chapter without becoming numbered image plates', () => {
   const chapter = tools.chapter(catalog, 9);
   assert.equal(chapter.id, 'work-tools');
   assert.equal(chapter.number, 9);
   assert.equal(chapter.plates.length, 0);
   assert.deepEqual(Array.from(chapter.tools, item => item.id), ['media-batch', 'capture-studio', 'game-debug']);
-  for (const tool of chapter.tools) {
-    assert.ok(fs.existsSync(path.join(root, tool.cover)));
-    const svg = fs.readFileSync(path.join(root, tool.cover), 'utf8');
-    assert.ok(svg.startsWith('<svg'));
-    assert.ok(!/(?:href|src)=["'](?:https?:|file:)|Quark Download|\.exe|\.dll/i.test(svg));
+});
+check('Absent or malformed tool catalogs leave the artwork book usable', () => {
+  for (const data of [null, {}, { projects: false }, { projects: [null, {}] }]) assert.equal(tools.chapter(data, 9), null);
+  const [first, second, third] = catalog.projects;
+  const chapter = tools.chapter({ projects: [null, first, first, { ...second, visible: false }, { ...third, id: 'unknown' }, { ...third, name: ' ' }] }, 9);
+  assert.deepEqual(Array.from(chapter.tools, item => item.id), [first.id]);
+});
+check('Every tool has its copy and two readouts, with no output counts, row counts or timings', () => {
+  for (const project of catalog.projects) {
+    for (const field of ['summary', 'problem', 'approach']) assert.ok(project[field]?.trim(), `${project.id} ${field}`);
+    assert.equal(project.facts.length, 2, project.id);
+    for (const fact of project.facts) assert.ok(fact.value && fact.label, project.id);
+  }
+  const shown = JSON.stringify(catalog);
+  for (const withdrawn of ['200+', '1,674', '0.8']) assert.ok(!shown.includes(withdrawn), withdrawn);
+});
+check('Debug search covers codes, names, types and places', () => {
+  const codes = (table, query) => Array.from(models.filterRecords(models.debugRecords[table], query), record => record.code);
+  assert.deepEqual(codes('levels', '雪地'), ['LV-056', 'LV-095']);
+  assert.deepEqual(codes('items', '金币'), ['IT-001', 'IT-048']);
+  assert.deepEqual(codes('levels', 'lv-056'), ['LV-056']);
+  assert.equal(codes('levels', '  ').length, models.debugRecords.levels.length);
+  assert.equal(codes('levels', '不存在').length, 0);
+});
+check('The example search finds the level it then sends', () => {
+  const { query, code } = models.debugExample;
+  assert.ok(models.filterRecords(models.debugRecords.levels, query).some(record => record.code === code), `${query} → ${code}`);
+});
+check('Recording takes each hero through every language in turn', () => {
+  assert.deepEqual({ ...models.captureOrder(0) }, { hero: 'A', tongue: 'EN' });
+  assert.deepEqual({ ...models.captureOrder(5) }, { hero: 'B', tongue: 'TH' });
+  assert.deepEqual({ ...models.captureOrder(11) }, { hero: 'C', tongue: 'VI' });
+});
+check('Stage clips are small, local and have posters', () => {
+  for (const clip of Object.values(models.media)) {
+    for (const file of [clip.src, clip.poster]) {
+      assert.ok(/^assets\/toolkit\/[a-z-]+\.(mp4|webp)$/.test(file), file);
+      assert.ok(fs.existsSync(path.join(root, file)), file);
+    }
+    assert.ok(fs.statSync(path.join(root, clip.src)).size < 1.5 * 1024 * 1024, clip.src);
   }
 });
-check('Absent or malformed optional tool catalogs leave the artwork book usable', () => {
-  for (const data of [null, {}, { projects: false }, { projects: [null, {}] }]) assert.equal(tools.chapter(data, 9), null);
-  const valid = catalog.projects[0];
-  const chapter = tools.chapter({ projects: [
-    null, valid, valid, { ...catalog.projects[1], visible: false },
-    { ...catalog.projects[2], cover: 'https://example.com/private.svg' }
-  ] }, 9);
-  assert.equal(chapter.tools.length, 1);
-  assert.equal(chapter.tools[0].id, valid.id);
-});
-check('Video names retain language, source/output format and unique sequence numbers', () => {
-  assert.equal(models.outputName('en', 'portrait'), 'DEMO_英_ob1_1_1_横竖_ZN_260930.mp4');
-  assert.equal(models.outputName('th', 'landscape', 3), 'DEMO_泰_ob1_1_3_横_ZN_260930.mp4');
-  assert.equal(models.outputName('vi', 'square', 2), 'DEMO_越_ob1_1_2_横方_ZN_260930.mp4');
-});
-check('Recording output follows the selected hero, stage and language combinations', () => {
-  assert.equal(models.planCount(['a', 'b'], ['en', 'th']), 12);
-  assert.equal(models.planCount(['a', 'b', 'c'], ['en', 'th', 'vi']), 27);
-  assert.equal(models.planCount(['a'], ['en']), 3);
-  assert.equal(models.planCount([], ['en']), 0);
-});
-check('Debug search covers names, IDs, types and scenery without leaking real tables', () => {
-  const records = models.debugRecords.levels;
-  assert.equal(models.filterRecords(records, '雪地').length, 2);
-  assert.equal(models.filterRecords(records, 'lv-056')[0].name, '雪原前哨');
-  assert.equal(models.filterRecords(records, '不存在').length, 0);
-  assert.equal(models.filterRecords(records, '  ').length, 6);
-});
-check('The hosted package ships all three covers, the catalog and the interactive reader', () => {
+check('The hosted package ships the chapter, its clips and stills', () => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'portfolio-tool-check-'));
   const temporaryRoot = path.resolve(temp);
   assert.ok(temporaryRoot.startsWith(path.resolve(os.tmpdir()) + path.sep));
@@ -70,10 +78,12 @@ check('The hosted package ships all three covers, the catalog and the interactiv
     const buildScope = { require, __dirname: path.join(root, 'scripts'), module: { exports: {} }, console, TEST_DIST: destination };
     vm.runInNewContext(buildSource.replace(marker, 'const DIST = TEST_DIST;'), buildScope);
     buildScope.module.exports.build();
-    for (const file of ['css/work-tools.css', 'js/tool-art.js', 'js/work-tools.js', 'data/work-tools.json', ...catalog.projects.map(item => item.cover)]) {
-      assert.deepEqual(fs.readFileSync(path.join(destination, file)), fs.readFileSync(path.join(root, file)));
-    }
-    assert.ok(fs.readFileSync(path.join(destination, 'index.html'), 'utf8').includes('js/work-tools.js'));
+    const shipped = ['css/work-tools.css', 'js/work-tools.js', 'data/work-tools.json', 'assets/toolkit/batch-still.webp',
+      ...Object.values(models.media).flatMap(clip => [clip.src, clip.poster])];
+    for (const file of shipped) assert.deepEqual(fs.readFileSync(path.join(destination, file)), fs.readFileSync(path.join(root, file)));
+    const page = fs.readFileSync(path.join(destination, 'index.html'), 'utf8');
+    assert.ok(page.includes('js/work-tools.js'));
+    assert.ok(!page.includes('tool-art'));
   } finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }
