@@ -15,7 +15,9 @@ const STATIC_FILES = [
   'assets/favicon.svg', 'assets/fonts/manrope-latin.woff2', 'assets/fonts/manrope-variable.ttf',
   'assets/fonts/OFL-Manrope.txt', 'data/portfolio-data.json', 'data/work-tools.json',
   'assets/toolkit/batch-source.mp4', 'assets/toolkit/batch-source.webp', 'assets/toolkit/batch-still.webp',
-  'assets/toolkit/capture-play.mp4', 'assets/toolkit/capture-play.webp'
+  'assets/toolkit/capture-play.mp4', 'assets/toolkit/capture-play.webp',
+  'css/showcase.css', 'js/showcase.js', 'data/showcase.json',
+  'assets/showcase/zhaoyun.webp', 'assets/showcase/tangping.webp'
 ];
 
 const readJSON = relative => JSON.parse(fs.readFileSync(path.join(ROOT, relative), 'utf8'));

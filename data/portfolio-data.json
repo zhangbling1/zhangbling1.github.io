@@ -2597,7 +2597,7 @@
       "ext": ".webp",
       "fileIndex": 6,
       "sortOrder": 5,
-      "visible": true,
+      "visible": false,
       "featured": false,
       "dateAdded": "2026-09-24"
     },
@@ -2712,7 +2712,7 @@
       "ext": ".webp",
       "fileIndex": 12,
       "sortOrder": 10,
-      "visible": true,
+      "visible": false,
       "featured": false,
       "dateAdded": "2026-09-24"
     },

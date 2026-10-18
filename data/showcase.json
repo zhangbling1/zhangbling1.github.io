@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "name": "小游戏demo",
+  "en": "Mini-game Demo",
+  "url": "https://zhangbling1.github.io/test-demo/",
+  "statement": "两个竖屏小游戏，两种画风。",
+  "description": "改编《赵云与阿斗》和《躺平发育》：一个西游画风，一个动物题材，各有主页、匹配、战斗、结算和商店。下面是完整的网页，可以直接浏览和试玩。",
+  "works": [
+    "赵云与阿斗",
+    "躺平过冬"
+  ],
+  "stills": [
+    "assets/showcase/zhaoyun.webp",
+    "assets/showcase/tangping.webp"
+  ]
+}

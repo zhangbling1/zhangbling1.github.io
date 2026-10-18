@@ -131,15 +131,19 @@
   async function loadData() {
     chaptersRoot.setAttribute('aria-busy', 'true');
     try {
-      const [data, previews, tools] = await Promise.all([
+      const [data, previews, tools, site] = await Promise.all([
         readJSON('data/portfolio-data.json'),
         readJSON('data/media-previews.json').catch(() => ({})),
-        readJSON('data/work-tools.json').catch(() => null)
+        readJSON('data/work-tools.json').catch(() => null),
+        readJSON('data/showcase.json').catch(() => null)
       ]);
       if (!Array.isArray(data.items)) throw new Error('Invalid portfolio data');
       state.data = data;
       state.previews = previews;
       buildBook(data.items.filter(item => item.visible !== false && mediaURL(item.src)), data);
+      // A whole website follows the works as its own chapter.
+      const siteChapter = window.PortfolioShowcase?.chapter(site, state.chapters.length + 1);
+      if (siteChapter) state.chapters.push(siteChapter);
       // Tool case studies have their own catalog so rescanning artwork never removes them.
       const toolChapter = window.PortfolioTools?.chapter(tools, state.chapters.length + 1);
       if (toolChapter) state.chapters.push(toolChapter);
@@ -468,6 +472,7 @@
   function renderContents() {
     $('toc').replaceChildren(...state.chapters.map(chapter => {
       if (chapter.tools) return window.PortfolioTools.contents(chapter);
+      if (chapter.showcase) return window.PortfolioShowcase.contents(chapter);
       const [lead, second, third] = chapter.plates;
       const link = element('a', 'toc-card');
       link.href = `#${chapter.id}`;
@@ -501,8 +506,8 @@
 
   function renderChapters() {
     chaptersRoot.replaceChildren(...state.chapters.map((chapter, index) => {
-      if (chapter.tools) {
-        chapter.section = window.PortfolioTools.render(chapter);
+      if (chapter.tools || chapter.showcase) {
+        chapter.section = (chapter.tools ? window.PortfolioTools : window.PortfolioShowcase).render(chapter);
         revealObserver.observe(chapter.section);
         return chapter.section;
       }
