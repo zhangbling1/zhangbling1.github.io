@@ -82,9 +82,17 @@ git push
 
 ## 目录结构说明
 
-### 小游戏demo 章节
+### 分类与项目章节
 
-作品之后、AI 工作工具之前的「小游戏demo」是一整个网页：章节里用一个窗口嵌入 https://zhangbling1.github.io/test-demo/（源文件在 `D:\Anything\测试demo`，另一个仓库），访客可以直接在里面看页面、试玩，也可以点「新窗口打开」。目录里它和 AI 工具一样单独占一行，用两张主页小图。地址、标题和文案在 `data/showcase.json`，逻辑与样式在 `js/showcase.js`、`css/showcase.css`，小图在 `assets/showcase/`。更新那个网站只需推送它自己的仓库，这里不用改。运行 `node scripts/check-showcase.cjs` 检查配置容错与托管包。
+作品分 8 类：CG风格、角色原画、平面设计、宣发海报、欧美卡通、Icon设计、表情贴纸，最后单独一类「视频」。名称和顺序在 `data/portfolio-data.json` 的 `categories`（后台「章节」页也能改），`scripts/scan-assets.js` 里的分类表与之保持一致。
+
+作品之后是「项目」，目录里在一个小标题下各占一行：
+
+- **小游戏demo**：章节里用一个窗口嵌入完整网页 https://zhangbling1.github.io/test-demo/（源文件在 `D:\Anything\测试demo`，另一个仓库），可以直接看页面、试玩，也可以「新窗口打开」。更新那个网站只需推送它自己的仓库。
+- **小帐**：鸿蒙原生记账应用。上面是内测版 0.3.2 的账本、对账、统计、我的四屏（取自宣传片里按真实样式画的界面，数据是演示用的，由 `.local-design/v11/beta-screens.cjs` 从 `tapledger/tools/promo-video` 渲染），下面是产品宣传片和品牌片两支竖屏短片（540×960，有声音，各约 1.3 MB）。片子大半进入屏幕时静音播放，离开就停，访客自己暂停的不会再被自动播放；系统开启「减少动态效果」时只显示封面。原片在 `D:\Anything\tapledger\deliverables\promo`。
+- **AI 工作工具**：见下一节。
+
+前两个项目的标题、文案、小图和片子在 `data/showcase.json`（`kind` 为 `site` 放网页，为 `films` 放短片），逻辑与样式在 `js/showcase.js`、`css/showcase.css`，素材在 `assets/showcase/`，托管包会一并打包。运行 `node scripts/check-showcase.cjs` 检查配置容错、分类名称与托管包。
 
 ### AI 工作工具章节
 

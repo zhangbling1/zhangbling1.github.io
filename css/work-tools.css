@@ -14,7 +14,7 @@
 .tool-toc-ledger i { height: 1px; background: rgba(23, 23, 22, .18); }
 .tool-toc-ledger i:nth-child(2) { width: 64%; height: 2px; background: var(--seal); }
 .tool-toc-copy { display: grid; grid-template-columns: auto 1fr; column-gap: 12px; row-gap: 4px; align-items: baseline; }
-.tool-toc-name { font-size: 21px; font-weight: 500; letter-spacing: .04em; }
+.tool-toc-name { font-size: 21px; font-weight: 500; letter-spacing: .04em; white-space: nowrap; }
 .tool-toc-en { grid-column: 2; font-size: 10.5px; color: var(--ink-3); letter-spacing: .14em; text-transform: uppercase; }
 .tool-toc-names { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px 16px; margin-left: auto; color: var(--ink-3); font-size: 12.5px; }
 .tool-toc-names span + span::before { content: '/'; margin-right: 16px; color: rgba(23, 23, 22, .25); }
@@ -353,7 +353,7 @@
 }
 @media (max-width: 760px) {
   .main-nav .nav-link { padding: 0 10px; font-size: 13px; letter-spacing: .02em; white-space: nowrap; }
-  .tool-toc { gap: 18px; margin-top: 8px; padding: 16px; }
+  .tool-toc { gap: 18px; margin: 8px 0 0; padding: 16px; }
   .tool-toc-art { flex-basis: 104px; height: 60px; }
   .tool-toc-art > * { width: 76px; height: 43px; }
   .tool-toc-art > :nth-child(2) { left: 15px; }

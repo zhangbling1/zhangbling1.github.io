@@ -141,9 +141,8 @@
       state.data = data;
       state.previews = previews;
       buildBook(data.items.filter(item => item.visible !== false && mediaURL(item.src)), data);
-      // A whole website follows the works as its own chapter.
-      const siteChapter = window.PortfolioShowcase?.chapter(site, state.chapters.length + 1);
-      if (siteChapter) state.chapters.push(siteChapter);
+      // Projects follow the works, each as a chapter of its own.
+      state.chapters.push(...(window.PortfolioShowcase?.chapters(site, state.chapters.length + 1) || []));
       // Tool case studies have their own catalog so rescanning artwork never removes them.
       const toolChapter = window.PortfolioTools?.chapter(tools, state.chapters.length + 1);
       if (toolChapter) state.chapters.push(toolChapter);
@@ -470,9 +469,19 @@
   // Each chapter is a card: its opening plate in front, the colours of the next
   // two peeking out behind like a stack of prints.
   function renderContents() {
-    $('toc').replaceChildren(...state.chapters.map(chapter => {
-      if (chapter.tools) return window.PortfolioTools.contents(chapter);
-      if (chapter.showcase) return window.PortfolioShowcase.contents(chapter);
+    $('toc').replaceChildren(...state.chapters.flatMap((chapter, index) => {
+      // The projects after the works sit under a label of their own.
+      const project = chapter.tools || chapter.showcase;
+      const label = [];
+      if (project && !state.chapters[index - 1]?.tools && !state.chapters[index - 1]?.showcase) {
+        const group = element('li', 'toc-group label', '项目');
+        const english = element('span', '', 'Projects');
+        english.lang = 'en';
+        group.append(english);
+        label.push(group);
+      }
+      if (chapter.tools) return [...label, window.PortfolioTools.contents(chapter)];
+      if (chapter.showcase) return [...label, window.PortfolioShowcase.contents(chapter)];
       const [lead, second, third] = chapter.plates;
       const link = element('a', 'toc-card');
       link.href = `#${chapter.id}`;

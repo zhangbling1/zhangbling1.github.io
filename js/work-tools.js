@@ -506,7 +506,7 @@
 
     const scene = {
       node,
-      caption: '演示 · 画面取自本书「动态视觉」里的一条投放视频',
+      caption: '演示 · 画面取自本书「视频」里的一条投放视频',
       prepare: () => video.prepare(),
       resume() { video.prepare(); if (video.paused) video.play().catch(() => {}); },
       suspend: () => video.pause(),
@@ -663,7 +663,7 @@
 
     const scene = {
       node,
-      caption: '演示 · 游戏画面取自本书「动态视觉」，识别框与计划为示意',
+      caption: '演示 · 游戏画面取自本书「视频」，识别框与计划为示意',
       prepare: () => video.prepare(),
       resume() { video.prepare(); if (video.paused) video.play().catch(() => {}); },
       suspend: () => video.pause(),

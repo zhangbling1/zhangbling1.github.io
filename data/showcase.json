@@ -1,16 +1,74 @@
 {
-  "version": 1,
-  "name": "小游戏demo",
-  "en": "Mini-game Demo",
-  "url": "https://zhangbling1.github.io/test-demo/",
-  "statement": "两个竖屏小游戏，两种画风。",
-  "description": "改编《赵云与阿斗》和《躺平发育》：一个西游画风，一个动物题材，各有主页、匹配、战斗、结算和商店。下面是完整的网页，可以直接浏览和试玩。",
-  "works": [
-    "赵云与阿斗",
-    "躺平过冬"
-  ],
-  "stills": [
-    "assets/showcase/zhaoyun.webp",
-    "assets/showcase/tangping.webp"
+  "version": 2,
+  "projects": [
+    {
+      "id": "mini-games",
+      "kind": "site",
+      "name": "小游戏demo",
+      "en": "Mini-game Demo",
+      "count": "2 个方向",
+      "url": "https://zhangbling1.github.io/test-demo/",
+      "statement": "两个竖屏小游戏，两种画风。",
+      "description": "改编《赵云与阿斗》和《躺平发育》：一个西游画风，一个动物题材，各有主页、匹配、战斗、结算和商店。下面是完整的网页，可以直接浏览和试玩。",
+      "note": "网页里的页面和试玩都可以直接操作",
+      "works": [
+        "赵云与阿斗",
+        "躺平过冬"
+      ],
+      "stills": [
+        "assets/showcase/zhaoyun.webp",
+        "assets/showcase/tangping.webp"
+      ]
+    },
+    {
+      "id": "xiaozhang",
+      "kind": "films",
+      "name": "小帐",
+      "en": "HarmonyOS App",
+      "count": "鸿蒙原生应用",
+      "statement": "日常有数，心里有底。",
+      "description": "一款本机记账应用。付完款在付款页点一下闪控球，金额、商户、时间就认出来了；拿不准的先放进对账，等你看一眼。也能手动记、说一句、导入账单，账本只存在这台手机里。",
+      "note": "界面为内测版 0.3.2，数据是演示用的；视频右下角可以打开声音",
+      "works": [
+        "账本 · 对账 · 统计",
+        "两支宣传片"
+      ],
+      "stills": [
+        "assets/showcase/xiaozhang-icon.webp",
+        "assets/showcase/xiaozhang.webp"
+      ],
+      "films": [
+        {
+          "src": "assets/showcase/xiaozhang-promo.mp4",
+          "poster": "assets/showcase/xiaozhang-promo.webp",
+          "label": "产品宣传片 · 30 秒"
+        },
+        {
+          "src": "assets/showcase/xiaozhang-brand.mp4",
+          "poster": "assets/showcase/xiaozhang-brand.webp",
+          "label": "品牌片 · 23 秒"
+        }
+      ],
+      "screensLabel": "界面 · 内测版 0.3.2",
+      "screens": [
+        {
+          "src": "assets/showcase/xiaozhang-ledger.webp",
+          "label": "账本"
+        },
+        {
+          "src": "assets/showcase/xiaozhang-review.webp",
+          "label": "对账"
+        },
+        {
+          "src": "assets/showcase/xiaozhang-stats.webp",
+          "label": "统计"
+        },
+        {
+          "src": "assets/showcase/xiaozhang-me.webp",
+          "label": "我的"
+        }
+      ],
+      "filmsLabel": "宣传片"
+    }
   ]
 }

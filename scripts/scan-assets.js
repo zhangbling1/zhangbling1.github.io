@@ -7,14 +7,15 @@ const DATA_DIR = path.join(ROOT_DIR, 'data');
 
 // 分类元数据映射
 const CATEGORY_MAP = {
-  'CG Style':    { id: 'CG Style',    name: 'CG风格',    en: 'CG Style',        order: 1, defaultVisibleCount: 30, featuredIndices: [1, 2, 3, 5, 8] },
-  'Character':   { id: 'Character',   name: '角色原画',  en: 'Character',       order: 2, defaultVisibleCount: 30, featuredIndices: [1, 2, 7] },
-  'Video':       { id: 'Video',       name: '动态视觉',  en: 'Motion & Video',  order: 3, defaultVisibleCount: 29, featuredIndices: [1, 2, 3] },
-  '平面设计':    { id: '平面设计',    name: '平面设计',  en: 'Graphic Design',  order: 4, defaultVisibleCount: 30, featuredIndices: [1, 2, 3] },
-  'Cartoon':     { id: 'Cartoon',     name: '欧美卡通',  en: 'Cartoon',         order: 5, defaultVisibleCount: 30, featuredIndices: [1, 5] },
-  'Icon Design': { id: 'Icon Design', name: 'Icon设计',  en: 'Icon Design',     order: 6, defaultVisibleCount: 30, featuredIndices: [1, 3] },
-  'Other':       { id: 'Other',       name: '其他类型',  en: 'Other',           order: 7, defaultVisibleCount: 30, featuredIndices: [] },
-  'webp':        { id: 'webp',        name: '插画图层',  en: 'Layers & Art',    order: 8, defaultVisibleCount: 20, featuredIndices: [1] }
+  'CG Style':    { id: 'CG Style',    name: 'CG风格',    en: 'CG Style',          order: 1, defaultVisibleCount: 30, featuredIndices: [1, 2, 3, 5, 8] },
+  'Character':   { id: 'Character',   name: '角色原画',  en: 'Character',         order: 2, defaultVisibleCount: 30, featuredIndices: [1, 2, 7] },
+  '平面设计':    { id: '平面设计',    name: '平面设计',  en: 'Graphic Design',    order: 3, defaultVisibleCount: 30, featuredIndices: [1, 2, 3] },
+  'webp':        { id: 'webp',        name: '宣发海报',  en: 'Key Art & Posters', order: 4, defaultVisibleCount: 20, featuredIndices: [1] },
+  'Cartoon':     { id: 'Cartoon',     name: '欧美卡通',  en: 'Cartoon',           order: 5, defaultVisibleCount: 30, featuredIndices: [1, 5] },
+  'Icon Design': { id: 'Icon Design', name: 'Icon设计',  en: 'Icon Design',       order: 6, defaultVisibleCount: 30, featuredIndices: [1, 3] },
+  'Other':       { id: 'Other',       name: '表情贴纸',  en: 'Stickers',          order: 7, defaultVisibleCount: 30, featuredIndices: [] },
+  // Videos are works too, but they close the book as a category of their own.
+  'Video':       { id: 'Video',       name: '视频',      en: 'Video',             order: 8, defaultVisibleCount: 29, featuredIndices: [1, 2, 3] }
 };
 
 // 预设自定义标题
@@ -22,11 +23,11 @@ const CUSTOM_TITLES = {
   'CG Style/1.jpg': '黑暗之魂同人',
   'CG Style/1.webp': '黑暗之魂同人',
   'Cartoon/5.webp': '快乐小镇',
-  'Other/26.mp4': '动态视觉展示 01',
-  'Other/27.mp4': '动态视觉展示 02',
-  'Other/28.mp4': '动态视觉展示 03',
-  'Other/29.mp4': '动态视觉展示 04',
-  'Other/30.mp4': '动态视觉展示 05',
+  'Other/26.mp4': '动态表情 01',
+  'Other/27.mp4': '动态表情 02',
+  'Other/28.mp4': '动态表情 03',
+  'Other/29.mp4': '动态表情 04',
+  'Other/30.mp4': '动态表情 05',
 };
 
 // 扫描所有素材

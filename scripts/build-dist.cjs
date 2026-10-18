@@ -17,7 +17,12 @@ const STATIC_FILES = [
   'assets/toolkit/batch-source.mp4', 'assets/toolkit/batch-source.webp', 'assets/toolkit/batch-still.webp',
   'assets/toolkit/capture-play.mp4', 'assets/toolkit/capture-play.webp',
   'css/showcase.css', 'js/showcase.js', 'data/showcase.json',
-  'assets/showcase/zhaoyun.webp', 'assets/showcase/tangping.webp'
+  'assets/showcase/zhaoyun.webp', 'assets/showcase/tangping.webp',
+  'assets/showcase/xiaozhang-icon.webp', 'assets/showcase/xiaozhang.webp',
+  'assets/showcase/xiaozhang-promo.mp4', 'assets/showcase/xiaozhang-promo.webp',
+  'assets/showcase/xiaozhang-brand.mp4', 'assets/showcase/xiaozhang-brand.webp',
+  'assets/showcase/xiaozhang-ledger.webp', 'assets/showcase/xiaozhang-review.webp',
+  'assets/showcase/xiaozhang-stats.webp', 'assets/showcase/xiaozhang-me.webp'
 ];
 
 const readJSON = relative => JSON.parse(fs.readFileSync(path.join(ROOT, relative), 'utf8'));

@@ -3,6 +3,7 @@
 .site-toc-art > img { width: 50px; height: 89px; border-radius: 7px; }
 .site-toc-art > img:nth-child(1) { left: 34px; top: -3px; transform: rotate(-7deg); }
 .site-toc-art > img:nth-child(2) { left: 86px; top: -1px; transform: rotate(6deg); }
+.site-toc-art > img.is-icon { top: 14px; width: 62px; height: 62px; border-radius: 15px; }
 @media (hover: hover) {
   .site-toc:hover .site-toc-art > img:nth-child(1) { transform: translate(-6px, 1px) rotate(-12deg); }
   .site-toc:hover .site-toc-art > img:nth-child(2) { transform: translate(6px, 1px) rotate(11deg); }
@@ -24,6 +25,7 @@
   .site-toc-art > img { width: 34px; height: 60px; border-radius: 5px; }
   .site-toc-art > img:nth-child(1) { left: 22px; top: 0; }
   .site-toc-art > img:nth-child(2) { left: 56px; top: 0; }
+  .site-toc-art > img.is-icon { top: 9px; width: 42px; height: 42px; border-radius: 10px; }
   .site-intro { grid-template-columns: minmax(0, 1fr); }
   .site-statement, .site-description { grid-column: 1; justify-self: start; }
   .site-page { height: 76svh; }
@@ -34,3 +36,28 @@
   .site-toc-art > img:nth-child(2) { left: 40px; }
 }
 @media print { .site-frame { display: none; } }
+
+/* The projects after the works carry a label of their own in the contents. */
+.toc .toc-group { grid-column: 1 / -1; margin: clamp(28px, 3vw, 44px) 12px 4px; padding: 0 0 12px; border-bottom: 1px solid var(--rule); }
+
+/* An app shown through its films: vertical, side by side on a sheet of paper. */
+.film-stage { display: flex; justify-content: center; gap: clamp(16px, 4vw, 64px); padding: clamp(24px, 4vw, 56px) clamp(16px, 3vw, 40px); border-radius: var(--plate-radius); background: linear-gradient(180deg, #edeae3, #e8e5de); box-shadow: inset 0 0 0 1px rgba(23, 23, 22, .07); }
+.film { flex: 0 1 auto; width: min(340px, calc((100% - clamp(16px, 4vw, 64px)) / 2)); margin: 0; }
+.film video { display: block; width: 100%; aspect-ratio: 9 / 16; border-radius: 14px; background: #1b1a18; object-fit: cover; box-shadow: 0 22px 40px -26px rgba(20, 16, 12, .8); }
+.film figcaption { margin-top: 12px; font-size: 12.5px; letter-spacing: .04em; text-align: center; color: var(--ink-3); }
+@media (max-width: 760px) {
+  .toc .toc-group { margin: 24px 0 4px; }
+  .film video { border-radius: 10px; }
+}
+@media print { .film-stage { display: none; } }
+
+/* An app's screens: four in a row on wide pages, two on phones. */
+.project-part + .project-part { margin-top: clamp(40px, 5vw, 72px); }
+.project-part-label { margin: 0 0 16px; font-size: 12px; letter-spacing: .1em; color: var(--ink-3); }
+.app-screens { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 2vw, 28px); }
+.app-screen { margin: 0; min-width: 0; }
+.app-screen img { display: block; width: 100%; height: auto; aspect-ratio: 640 / 1414; border-radius: clamp(12px, 1.6vw, 22px); background: #f2f3f5; box-shadow: inset 0 0 0 1px rgba(23, 23, 22, .06), 0 22px 40px -28px rgba(20, 16, 12, .6); }
+.app-screen figcaption { margin-top: 12px; font-size: 12.5px; letter-spacing: .06em; text-align: center; color: var(--ink-3); }
+@media (max-width: 760px) {
+  .app-screens { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 24px; }
+}
