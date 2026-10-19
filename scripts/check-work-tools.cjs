@@ -30,9 +30,10 @@ check('Absent or malformed tool catalogs leave the artwork book usable', () => {
   const chapter = tools.chapter({ projects: [null, first, first, { ...second, visible: false }, { ...third, id: 'unknown' }, { ...third, name: ' ' }] }, 9);
   assert.deepEqual(Array.from(chapter.tools, item => item.id), [first.id]);
 });
-check('Every tool has its copy and two readouts, with no output counts, row counts or timings', () => {
+check('Every tool keeps to a name, one line and two readouts, with no output counts, row counts or timings', () => {
   for (const project of catalog.projects) {
-    for (const field of ['summary', 'problem', 'approach']) assert.ok(project[field]?.trim(), `${project.id} ${field}`);
+    assert.ok(project.summary?.trim() && project.summary.length <= 20, project.id);
+    for (const field of ['problem', 'approach', 'stack']) assert.equal(project[field], undefined, `${project.id} ${field}`);
     assert.equal(project.facts.length, 2, project.id);
     for (const fact of project.facts) assert.ok(fact.value && fact.label, project.id);
   }

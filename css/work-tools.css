@@ -55,12 +55,11 @@
 
 /* ---------- Chapter and spreads ---------- */
 .tool-chapter p, .tool-chapter dd { text-wrap: pretty; }
-.tool-chapter .tool-lead, .tool-chapter .tool-statement, .tool-chapter .tool-description { text-wrap: balance; }
-.tool-intro { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); row-gap: 12px; margin: calc(clamp(32px, 4vw, 56px) * -.45) 0 clamp(40px, 4.5vw, 64px); }
-.tool-statement { grid-column: 3 / 11; font-size: clamp(20px, 1.9vw, 26px); font-weight: 400; line-height: 1.55; letter-spacing: .04em; text-wrap: balance; }
-.tool-description { grid-column: 3 / 10; max-width: 38em; font-size: 14px; line-height: 1.9; color: var(--ink-3); text-wrap: pretty; }
+.tool-chapter .tool-lead { text-wrap: balance; }
 .tool-spread { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); align-items: start; padding: clamp(56px, 6vw, 96px) 0; scroll-margin-top: calc(var(--masthead) + 8px); }
 .tool-spread + .tool-spread { border-top: 1px solid var(--rule); }
+/* The first tool starts right under the chapter head, as the other projects do. */
+.chapter-head + .tool-spread { padding-top: 0; }
 .tool-copy { grid-column: 1 / 5; min-width: 0; padding-right: clamp(0px, 2vw, 32px); }
 .tool-stage { container: stage / inline-size; grid-column: 5 / 13; min-width: 0; margin: 0; }
 .tool-stage-caption { margin-top: 26px; font-size: 12px; letter-spacing: .04em; color: var(--ink-3); }
@@ -69,16 +68,11 @@
 .tool-name { margin-top: 10px; font-size: clamp(24px, 2.2vw, 30px); font-weight: 500; line-height: 1.35; letter-spacing: .05em; }
 .tool-lead { margin-top: 14px; font-size: 15.5px; line-height: 1.8; color: var(--ink-2); text-wrap: balance; }
 .tool-body { margin-top: 28px; }
-.tool-case { display: grid; gap: 14px; padding-top: 24px; border-top: 1px solid var(--rule); }
-.tool-case > div { display: grid; grid-template-columns: 40px minmax(0, 1fr); gap: 8px; }
-.tool-case dt { font-size: 12px; line-height: 1.9; letter-spacing: .08em; color: var(--seal); }
-.tool-case dd { margin: 0; font-size: 13.5px; line-height: 1.9; color: var(--ink-2); }
-.tool-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; margin-top: 24px; padding-top: 22px; border-top: 1px solid var(--rule); }
+.tool-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; padding-top: 22px; border-top: 1px solid var(--rule); }
 .tool-facts > div { display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 8px; min-width: 0; }
 .tool-facts dt { font-size: 12px; line-height: 1.6; color: var(--ink-3); }
 .tool-fact-value { margin: 0; font-size: clamp(28px, 2.4vw, 34px); font-weight: 300; line-height: 1; letter-spacing: -.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .tool-fact-value small { margin-left: 4px; font-size: 13px; font-weight: 400; letter-spacing: .04em; color: var(--ink-2); }
-.tool-stack { margin-top: 24px; font-size: 12px; letter-spacing: .06em; color: var(--ink-3); }
 @media (prefers-reduced-motion: no-preference) {
   .tool-spread:not(.is-in) .tool-stage, .tool-spread:not(.is-in) .tool-head > *, .tool-spread:not(.is-in) .tool-body > * { opacity: 0; }
   .tool-spread.is-in .tool-stage { animation: plate-in 1s var(--liquid) .1s backwards; }
@@ -348,7 +342,6 @@
   .tool-toc .toc-count { margin-left: auto; }
   .tool-copy { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); column-gap: clamp(28px, 5vw, 64px); padding: 0; }
   .tool-body { margin-top: 0; }
-  .tool-body .tool-case { padding-top: 4px; border-top: 0; }
   .tool-stage { grid-column: 1 / -1; margin-top: 40px; }
 }
 @media (max-width: 760px) {
@@ -361,13 +354,9 @@
   .tool-toc-ledger { gap: 5px; padding: 0 9px; }
   .tool-toc-name { font-size: 17px; }
   .tool-toc-en { font-size: 8.5px; letter-spacing: .08em; }
-  .tool-intro { grid-template-columns: minmax(0, 1fr); }
-  .tool-statement, .tool-description { grid-column: 1; }
-  .tool-intro { margin-top: 0; }
   .tool-spread { padding: 44px 0 52px; }
   .tool-copy { display: block; }
   .tool-body { margin-top: 26px; }
-  .tool-body .tool-case { padding-top: 22px; border-top: 1px solid var(--rule); }
   .tool-stage { margin-top: 36px; }
   .reel-tile.is-tool .badge { font-size: 10px; }
 }

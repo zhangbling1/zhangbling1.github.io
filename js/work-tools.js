@@ -1148,16 +1148,6 @@
     head.append(eyebrow, title);
     if (tool.summary) head.append(el('p', 'tool-lead', tool.summary));
     const body = el('div', 'tool-body');
-    const cases = [['问题', tool.problem], ['做法', tool.approach]].filter(([, text]) => text);
-    if (cases.length) {
-      const list = el('dl', 'tool-case');
-      for (const [term, text] of cases) {
-        const row = el('div');
-        row.append(el('dt', '', term), el('dd', '', text));
-        list.append(row);
-      }
-      body.append(list);
-    }
     const facts = (tool.facts || []).filter(fact => fact?.value && fact?.label);
     if (facts.length) {
       const list = el('dl', 'tool-facts');
@@ -1170,7 +1160,6 @@
       }
       body.append(list);
     }
-    if (tool.stack?.length) body.append(el('p', 'tool-stack', tool.stack.join(' · ')));
     copy.append(head, body);
     article.append(copy, stage);
     scene.director = direct(stage, scene);
@@ -1195,9 +1184,6 @@
     title.append(english);
     titles.append(title);
     head.append(num, titles, el('p', 'chapter-count', `${chapter.tools.length} 款`));
-    const intro = el('div', 'tool-intro');
-    intro.append(el('p', 'tool-statement', '把重复劳动，写成自己的工具。'),
-      el('p', 'tool-description', '从游戏调试、自动录屏到视频交付，用 AI 辅助开发，把工作中的具体问题变成可复用的流程。'));
     const spreads = chapter.tools.map(spread);
     // Spreads rise into place the first time they are reached, like the plates.
     const reveal = new IntersectionObserver(entries => entries.forEach(entry => {
@@ -1212,7 +1198,7 @@
     back.href = '#contents';
     back.insertAdjacentHTML('beforeend', icons.down);
     foot.append(el('p', 'chapter-progress', 'AI 辅助开发 · 工作中使用的桌面工具'), back);
-    section.append(head, intro, ...spreads, foot);
+    section.append(head, ...spreads, foot);
     return section;
   }
 

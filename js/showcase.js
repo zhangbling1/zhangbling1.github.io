@@ -156,9 +156,6 @@
     }
     titles.append(title);
     head.append(num, titles, el('p', 'chapter-count', showcase.count || ''));
-    const intro = el('div', 'site-intro');
-    if (showcase.statement) intro.append(el('p', 'site-statement', showcase.statement));
-    if (showcase.description) intro.append(el('p', 'site-description', showcase.description));
     const parts = showcase.kind === 'site' ? [siteStage(showcase)] : [
       showcase.screens.length && block(showcase.screensLabel, screenRow(showcase)),
       showcase.films.length && block(showcase.filmsLabel, filmStage(showcase))
@@ -168,7 +165,7 @@
     back.href = '#contents';
     back.insertAdjacentHTML('beforeend', down);
     foot.append(el('p', 'chapter-progress', showcase.note || ''), back);
-    section.append(head, intro, ...parts, foot);
+    section.append(head, ...parts, foot);
     return section;
   }
 
