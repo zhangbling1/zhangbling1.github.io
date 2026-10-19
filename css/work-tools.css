@@ -56,19 +56,19 @@
 /* ---------- Chapter and spreads ---------- */
 .tool-chapter p, .tool-chapter dd { text-wrap: pretty; }
 .tool-chapter .tool-lead { text-wrap: balance; }
-.tool-spread { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); align-items: start; padding: clamp(56px, 6vw, 96px) 0; scroll-margin-top: calc(var(--masthead) + 8px); }
+.tool-spread { padding: clamp(56px, 6vw, 96px) 0; scroll-margin-top: calc(var(--masthead) + 8px); }
 .tool-spread + .tool-spread { border-top: 1px solid var(--rule); }
 /* The first tool starts right under the chapter head, as the other projects do. */
 .chapter-head + .tool-spread { padding-top: 0; }
-.tool-copy { grid-column: 1 / 5; min-width: 0; padding-right: clamp(0px, 2vw, 32px); }
-.tool-stage { container: stage / inline-size; grid-column: 5 / 13; min-width: 0; margin: 0; }
+.tool-copy { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px 48px; min-width: 0; }
+.tool-stage { container: stage / inline-size; min-width: 0; margin: clamp(28px, 3vw, 40px) 0 0; }
 .tool-stage-caption { margin-top: 26px; font-size: 12px; letter-spacing: .04em; color: var(--ink-3); }
 .tool-eyebrow { display: flex; align-items: baseline; gap: 12px; font-size: 12.5px; letter-spacing: .08em; color: var(--ink-3); }
 .tool-eyebrow b { font-weight: 500; letter-spacing: .04em; color: var(--seal); font-variant-numeric: tabular-nums; }
 .tool-name { margin-top: 10px; font-size: clamp(24px, 2.2vw, 30px); font-weight: 500; line-height: 1.35; letter-spacing: .05em; }
 .tool-lead { margin-top: 14px; font-size: 15.5px; line-height: 1.8; color: var(--ink-2); text-wrap: balance; }
-.tool-body { margin-top: 28px; }
-.tool-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 24px; padding-top: 22px; border-top: 1px solid var(--rule); }
+.tool-body { flex-shrink: 0; padding-bottom: 6px; }
+.tool-facts { display: flex; gap: clamp(32px, 4vw, 64px); }
 .tool-facts > div { display: flex; flex-direction: column-reverse; justify-content: flex-end; gap: 8px; min-width: 0; }
 .tool-facts dt { font-size: 12px; line-height: 1.6; color: var(--ink-3); }
 .tool-fact-value { margin: 0; font-size: clamp(28px, 2.4vw, 34px); font-weight: 300; line-height: 1; letter-spacing: -.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -135,7 +135,7 @@
 .batch-flow::after { content: ''; position: absolute; left: -3px; bottom: 0; width: 7px; height: 7px; border-right: 1px solid rgba(23, 23, 22, .5); border-bottom: 1px solid rgba(23, 23, 22, .5); transform: rotate(45deg); }
 .batch-pulse { position: absolute; left: -4px; top: -4px; width: 9px; height: 9px; border-radius: 50%; background: var(--seal); box-shadow: 0 0 0 4px rgba(184, 50, 31, .14); opacity: 0; }
 .batch-outputs { container-type: inline-size; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; margin-top: auto; min-width: 0; }
-.batch-out { --h: min(236px, calc((100cqw - 24px) / 2.125)); flex: none; margin: 0; }
+.batch-out { --h: min(330px, calc((100cqw - 24px) / 2.125)); flex: none; margin: 0; }
 .batch-out figcaption b { font-weight: 500; color: var(--ink); }
 .out-frame { position: relative; overflow: hidden; height: calc(var(--h) * .5625); border-radius: 6px; background: #121525; }
 .batch-out[data-kind='portrait'] .out-frame { height: var(--h); aspect-ratio: 9 / 16; }
@@ -234,7 +234,12 @@
 @container stage (min-width: 600px) {
   .capture { grid-template-columns: minmax(0, 1fr) 184px; column-gap: 28px; }
   .capture-keys { margin-top: auto; }
+}/* On a full-width stage the plan takes a real share, so the game window stays within a screen. */
+@container stage (min-width: 960px) {
+  .capture { grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr); column-gap: 44px; }
+  .capture-grid { grid-template-columns: 18px repeat(4, minmax(0, 46px)); gap: 8px; }
 }
+
 /* Nine steps need about 60px each; a narrower window takes them in two rows. */
 @container capture-main (max-width: 540px) {
   .capture-steps { grid-template-columns: repeat(5, minmax(0, 1fr)); row-gap: 10px; }
@@ -340,9 +345,6 @@
 @media (max-width: 1100px) {
   .tool-toc-names { display: none; }
   .tool-toc .toc-count { margin-left: auto; }
-  .tool-copy { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); column-gap: clamp(28px, 5vw, 64px); padding: 0; }
-  .tool-body { margin-top: 0; }
-  .tool-stage { grid-column: 1 / -1; margin-top: 40px; }
 }
 @media (max-width: 760px) {
   .main-nav .nav-link { padding: 0 10px; font-size: 13px; letter-spacing: .02em; white-space: nowrap; }
@@ -356,8 +358,8 @@
   .tool-toc-en { font-size: 8.5px; letter-spacing: .08em; }
   .tool-spread { padding: 44px 0 52px; }
   .tool-copy { display: block; }
-  .tool-body { margin-top: 26px; }
-  .tool-stage { margin-top: 36px; }
+  .tool-facts { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--rule); }
+  .tool-stage { margin-top: 32px; }
   .reel-tile.is-tool .badge { font-size: 10px; }
 }
 @media (max-width: 390px) {
