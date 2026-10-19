@@ -9,9 +9,9 @@
   .site-toc:hover .site-toc-art > img:nth-child(2) { transform: translate(6px, 1px) rotate(11deg); }
 }
 
-.site-intro { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); row-gap: 12px; align-items: baseline; margin-bottom: clamp(28px, 3vw, 44px); }
-.site-statement { grid-column: 1 / 7; font-size: clamp(22px, 2.2vw, 30px); font-weight: 400; line-height: 1.5; letter-spacing: .04em; }
-.site-description { grid-column: 7 / 13; justify-self: end; max-width: 34em; font-size: 13.5px; line-height: 1.9; color: var(--ink-3); text-wrap: pretty; }
+.site-intro { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); column-gap: var(--col-gap); row-gap: 12px; margin: calc(clamp(32px, 4vw, 56px) * -.45) 0 clamp(40px, 4.5vw, 64px); }
+.site-statement { grid-column: 3 / 11; font-size: clamp(20px, 1.9vw, 26px); font-weight: 400; line-height: 1.55; letter-spacing: .04em; text-wrap: balance; }
+.site-description { grid-column: 3 / 10; max-width: 38em; font-size: 14px; line-height: 1.9; color: var(--ink-3); text-wrap: balance; }
 .site-frame { margin: 0; overflow: hidden; border-radius: var(--plate-radius); background: #e8e5de; box-shadow: inset 0 0 0 1px rgba(23, 23, 22, .08), 0 24px 50px -36px rgba(34, 26, 18, .65); }
 .site-bar { display: flex; align-items: center; gap: 16px; height: 42px; padding: 0 16px 0 18px; font-size: 12px; letter-spacing: .04em; color: var(--ink-3); }
 .site-address { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -27,7 +27,8 @@
   .site-toc-art > img:nth-child(2) { left: 56px; top: 0; }
   .site-toc-art > img.is-icon { top: 9px; width: 42px; height: 42px; border-radius: 10px; }
   .site-intro { grid-template-columns: minmax(0, 1fr); }
-  .site-statement, .site-description { grid-column: 1; justify-self: start; }
+  .site-statement, .site-description { grid-column: 1; }
+  .site-intro { margin-top: 0; }
   .site-page { height: 76svh; }
 }
 @media (max-width: 390px) {
@@ -40,14 +41,17 @@
 /* The projects after the works carry a label of their own in the contents. */
 .toc .toc-group { grid-column: 1 / -1; margin: clamp(28px, 3vw, 44px) 12px 4px; padding: 0 0 12px; border-bottom: 1px solid var(--rule); }
 
-/* An app shown through its films: vertical, side by side on a sheet of paper. */
-.film-stage { display: flex; justify-content: center; gap: clamp(16px, 4vw, 64px); padding: clamp(24px, 4vw, 56px) clamp(16px, 3vw, 40px); border-radius: var(--plate-radius); background: linear-gradient(180deg, #edeae3, #e8e5de); box-shadow: inset 0 0 0 1px rgba(23, 23, 22, .07); }
-.film { flex: 0 1 auto; width: min(340px, calc((100% - clamp(16px, 4vw, 64px)) / 2)); margin: 0; }
-.film video { display: block; width: 100%; aspect-ratio: 9 / 16; border-radius: 14px; background: #1b1a18; object-fit: cover; box-shadow: 0 22px 40px -26px rgba(20, 16, 12, .8); }
+/* An app's films: on the same four columns as its screens, in the middle two. */
+.film-stage { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: clamp(14px, 2vw, 28px); }
+.film { min-width: 0; margin: 0; }
+.film:first-child { grid-column: 2; }
+.film video { display: block; width: 100%; aspect-ratio: 9 / 16; border-radius: clamp(12px, 1.6vw, 22px); background: #1b1a18; object-fit: cover; box-shadow: 0 22px 40px -26px rgba(20, 16, 12, .8); }
 .film figcaption { margin-top: 12px; font-size: 12.5px; letter-spacing: .04em; text-align: center; color: var(--ink-3); }
 @media (max-width: 760px) {
   .toc .toc-group { margin: 24px 0 4px; }
   .film video { border-radius: 10px; }
+  .film-stage { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .film:first-child { grid-column: 1; }
 }
 @media print { .film-stage { display: none; } }
 

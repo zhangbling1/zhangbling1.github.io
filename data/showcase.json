@@ -18,20 +18,21 @@
       "stills": [
         "assets/showcase/zhaoyun.webp",
         "assets/showcase/tangping.webp"
-      ]
+      ],
+      "tocLabel": "完整网页"
     },
     {
       "id": "xiaozhang",
       "kind": "films",
       "name": "小帐",
       "en": "HarmonyOS App",
-      "count": "鸿蒙原生应用",
+      "count": "4 个界面 · 2 支宣传片",
       "statement": "日常有数，心里有底。",
       "description": "一款本机记账应用。付完款在付款页点一下闪控球，金额、商户、时间就认出来了；拿不准的先放进对账，等你看一眼。也能手动记、说一句、导入账单，账本只存在这台手机里。",
       "note": "界面为内测版 0.3.2，数据是演示用的；视频右下角可以打开声音",
       "works": [
-        "账本 · 对账 · 统计",
-        "两支宣传片"
+        "4 个界面",
+        "2 支宣传片"
       ],
       "stills": [
         "assets/showcase/xiaozhang-icon.webp",
@@ -68,7 +69,8 @@
           "label": "我的"
         }
       ],
-      "filmsLabel": "宣传片"
+      "filmsLabel": "宣传片",
+      "tocLabel": "鸿蒙应用"
     }
   ]
 }

@@ -1141,17 +1141,11 @@
     stage.append(scene.node, el('figcaption', 'tool-stage-caption', scene.caption));
     const copy = el('div', 'tool-copy');
     const head = el('div', 'tool-head');
-    const number = el('p', 'tool-num', pad(index + 1));
-    number.setAttribute('aria-hidden', 'true');
-    const eyebrow = el('p', 'tool-eyebrow', tool.discipline || '');
-    if (tool.en) {
-      const english = el('span', '', tool.en);
-      english.lang = 'en';
-      eyebrow.append(english);
-    }
+    const eyebrow = el('p', 'tool-eyebrow');
+    eyebrow.append(el('b', '', pad(index + 1)), tool.discipline || '');
     const title = el('h3', 'tool-name', tool.name);
     title.id = `tool-${tool.id}-title`;
-    head.append(number, eyebrow, title);
+    head.append(eyebrow, title);
     if (tool.summary) head.append(el('p', 'tool-lead', tool.summary));
     const body = el('div', 'tool-body');
     const cases = [['问题', tool.problem], ['做法', tool.approach]].filter(([, text]) => text);

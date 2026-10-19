@@ -55,7 +55,7 @@
     text.append(el('span', 'toc-num', pad(chapter.number)), el('span', 'tool-toc-name', showcase.name), el('span', 'tool-toc-en', showcase.en || ''));
     const names = el('span', 'tool-toc-names');
     names.append(...(showcase.works || []).map(name => el('span', '', name)));
-    const count = el('span', 'toc-count', showcase.kind === 'site' ? '完整网页' : '宣传片');
+    const count = el('span', 'toc-count', showcase.tocLabel || '');
     const arrow = el('span', 'toc-arrow');
     arrow.innerHTML = down;
     count.append(arrow);
