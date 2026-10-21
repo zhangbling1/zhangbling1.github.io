@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#abda3b"><title>Idle Theme Park · Playable Study</title><link rel="stylesheet" href="style.css"><script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/addons/"}}</script></head>
+<body>
+<main id="game" aria-label="Theme park management playable">
+ <canvas id="scene" aria-label="3D park, food stands, workers and customers"></canvas>
+ <div id="world-labels" aria-hidden="true"></div>
+ <div id="effects" aria-hidden="true"></div>
+ <img class="logo" src="assets/logo.png" alt="Idle Theme Park Tycoon" draggable="false">
+ <div id="balance" aria-label="Cash balance"><img src="assets/money.png" alt=""><span id="cash">0</span></div>
+ <section id="pricing" aria-label="Choose a selling price">
+  <div class="pricing-card">
+   <h1 id="product-name">Hot Dog</h1>
+   <img id="product-icon" src="assets/hotdog.png" alt="Hot dog">
+   <p class="sell">Sell for: <output id="price-value" for="price">30$</output></p>
+   <div class="slider-wrap"><input id="price" aria-label="Selling price" type="range" min="5" max="60" value="30" step="1"><img id="slider-hand" src="assets/hand.png" alt=""></div>
+   <button id="start" type="button">START</button>
+  </div>
+ </section>
+ <section id="upgrades" class="hidden" aria-label="Upgrade your food stand">
+  <button id="speed" class="upgrade speed" aria-label="Upgrade service speed"><img src="assets/speed.png" alt="SPEED"><span id="speed-cost">$60</span><img id="upgrade-hand" class="upgrade-hand" src="assets/hand.png" alt=""></button>
+  <button id="worker" class="upgrade worker" aria-label="Hire another worker"><img src="assets/worker.png" alt="WORKER"><span id="worker-cost">$60</span></button>
+ </section>
+ <section id="result" class="hidden" aria-label="Playable result"><img id="result-badge" src="assets/win.png" alt="Win"><button id="next">NEXT BUSINESS</button><button id="again" class="quiet">PLAY AGAIN</button></section>
+ <div id="loading"><img src="assets/logo.png" alt="Idle Theme Park Tycoon"><div class="load-track"><i id="load-bar"></i></div><p id="load-label">BUILDING YOUR PARK…</p></div>
+ <div id="notice" role="status" aria-live="polite"></div>
+</main>
+ <script type="module" src="game.js?v=visible-customer-8"></script>
+</body></html>

@@ -22,8 +22,13 @@ const STATIC_FILES = [
   'assets/showcase/xiaozhang-promo.webp',
   'assets/showcase/xiaozhang-brand.webp',
   'assets/showcase/xiaozhang-ledger.webp', 'assets/showcase/xiaozhang-review.webp',
-  'assets/showcase/xiaozhang-stats.webp', 'assets/showcase/xiaozhang-me.webp'
+  'assets/showcase/xiaozhang-stats.webp', 'assets/showcase/xiaozhang-me.webp',
+  // 试玩广告：每款是一个单文件游戏，随包发布（国内访问不依赖 GitHub）
+  'games/reef.html', 'games/fortune.html', 'games/mahjong.html',
+  'assets/showcase/game-reef.webp', 'assets/showcase/game-fortune.webp', 'assets/showcase/game-mahjong.webp', 'assets/showcase/game-tycoon.webp'
 ];
+// Games built as several files ship as whole folders.
+const STATIC_DIRS = ['games/tycoon'];
 // Project films stay out of the package and are read from MEDIA_BASE instead.
 const REMOTE_FILES = ['assets/showcase/xiaozhang-promo.mp4', 'assets/showcase/xiaozhang-brand.mp4'];
 
@@ -54,6 +59,8 @@ function build() {
 
   let staticBytes = 0;
   for (const relative of STATIC_FILES) staticBytes += copy(relative);
+  const walk = dir => fs.readdirSync(path.join(ROOT, dir), { withFileTypes: true }).flatMap(entry => entry.isDirectory() ? walk(`${dir}/${entry.name}`) : [`${dir}/${entry.name}`]);
+  for (const dir of STATIC_DIRS) for (const relative of walk(dir)) staticBytes += copy(relative);
 
   // Tell the page which origin still carries the files this package leaves out.
   const page = fs.readFileSync(path.join(DIST, 'index.html'), 'utf8');

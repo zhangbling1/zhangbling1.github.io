@@ -1,5 +1,6 @@
 /* Projects that follow the works, each as a chapter of its own: a whole website
-   live in a framed window, or an app shown through its own films. */
+   live in a framed window, an app shown through its own films, or games that
+   play right on the page. */
 (() => {
   'use strict';
 
@@ -7,6 +8,9 @@
   const down = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-6-6 6 6 6-6"/></svg>';
   const out = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
   const asset = /^assets\/showcase\/[a-z-]+\.(webp|mp4)$/;
+  // A game is one file, or a folder whose page is index.html (a multi-file build).
+  const gameFile = /^games\/([a-z-]+\.html|[a-z-]+\/index\.html)$/;
+  const play = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
   // Films are too heavy for the hosted package, so the build names an origin that
   // still carries them; the catalog can only ever pick from its own asset folder.
   const mediaBase = typeof window.__PORTFOLIO_MEDIA_BASE__ === 'string' ? window.__PORTFOLIO_MEDIA_BASE__ : '';
@@ -24,6 +28,12 @@
     if (config.kind === 'site') {
       const url = typeof config.url === 'string' && /^https:\/\//.test(config.url) ? config.url : '';
       return url ? { ...config, url, stills } : null;
+    }
+    if (config.kind === 'games') {
+      // A game still being made carries "draft" and waits off the page.
+      const games = (config.games || []).filter(game => game && !game.draft && typeof game.name === 'string' && game.name.trim()
+        && gameFile.test(game.src || '') && asset.test(game.poster || ''));
+      return games.length ? { ...config, games, stills: games.map(game => game.poster).slice(0, 4), works: games.map(game => game.tag ? `${game.name}（${game.tag}）` : game.name), count: `${games.length} 款` } : null;
     }
     if (config.kind === 'films') {
       const films = (config.films || []).filter(film => asset.test(film?.src || '') && asset.test(film?.poster || ''));
@@ -49,6 +59,7 @@
     link.href = `#${chapter.id}`;
     const art = el('span', 'tool-toc-art site-toc-art');
     art.setAttribute('aria-hidden', 'true');
+    if (showcase.stills.length >= 3) art.classList.add('is-fan');
     for (const src of showcase.stills) {
       const still = el('img', /-icon\.webp$/.test(src) ? 'is-icon' : '');
       Object.assign(still, { src, alt: '', loading: 'lazy', decoding: 'async' });
@@ -96,6 +107,87 @@
       row.append(figure);
     }
     return row;
+  }
+
+  // The games four to a row on the screens' grid. Tapping one starts it where it
+  // stands; only one runs at a time, and it stops once the row leaves the screen.
+  // On a phone the game opens over the whole page instead, where it is playable.
+  const players = [];
+  function gameStage(showcase) {
+    const stage = el('div', 'game-stage');
+    players.length = 0;
+    const narrow = window.matchMedia?.('(max-width: 760px)');
+    let live = null;
+    const stop = () => {
+      if (!live) return;
+      live.frame.remove();
+      live.card.classList.remove('is-live');
+      stage.classList.remove('has-live');
+      live = null;
+    };
+    for (const game of showcase.games) {
+      const card = el('figure', 'game-card');
+      const screen = el('div', 'game-screen');
+      const poster = el('img', 'game-poster');
+      Object.assign(poster, { src: game.poster, alt: game.name, loading: 'lazy', decoding: 'async', width: 640, height: 1414 });
+      const start = el('button', 'game-start');
+      start.type = 'button';
+      start.setAttribute('aria-label', `试玩 ${game.name}`);
+      const pill = el('span', 'game-pill');
+      pill.innerHTML = play;
+      pill.append(el('span', '', '试玩'));
+      start.append(pill);
+      screen.append(poster, start);
+      const caption = el('figcaption');
+      const again = el('button', 'game-again', '重玩');
+      again.type = 'button';
+      caption.append(el('span', 'game-name', game.name));
+      if (typeof game.tag === 'string' && game.tag.trim()) caption.append(el('span', 'game-tag', game.tag));
+      caption.append(again);
+      card.append(screen, caption);
+      const run = () => {
+        if (narrow?.matches) { sheet(game); return; }
+        stop();
+        const frame = el('iframe', 'game-frame');
+        Object.assign(frame, { src: game.src, title: game.name });
+        frame.setAttribute('allow', 'autoplay; fullscreen');
+        frame.addEventListener('load', () => { frame.classList.add('is-ready'); frame.focus(); }, { once: true });
+        screen.append(frame);
+        card.classList.add('is-live');
+        stage.classList.add('has-live');
+        live = { card, frame };
+      };
+      start.addEventListener('click', run);
+      players.push(run);
+      again.addEventListener('click', () => { if (live?.card === card) live.frame.src = game.src; });
+      stage.append(card);
+    }
+    new IntersectionObserver(([entry]) => { if (!entry.isIntersecting) stop(); }).observe(stage);
+    return stage;
+  }
+
+  // A game over the whole page on phones, closed with its own button or Esc.
+  function sheet(game) {
+    const layer = el('div', 'game-sheet');
+    layer.setAttribute('role', 'dialog');
+    layer.setAttribute('aria-modal', 'true');
+    layer.setAttribute('aria-label', game.name);
+    const bar = el('div', 'game-sheet-bar');
+    const close = el('button', 'game-sheet-close', '关闭');
+    close.type = 'button';
+    bar.append(el('span', '', game.name), close);
+    const frame = el('iframe', 'game-sheet-frame');
+    Object.assign(frame, { src: game.src, title: game.name });
+    frame.setAttribute('allow', 'autoplay; fullscreen');
+    layer.append(bar, frame);
+    const before = document.documentElement.style.overflow;
+    const shut = () => { layer.remove(); document.documentElement.style.overflow = before; removeEventListener('keydown', key); };
+    const key = event => { if (event.key === 'Escape') shut(); };
+    close.addEventListener('click', shut);
+    addEventListener('keydown', key);
+    document.documentElement.style.overflow = 'hidden';
+    document.body.append(layer);
+    close.focus();
   }
 
   function block(label, body) {
@@ -159,7 +251,7 @@
     }
     titles.append(title);
     head.append(num, titles, el('p', 'chapter-count', showcase.count || ''));
-    const parts = showcase.kind === 'site' ? [siteStage(showcase)] : [
+    const parts = showcase.kind === 'site' ? [siteStage(showcase)] : showcase.kind === 'games' ? [gameStage(showcase)] : [
       showcase.screens.length && block(showcase.screensLabel, screenRow(showcase)),
       showcase.films.length && block(showcase.filmsLabel, filmStage(showcase))
     ].filter(Boolean);
@@ -172,5 +264,7 @@
     return section;
   }
 
-  window.PortfolioShowcase = { chapters, contents, render };
+  // The cover's game prints start their game here.
+  const playGame = index => players[index]?.();
+  window.PortfolioShowcase = { chapters, contents, render, play: playGame };
 })();

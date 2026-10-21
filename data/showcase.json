@@ -1,5 +1,11 @@
 {
   "version": 2,
+  "order": [
+    "playables",
+    "mini-games",
+    "work-tools",
+    "xiaozhang"
+  ],
   "projects": [
     {
       "id": "mini-games",
@@ -18,6 +24,37 @@
         "assets/showcase/tangping.webp"
       ],
       "tocLabel": "完整网页"
+    },
+    {
+      "id": "playables",
+      "kind": "games",
+      "name": "试玩广告",
+      "en": "Playable Ads",
+      "note": "点画面开始试玩，一次运行一款；有声音，可在游戏里静音",
+      "tocLabel": "点开就能玩",
+      "games": [
+        {
+          "name": "金鲨猎场",
+          "src": "games/reef.html",
+          "poster": "assets/showcase/game-reef.webp"
+        },
+        {
+          "name": "Double Fortune",
+          "src": "games/fortune.html",
+          "poster": "assets/showcase/game-fortune.webp"
+        },
+        {
+          "name": "富豪麻将",
+          "src": "games/mahjong.html",
+          "poster": "assets/showcase/game-mahjong.webp"
+        },
+        {
+          "name": "Idle Theme Park Tycoon",
+          "tag": "复刻",
+          "src": "games/tycoon/index.html",
+          "poster": "assets/showcase/game-tycoon.webp"
+        }
+      ]
     },
     {
       "id": "xiaozhang",

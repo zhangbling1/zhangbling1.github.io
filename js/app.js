@@ -141,12 +141,18 @@
       state.data = data;
       state.previews = previews;
       buildBook(data.items.filter(item => item.visible !== false && mediaURL(item.src)), data);
-      // Projects follow the works, each as a chapter of its own.
-      state.chapters.push(...(window.PortfolioShowcase?.chapters(site, state.chapters.length + 1) || []));
-      // Tool case studies have their own catalog so rescanning artwork never removes them.
-      const toolChapter = window.PortfolioTools?.chapter(tools, state.chapters.length + 1);
-      if (toolChapter) state.chapters.push(toolChapter);
-      $('nav-tools-btn').hidden = !toolChapter;
+      // Projects follow the works, each as a chapter of its own. Tool case studies
+      // have their own catalog so rescanning artwork never removes them; the
+      // showcase catalog's order places every project, tools included.
+      const projects = [...(window.PortfolioShowcase?.chapters(site, 0) || [])];
+      const toolChapter = window.PortfolioTools?.chapter(tools, 0);
+      if (toolChapter) projects.push(toolChapter);
+      const order = Array.isArray(site?.order) ? site.order : [];
+      const rank = chapter => (order.indexOf(chapter.id) + 1) || order.length + 1;
+      projects.sort((a, b) => rank(a) - rank(b));
+      projects.forEach((chapter, index) => { chapter.number = state.chapters.length + 1 + index; });
+      state.chapters.push(...projects);
+      $('nav-tools-btn').hidden = !projects.length;
       applySiteInfo(data.siteInfo || {});
       applyProfile(data.profile || {});
       reel.plates = pickReel(15);
@@ -303,6 +309,16 @@
       track.plates.splice(Math.min(position, track.plates.length), 0, entry);
       track.length += extent(entry);
     });
+    // The playable games drift among them too, further along their tracks.
+    const gameSlots = reel.tracks === 3 ? [[0, 2], [2, 5], [1, 6]] : [[1, 1], [0, 3], [1, 5]];
+    reel.games = (state.chapters.find(chapter => chapter.showcase?.kind === 'games')?.showcase.games || [])
+      .map((game, index) => ({ game, number: index + 1, ratio: .62 }));
+    reel.games.forEach((entry, index) => {
+      const [column, position] = gameSlots[index % gameSlots.length];
+      const track = tracks[column];
+      track.plates.splice(Math.min(position, track.plates.length), 0, entry);
+      track.length += extent(entry);
+    });
     reel.deferred = [];
     holder.replaceChildren(...tracks.map((track, index) => {
       // A loop must outrun the window, or its seam would show.
@@ -334,6 +350,17 @@
   }
 
   function reelTile(plate, across, eager) {
+    if (plate.game) {
+      const tile = element('span', 'reel-tile is-game is-loaded');
+      tile.dataset.game = String(plate.number - 1);
+      tile.style.setProperty('--ratio', plate.ratio.toFixed(4));
+      const image = element('img');
+      Object.assign(image, { alt: '', decoding: 'async', draggable: false });
+      if (eager) image.src = plate.game.poster;
+      else reel.deferred.push(() => { image.src = plate.game.poster; });
+      tile.append(image, badge('试玩'));
+      return tile;
+    }
     if (plate.tool) {
       const tile = element('span', 'reel-tile is-tool is-loaded');
       tile.dataset.tool = plate.tool.id;
@@ -397,6 +424,9 @@
       if (plate?.tool) {
         $('reel-label').textContent = `AI 工具 · ${pad(plate.number)}`;
         $('reel-title').textContent = plate.tool.name;
+      } else if (plate?.game) {
+        $('reel-label').textContent = `试玩广告 · ${pad(plate.number)}`;
+        $('reel-title').textContent = plate.game.tag ? `${plate.game.name} · ${plate.game.tag}` : plate.game.name;
       } else if (plate) {
         $('reel-label').textContent = `图版 ${pad(plate.number, 3)} · ${plate.item.categoryName || plate.chapter.category.name}`;
         $('reel-title').textContent = realTitle(plate.item) || plate.chapter.category.name;
@@ -404,7 +434,7 @@
         const english = element('span', '', 'Selected Works');
         english.lang = 'en';
         $('reel-label').replaceChildren('精选作品', english);
-        $('reel-title').textContent = `${state.plates.length} 幅作品 · ${reel.tools?.length ? `${reel.tools.length} 款 AI 工具` : `${state.chapters.length} 个章节`}`;
+        $('reel-title').textContent = `${state.plates.length} 幅作品 · ${reel.tools?.length ? `${reel.tools.length} 款 AI 工具` : `${state.chapters.length} 个章节`}${reel.games?.length ? ` · ${reel.games.length} 款试玩` : ''}`;
       }
       text.classList.remove('is-swapping');
     };
@@ -475,6 +505,7 @@
       const label = [];
       if (project && !state.chapters[index - 1]?.tools && !state.chapters[index - 1]?.showcase) {
         const group = element('li', 'toc-group label', '项目');
+        group.id = 'projects';
         const english = element('span', '', 'Projects');
         english.lang = 'en';
         group.append(english);
@@ -875,6 +906,14 @@
 
   /* ---------- Running head ---------- */
 
+  // The contents' projects label is on screen (between the works' rows and the first project chapter).
+  function projectsInView() {
+    const label = document.getElementById('projects');
+    if (!label) return false;
+    const rect = label.getBoundingClientRect();
+    return rect.top < innerHeight * .6 && rect.bottom > $('masthead').offsetHeight;
+  }
+
   function updateRunningHead() {
     const masthead = $('masthead');
     masthead.classList.toggle('is-scrolled', window.scrollY > 4);
@@ -892,7 +931,8 @@
     }
     const head = $('running-head');
     if (current) head.style.setProperty('--progress', progress.toFixed(3));
-    if (!$('portfolio-view').hidden && performance.now() > navHeld) markNav(current?.tools ? 'nav-tools-btn' : 'nav-portfolio-btn');
+    const inProjects = current?.tools || current?.showcase || (!current && projectsInView());
+    if (!$('portfolio-view').hidden && performance.now() > navHeld) markNav(inProjects ? 'nav-tools-btn' : 'nav-portfolio-btn');
     if (current === state.runningChapter) return;
     state.runningChapter = current;
     if (current) {
@@ -1138,7 +1178,8 @@
   function route() {
     const hash = decodeURIComponent(location.hash);
     const about = hash === '#about' || hash === '#resume';
-    const tools = hash === '#work-tools' || hash.startsWith('#tool-');
+    const projectIds = (state.chapters || []).filter(chapter => chapter.tools || chapter.showcase).map(chapter => `#${chapter.id}`);
+    const tools = hash === '#projects' || hash === '#work-tools' || hash.startsWith('#tool-') || projectIds.includes(hash);
     if (hash !== '#contact') {
       $('portfolio-view').hidden = about;
       $('resume-view').hidden = !about;
@@ -1195,6 +1236,12 @@
   reelWindow.addEventListener('click', event => {
     const tile = event.target.closest('.reel-tile');
     if (!tile) return;
+    if (tile.dataset.game) {
+      if (location.hash === '#playables') route();
+      else location.hash = '#playables';
+      setTimeout(() => window.PortfolioShowcase?.play(Number(tile.dataset.game)), 450);
+      return;
+    }
     if (!tile.dataset.tool) return openViewer(Number(tile.dataset.index));
     const target = `#tool-${tile.dataset.tool}`;
     if (location.hash === target) route();
@@ -1203,7 +1250,7 @@
   reelWindow.addEventListener('pointerover', event => {
     const tile = event.target.closest('.reel-tile');
     if (!tile || event.pointerType !== 'mouse') return;
-    showReelCard(tile.dataset.tool ? reel.tools.find(entry => entry.tool.id === tile.dataset.tool) : state.plates[Number(tile.dataset.index)]);
+    showReelCard(tile.dataset.game ? reel.games[Number(tile.dataset.game)] : tile.dataset.tool ? reel.tools.find(entry => entry.tool.id === tile.dataset.tool) : state.plates[Number(tile.dataset.index)]);
   });
   reelWindow.addEventListener('pointerleave', () => { if (reel.shown) showReelCard(null); });
   $('reel-toggle').addEventListener('click', () => {
