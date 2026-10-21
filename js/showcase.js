@@ -7,6 +7,9 @@
   const down = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-6-6 6 6 6-6"/></svg>';
   const out = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M8 7h9v9"/></svg>';
   const asset = /^assets\/showcase\/[a-z-]+\.(webp|mp4)$/;
+  // Films are too heavy for the hosted package, so the build names an origin that
+  // still carries them; the catalog can only ever pick from its own asset folder.
+  const mediaBase = typeof window.__PORTFOLIO_MEDIA_BASE__ === 'string' ? window.__PORTFOLIO_MEDIA_BASE__ : '';
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -111,7 +114,7 @@
       const video = el('video');
       Object.assign(video, { muted: true, loop: true, playsInline: true, controls: true, preload: 'none', poster: film.poster });
       video.setAttribute('aria-label', film.label || showcase.name);
-      const load = () => { if (!video.getAttribute('src')) video.src = film.src; };
+      const load = () => { if (!video.getAttribute('src')) video.src = `${mediaBase}/${film.src}`; };
       let seen = false;
       let stopped = false;
       let ours = false;

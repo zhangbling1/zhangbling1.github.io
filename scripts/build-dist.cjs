@@ -19,11 +19,13 @@ const STATIC_FILES = [
   'css/showcase.css', 'js/showcase.js', 'data/showcase.json',
   'assets/showcase/zhaoyun.webp', 'assets/showcase/tangping.webp',
   'assets/showcase/xiaozhang-icon.webp', 'assets/showcase/xiaozhang.webp',
-  'assets/showcase/xiaozhang-promo.mp4', 'assets/showcase/xiaozhang-promo.webp',
-  'assets/showcase/xiaozhang-brand.mp4', 'assets/showcase/xiaozhang-brand.webp',
+  'assets/showcase/xiaozhang-promo.webp',
+  'assets/showcase/xiaozhang-brand.webp',
   'assets/showcase/xiaozhang-ledger.webp', 'assets/showcase/xiaozhang-review.webp',
   'assets/showcase/xiaozhang-stats.webp', 'assets/showcase/xiaozhang-me.webp'
 ];
+// Project films stay out of the package and are read from MEDIA_BASE instead.
+const REMOTE_FILES = ['assets/showcase/xiaozhang-promo.mp4', 'assets/showcase/xiaozhang-brand.mp4'];
 
 const readJSON = relative => JSON.parse(fs.readFileSync(path.join(ROOT, relative), 'utf8'));
 const MiB = bytes => `${(bytes / 1024 / 1024).toFixed(1)} MiB`;

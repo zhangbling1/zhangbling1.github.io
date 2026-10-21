@@ -1,5 +1,5 @@
 /* The project chapters after the works: the catalog is validated, and every
-   file they need ships in the hosted package. */
+   file they need reaches the hosted build — in the package, or as a remote film. */
 const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
@@ -35,15 +35,24 @@ check('The category names read plainly, with videos closing the works', () => {
   assert.equal(names.at(-1), '视频');
   for (const old of ['动态视觉', '分类01', '其他类型']) assert.ok(!names.includes(old), old);
 });
-check('Every still and film exists, is small, and ships in the hosted package', () => {
+const remoteFilms = new Set(config.projects.flatMap(project => (project.films || []).map(film => film.src)));
+check('Every still and film exists, is small, and reaches the build exactly one way', () => {
   const build = fs.readFileSync(path.join(root, 'scripts/build-dist.cjs'), 'utf8');
+  const list = name => (new RegExp(`const ${name} = \\[([\\s\\S]*?)\\];`).exec(build) || [, ''])[1];
+  const shipped = list('STATIC_FILES');
+  const remote = list('REMOTE_FILES');
   const files = [...new Set(config.projects.flatMap(project => [...(project.stills || []), ...(project.screens || []).map(screen => screen.src), ...(project.films || []).flatMap(film => [film.src, film.poster])]))];
   for (const file of files) {
     assert.ok(fs.existsSync(path.join(root, file)), file);
     assert.ok(fs.statSync(path.join(root, file)).size < 2 * 1024 * 1024, file);
-    assert.ok(build.includes(`'${file}'`), file);
+    const inPackage = shipped.includes(`'${file}'`);
+    const isRemote = remote.includes(`'${file}'`);
+    assert.ok(inPackage !== isRemote, `${file} must be packaged or remote, not both or neither`);
+    assert.ok(remoteFilms.has(file) === isRemote, `${file} may only be remote while it is a film`);
   }
-  for (const file of ['css/showcase.css', 'js/showcase.js', 'data/showcase.json']) assert.ok(build.includes(`'${file}'`), file);
+  assert.ok(fs.readFileSync(path.join(root, 'js/showcase.js'), 'utf8').includes('__PORTFOLIO_MEDIA_BASE__'),
+    'Remote films need the page to resolve them against the build origin');
+  for (const file of ['css/showcase.css', 'js/showcase.js', 'data/showcase.json']) assert.ok(shipped.includes(`'${file}'`), file);
   const page = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.ok(page.includes('js/showcase.js') && page.includes('css/showcase.css'));
 });
