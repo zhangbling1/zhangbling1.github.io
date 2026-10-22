@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {clone as cloneSkeleton} from 'three/addons/utils/SkeletonUtils.js';
-import {advanceCrowd,spawnIsClear} from './crowd.js';
+import {advanceCrowd,spawnIsClear} from './crowd.js?v=staff-lanes-11';
 
 const BODIES=[
  ['CH_male_01','CH_hair_01_male'],['CH_female_01.001','CH_skirt_01_female','CH_hair_01_female'],
@@ -25,7 +25,7 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
  const actors=new Set(),customers=[],workers=[],orders=new Set(),foodProps=new Set();
  const stockDocks={blue:[null,null],red:[null,null]};
  const laneSpawnTime={1:-100,'-1':-100};
- let clock=0,arrivalClock=1.6,nextId=1,nextTicket=1;
+ let clock=0,operatingTime=0,traffic=0,arrivalClock=1.6,nextId=1,nextTicket=1,assignmentSequence=0;
  const animations=[...clips];
  const idleClip=clips.find(c=>c.name==='idle');
  // Stop the feet while keeping the carrying arm pose. Switching to a plain
@@ -101,10 +101,14 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
  }
  function validOrderCustomer(order){
   const customer=order.customer;
-  return liveCustomer(customer)&&customer.order===order&&customer.side===order.side&&customer.willBuy&&!customer.hasFood&&
-   ['service_approach','ordering','receiving'].includes(customer.job);
+  if(!liveCustomer(customer)||customer.order!==order||customer.side!==order.side||!customer.willBuy||customer.hasFood)return false;
+  // An order may wait for a clear counter while its guest remains in the FIFO
+  // line. Its clerk does not collect food until that guest has been called.
+  return order.called?['service_approach','ordering','receiving'].includes(customer.job):
+   customer.inQueue&&['approach','queue','waiting'].includes(customer.job);
  }
  function atHandoff(order){
+  if(!order.called)return false;
   const customer=order.customer;
   return liveCustomer(customer)&&Math.abs(customer.root.position.x-order.pickupX)<.14&&
    Math.abs(customer.root.position.z-pickupZ(order.side))<.14&&customer.actualSpeed<.12;
@@ -150,26 +154,40 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
   return actor;
  }
  function spawnVisitor(){
-  if(customers.length>=24)return;
-  let side=Math.random()<clamp(.98-(state().price-12)/95,.17,.94)?'blue':Math.random()<.7?'red':'passer';
-  let column=side==='passer'?null:chooseColumn(side);if(column===null)side='passer';
-  const direction=side==='blue'?1:side==='red'?-1:Math.random()<.5?1:-1;
-  const origin=point(-direction*23,STREET[direction]);
-  if(clock-laneSpawnTime[direction]<1.35||!spawnIsClear(origin,actors,.38,1.45))return;
-  makeCustomer(side,direction,origin,column);laneSpawnTime[direction]=clock;
+  if(customers.length>=Math.round(22+traffic*20))return false;
+  const first=laneSpawnTime[1]<=laneSpawnTime[-1]?1:-1;
+  for(const direction of [first,-first]){
+   const origin=point(-direction*20,STREET[direction]);
+   if(clock-laneSpawnTime[direction]<.95||!spawnIsClear(origin,actors,.38,1.05))continue;
+   let side=direction===1?(Math.random()<clamp(.78+traffic*.16-(state().price-30)/80,.18,.96)?'blue':'passer'):
+    (Math.random()<.65?'red':'passer');
+   const column=side==='red'?chooseColumn(side):null;
+   if(side==='red'&&column===null)side='passer';
+   const customer=makeCustomer(side,direction,origin,column);
+   if(side==='blue'){
+    // Walk-ins do not reserve a queue slot from the far end of the street.
+    // Admission is decided at the entrance, so the line can refill naturally.
+    customer.job='arriving';route(customer,[[BLUE_LINE.x,customer.lane]]);
+   }
+   laneSpawnTime[direction]=clock;return true;
+  }
+  return false;
  }
  function makeWorker(kind,index){
-  const actor=makeActor(kind);actor.slot=index;actor.side=kind;actor.job='idle';
-  const homes=kind==='red'?[[0,state().level===0?-9.95:-9.9]]:[[0,2.7],[-1.6,2.75],[1.6,2.75],[-2.7,3.3],[2.7,3.3]];
+  const actor=makeActor(kind);actor.slot=index;actor.side=kind;actor.job='idle';actor.lastAssigned=0;
+  const homes=kind==='red'?[[0,state().level===0?-9.95:-9.9]]:[[-1.7,2.6],[1.7,2.6],[-2.8,2.6],[2.8,2.6],[-3.9,2.6]];
   actor.home=homes[Math.min(index,homes.length-1)];
   const others=[...actors].filter(a=>a!==actor);
   const candidates=[actor.home,[actor.home[0]-.95,actor.home[1]],[actor.home[0]+.95,actor.home[1]],[-4-index*1.1,actor.home[1]]];
-  const origin=candidates.find(p=>spawnIsClear(point(...p),others,.38,.12))||candidates[candidates.length-1];
+  const origin=candidates.find(p=>(kind==='red'||Math.abs(p[0])>=1.65)&&
+   workers.every(w=>Math.hypot(p[0]-w.home[0],p[1]-w.home[1])>=.95)&&
+   spawnIsClear(point(...p),others,.38,.12))||candidates[candidates.length-1];
+  // The free spawn position is also this clerk's standby position. Do not
+  // send a new hire straight back into a nominal bay occupied by a colleague.
+  actor.home=[...origin];
   actor.root.position.copy(point(...origin));
-  if(origin!==actor.home){actor.job='returning';route(actor,[actor.home]);}
   actor.root.rotation.y=kind==='red'?0:Math.PI;workers.push(actor);return actor;
  }
-
  function meshesForFood(actor){
   actor.model.updateMatrixWorld(true);const source=actor.model.getObjectByName(foodName());const meshes=[];
   source?.traverse(n=>{if(n.isMesh){n.skeleton?.update();meshes.push(n);}});return meshes;
@@ -236,7 +254,12 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
  function releaseDock(worker){const docks=stockDocks[sideOf(worker)];for(let i=0;i<2;i++)if(docks[i]===worker)docks[i]=null;worker.dock=null;}
  function returnHome(worker){
   worker.order=null;worker.holdPose=false;worker.hasFood=false;foodInHand(worker,false);releaseDock(worker);
-  worker.job='returning';route(worker,[worker.home],2.05*skillOf(worker));
+  worker.job='returning';
+  // Leave the central serving lane sideways, then return to this clerk's
+  // fixed bay. Standby staff stay outside both pickup and delivery routes.
+  const laneZ=worker.root.position.z<2?1.7:worker.root.position.z;
+  const path=worker.kind==='blue'?[[worker.root.position.x,laneZ],[worker.home[0],laneZ],worker.home]:[worker.home];
+  route(worker,path,2.05*skillOf(worker));
  }
  function startExit(customer){
   if(customer.side==='blue'){
@@ -255,30 +278,56 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
   const z=pickupZ(customer.side),outer=2.7;
   route(customer,[[outer,z],[outer,customer.lane],[customer.direction*25,customer.lane]],2.05);
  }
- function nextOrder(worker){
+ function assignOrder(worker){
   const side=sideOf(worker);
-  if([...orders].some(o=>o.side===side)||customers.some(c=>c.active&&c.side===side&&
-   ['service_approach','ordering','receiving','served'].includes(c.job)))return null;
-  const waiting=side==='blue'?[blueLine()[0]].filter(c=>c?.job==='waiting'&&
-   Math.abs(c.root.position.x-BLUE_LINE.x)<.13&&Math.abs(c.root.position.z-BLUE_LINE.frontZ)<.13):
+  const waiting=side==='blue'?[blueLine().find(c=>!c.order)].filter(c=>c?.job==='waiting'):
    customers.filter(c=>c.active&&c.side===side&&c.job==='waiting'&&residents(side,c.queueColumn)[0]===c&&
     ![...orders].some(o=>o.side===side&&o.column===c.queueColumn)&&Math.abs(c.root.position.z-frontZ(side))<.15&&Math.abs(c.root.position.x-columnX(c.queueColumn))<.15);
   for(const customer of waiting){
    if(!liveCustomer(customer))continue;
-   if(!customer.willBuy){customer.job='refuse';customer.timer=.85;onReaction(customer,'😠',1.25);continue;}
-   const reservation=findCounterSpace(side,.35,.31,null,customer);if(!reservation)continue;
-   const order={worker,customer,side,column:customer.queueColumn,reservation,pickupX:reservation.pickupX,trayAngle:random(-.055,.055),status:'reserved',prop:null,clock:0,presentFor:0,absentFor:0,paid:false};
-   orders.add(order);customer.order=worker.order=order;customer.timer=0;
-   if(side==='blue'){
-    customer.inQueue=false;
-    customer.job='service_approach';route(customer,[[order.pickupX,frontZ(side)]],1.65);
-   }else{
-    customer.job='service_approach';
-    route(customer,[[columnX(customer.queueColumn),pickupZ(side)],[order.pickupX,pickupZ(side)]],1.8);
+   if(!customer.willBuy){
+    if(side==='blue'&&blueLine()[0]!==customer)return null;
+    customer.job='refuse';customer.timer=.85;onReaction(customer,'😠',1.25);continue;
    }
+   const order={worker,customer,side,column:customer.queueColumn,called:false,reservation:null,pickupX:null,trayAngle:random(-.055,.055),status:'reserved',prop:null,clock:0,presentFor:0,absentFor:0,paid:false};
+   orders.add(order);customer.order=worker.order=order;customer.timer=0;
+   worker.lastAssigned=++assignmentSequence;worker.job='await_stock';
    return order;
   }
   return null;
+ }
+ function callNextOrder(side){
+  if([...orders].some(o=>o.side===side&&o.called)||customers.some(c=>c.active&&c.side===side&&
+   ['service_approach','ordering','receiving','served'].includes(c.job)))return;
+  const order=[...orders].filter(o=>o.side===side&&!o.called).sort((a,b)=>a.customer.ticket-b.customer.ticket)[0];
+  if(!order||!validOrderCustomer(order))return;
+  const customer=order.customer;
+  if(side==='blue'&&(blueLine()[0]!==customer||customer.job!=='waiting'||
+   Math.abs(customer.root.position.x-BLUE_LINE.x)>.13||Math.abs(customer.root.position.z-BLUE_LINE.frontZ)>.13))return;
+  const reservation=findCounterSpace(side,.35,.31,null,customer);if(!reservation)return;
+  order.reservation=reservation;order.pickupX=reservation.pickupX;order.called=true;
+  customer.job='service_approach';
+  if(side==='blue'){
+   customer.inQueue=false;route(customer,[[order.pickupX,frontZ(side)]],1.65);
+  }else route(customer,[[columnX(customer.queueColumn),pickupZ(side)],[order.pickupX,pickupZ(side)]],1.8);
+ }
+ function dispatchOrders(){
+  for(const side of ['blue','red']){
+   const team=workers.filter(w=>w.active&&sideOf(w)===side);
+   // Rotate a single active service job. Do not prepare another tray while
+   // the preceding guest is collecting food or still standing at the counter.
+   const occupied=[...orders].some(o=>o.side===side)||customers.some(c=>c.active&&c.side===side&&
+    ['service_approach','ordering','receiving','served'].includes(c.job));
+   if(!occupied){
+    const available=team.filter(w=>w.job==='idle'&&!w.order).sort((a,b)=>a.lastAssigned-b.lastAssigned||a.id-b.id);
+    if(available.length)assignOrder(available[0]);
+   }
+   callNextOrder(side);
+  }
+ }
+ function startDelivery(worker){
+  worker.order.status='carrying';worker.job='delivering';
+  route(worker,[[worker.order.reservation.x,worker.kind==='red'?-9.05:1.85]],2.05*skillOf(worker));
  }
  function tryFetch(worker){
   const docks=stockDocks[sideOf(worker)];let dock=docks.findIndex(d=>d===null);
@@ -286,23 +335,23 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
   const preferred=worker.root.position.x>0?1:0;if(docks[preferred]===null)dock=preferred;
   docks[dock]=worker;worker.dock=dock;worker.job='fetching';
   const stockZ=worker.kind==='red'?(state().level===0?-10.9:-9.95):3.45;
-  route(worker,[[dock===0?-.62:.62,stockZ]],2.05*skillOf(worker));return true;
+  const path=worker.kind==='blue'?[[worker.home[0],stockZ],[dock===0?-.62:.62,stockZ]]:[[dock===0?-.62:.62,stockZ]];
+  route(worker,path,2.05*skillOf(worker));return true;
  }
  function updateWorker(worker,dt){
   if(worker.order&&!validOrderCustomer(worker.order)){cancelOrder(worker.order);return;}
   worker.timer-=dt;
   if(worker.job==='idle'){
    turnToward(worker,worker.kind==='red'?0:Math.PI,dt);
-   if(nextOrder(worker)){worker.job='await_stock';tryFetch(worker);}
-  }else if(worker.job==='await_stock')tryFetch(worker);
-  else if(worker.job==='fetching'&&follow(worker)){
+  }else if(worker.job==='await_stock'){
+   if(worker.order.called)tryFetch(worker);
+  }else if(worker.job==='fetching'&&follow(worker)){
    worker.job='preparing';worker.timer=.42/skillOf(worker);
   }else if(worker.job==='preparing'){
    turnToward(worker,worker.kind==='red'?Math.PI:0,dt);
    if(worker.timer<=0){
-    worker.hasFood=true;foodInHand(worker,true);worker.order.status='carrying';worker.job='delivering';releaseDock(worker);
-    const z=worker.kind==='red'?-9.05:1.85;
-    route(worker,[[worker.order.reservation.x,z]],2.05*skillOf(worker));
+    worker.hasFood=true;foodInHand(worker,true);releaseDock(worker);
+    startDelivery(worker);
    }
   }else if(worker.job==='delivering'&&follow(worker)){
    worker.job='aligning';worker.timer=.24;worker.holdPose=true;
@@ -342,6 +391,14 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
   }
  }
  function updateCustomer(customer,dt){
+  if(customer.job==='arriving'&&customer.root.position.x>=BLUE_LINE.x-1.4){
+   const column=chooseColumn('blue');
+   if(column===null){customer.job='passing';route(customer,[[customer.direction*25,customer.lane]]);}
+   else{
+    customer.queueColumn=column;customer.inQueue=true;customer.job='approach';
+    route(customer,[[BLUE_LINE.x,customer.lane],slot(customer)]);
+   }
+  }
   if(customer.inQueue&&['approach','queue','waiting'].includes(customer.job)){
    const destination=slot(customer),last=customer.route[customer.route.length-1];
    if(customer.job==='waiting'&&(Math.abs(customer.root.position.z-destination[1])>.12||Math.abs(customer.root.position.x-destination[0])>.12)){
@@ -351,7 +408,8 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
   if(['approach','queue'].includes(customer.job)&&follow(customer)){
    customer.job='waiting';customer.timer=0;faceCounter(customer);
   }else if(customer.job==='waiting'){
-   customer.timer+=dt;faceCounter(customer);if(customer.timer>28){customer.job='refuse';customer.timer=.7;onReaction(customer,'😠',1.1);}
+   if(!customer.order)customer.timer+=dt;
+   faceCounter(customer);if(customer.timer>28){customer.job='refuse';customer.timer=.7;onReaction(customer,'😠',1.1);}
   }else if(customer.job==='service_approach'&&follow(customer)){
    if(customer.side==='red')customer.inQueue=false;
    customer.job='ordering';faceCounter(customer);
@@ -362,7 +420,7 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
   }else if(customer.job==='refuse'){
    customer.timer-=dt;if(customer.timer<=0)startExit(customer);
   }else if(customer.job==='exit_approach'&&follow(customer))leaveCounter(customer);
-  else if(['passing','leaving'].includes(customer.job)&&follow(customer)){
+  else if(['arriving','passing','leaving'].includes(customer.job)&&follow(customer)){
    removeActor(customer);const i=customers.indexOf(customer);if(i>=0)customers.splice(i,1);
   }
  }
@@ -436,6 +494,7 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
   for(const actor of [...actors])removeActor(actor);
   customers.length=workers.length=0;stockDocks.blue.fill(null);stockDocks.red.fill(null);
   nextTicket=1;nextId=1;arrivalClock=1.6;clock=0;laneSpawnTime[1]=laneSpawnTime[-1]=-100;
+  operatingTime=traffic=assignmentSequence=0;
   makeWorker('blue',0);makeWorker('red',0);
   for(let i=0;i<6;i++){const direction=i%2?1:-1;makeCustomer('passer',direction,point(-15+i*6,STREET[direction]),null);}
  }
@@ -452,9 +511,14 @@ export function createParkSimulation({scene,characterTemplate,clips,counterLayou
   if(state().phase!=='running'&&state().phase!=='pricing')return;
   clock+=dt;for(const actor of actors)actor.wantsMove=false;
   if(state().phase==='running'){
-   arrivalClock-=dt;if(arrivalClock<=0){arrivalClock=random(1.25,1.8);spawnVisitor();}
-   for(const worker of workers)updateWorker(worker,dt);
+   operatingTime+=dt;
+   const progress=clamp(operatingTime/90+(state().workerLevel||0)*.12+state().speedLevel*.06+(state().sales||0)*.008,0,1);
+   traffic=THREE.MathUtils.lerp(traffic,progress,1-Math.exp(-dt*.35));
+   arrivalClock-=dt;
+   if(arrivalClock<=0)arrivalClock=spawnVisitor()?random(.9,1.1)*THREE.MathUtils.lerp(1.65,.68,traffic):.2;
    for(const customer of [...customers])updateCustomer(customer,dt);
+   dispatchOrders();
+   for(const worker of workers)updateWorker(worker,dt);
   }else for(const customer of [...customers])if(customer.job==='passing')updateCustomer(customer,dt);
   advanceCrowd(actors,dt,COUNTERS);
   animate(dt);

@@ -1,10 +1,12 @@
-// Route following is resolved for everybody at once. Waiting customers keep their
-// space; moving people yield, retain headway, and cannot step through a body.
+// Guests share collision and spacing rules. Staff use assigned service routes;
+// colleagues never brake, steer or push one another in the small work area.
 const EPSILON=1e-6;
 const BODY_GAP=.06;
 const FOLLOW_GAP=1.5;
 const length=(x,z)=>Math.hypot(x,z);
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const staff=actor=>actor.kind==='blue'||actor.kind==='red';
+const bodiesInteract=(a,b)=>!(staff(a)&&staff(b));
 
 export function spawnIsClear(position,actors,radius=.38,clearance=.25){
  for(const actor of actors){if(!actor.active)continue;const p=actor.root.position;const gap=radius+(actor.radius||.38)+clearance;if(length(position.x-p.x,position.z-p.z)<gap)return false;}
@@ -40,14 +42,14 @@ export function advanceCrowd(actors,dt,obstacles=[]){
   const fits=(x,z)=>{
    for(const obstacle of obstacles)if(x>obstacle.minX-radius&&x<obstacle.maxX+radius&&z>obstacle.minZ-radius&&z<obstacle.maxZ+radius)return false;
    for(const other of plans){
-    if(other===plan)continue;
+    if(other===plan||!bodiesInteract(plan.actor,other.actor))continue;
     const p=occupied.get(other.actor),minimum=(plan.actor.radius||.38)+(other.actor.radius||.38)+BODY_GAP;
     if(length(x-p.x,z-p.z)<minimum-.000001)return false;
    }
    return true;
   };
-  // Admission is checked against committed positions and everybody else's old
-  // position. A crowd projection can never force a step through another body.
+  // Check guest spacing against committed and old positions. Staff colleagues
+  // are excluded here as well as in steering and collision projection.
   if(!fits(plan.nx,plan.nz)){
    const dx=plan.nx-plan.x,dz=plan.nz-plan.z;let low=0,high=1;
    for(let i=0;i<20;i++){const mid=(low+high)*.5;if(fits(plan.x+dx*mid,plan.z+dz*mid))low=mid;else high=mid;}
@@ -60,7 +62,7 @@ export function advanceCrowd(actors,dt,obstacles=[]){
   if(!plan.moving)continue;
   let allowed=length(plan.vx,plan.vz),steerX=0,steerZ=0;
   for(const other of plans){
-   if(other===plan)continue;
+   if(other===plan||!bodiesInteract(plan.actor,other.actor))continue;
    const rx=other.x-plan.x,rz=other.z-plan.z,distance=length(rx,rz);
    if(distance>3.4||distance<EPSILON)continue;
    const along=rx*plan.dx+rz*plan.dz;
@@ -73,7 +75,7 @@ export function advanceCrowd(actors,dt,obstacles=[]){
     allowed=Math.min(allowed,Math.max(0,leader+(along-FOLLOW_GAP)/.55));
     continue;
    }
-   // Predict crossing conflicts before bodies touch. The newer person yields.
+   // Guests retain deterministic crossing priority.
    const rvx=plan.vx-other.vx,rvz=plan.vz-other.vz,denom=rvx*rvx+rvz*rvz;
    const time=denom>EPSILON?(rx*rvx+rz*rvz)/denom:-1;
    const predicted=time>0?length(rx-rvx*time,rz-rvz*time):distance;
@@ -106,7 +108,8 @@ export function advanceCrowd(actors,dt,obstacles=[]){
    const a=plans[i];
    if(a.moving){const point={x:a.nx,z:a.nz};for(const box of obstacles)projectOutOfObstacle(point,(a.actor.radius||.38)+.015,box);a.nx=point.x;a.nz=point.z;}
    for(let j=i+1;j<plans.length;j++){
-    const b=plans[j],dx=b.nx-a.nx,dz=b.nz-a.nz,distance=length(dx,dz);
+    const b=plans[j];if(!bodiesInteract(a.actor,b.actor))continue;
+    const dx=b.nx-a.nx,dz=b.nz-a.nz,distance=length(dx,dz);
     const minimum=(a.actor.radius||.38)+(b.actor.radius||.38)+BODY_GAP;
     if(distance>=minimum-.00001||(!a.moving&&!b.moving))continue;
     const nx=distance>EPSILON?dx/distance:1,nz=distance>EPSILON?dz/distance:0;

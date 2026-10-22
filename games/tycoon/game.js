@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
-import { createParkSimulation } from './simulation.js?v=visible-customer-8';
+import { createParkSimulation } from './simulation.js?v=staff-lanes-11';
 import { createCounterLayouts } from './stall-layout.js?v=queue-forward-4';
 import { HDRLoader } from 'three/addons/loaders/HDRLoader.js';
 
@@ -30,7 +30,7 @@ const loader=new GLTFLoader();loader.setMeshoptDecoder(MeshoptDecoder);
 const coinBursts=[];let simulation;
 const v3=new THREE.Vector3();
 let map,characterTemplate,clips,blueCanopy,redCanopy,bluePricePosition,redPricePosition,counterLayouts;
-let elapsed=0,last=0,canopyReveal=0,goalClock=0;
+let elapsed=0,last=0,canopyReveal=0,goalClock=0,goalSales=0;
 let phase='loading',level=0,cash=0,shownCash=0,price=30,speedLevel=0,workerLevel=0,sales=0;
 let selectedPrice=30,upgradesUsed=0,lastInput=0,noticeTimer=0,audioContext=null,audioEnabled=true;
 const prices=[60,231,870,3270,12300,46500];
@@ -66,7 +66,7 @@ function prepareMap(){map.traverse(n=>{if(n.isMesh){n.receiveShadow=true;n.castS
 
 function initializeSimulation(){
  simulation=createParkSimulation({scene,characterTemplate,clips,counterLayouts,
-  getState:()=>({phase,level,speedLevel,price}),onReaction:reaction,
+  getState:()=>({phase,level,speedLevel,workerLevel,sales,price}),onReaction:reaction,
   onPaid:actor=>{if(!actor.active||!actor.hasFood||!actor.body?.visible||actor.root.parent!==scene)return;sales++;cash+=price;playTone('cash');cashFloat(actor.root.position,price);spawnBills(actor.root.position);}
  });
  simulation.reset();
@@ -76,7 +76,19 @@ function spawnBills(position){const material=new THREE.MeshBasicMaterial({color:
 function updateBills(dt){for(let i=coinBursts.length-1;i>=0;i--){const p=coinBursts[i];p.age+=dt;p.v.y-=dt*3;p.mesh.position.addScaledVector(p.v,dt);p.mesh.rotation.x+=dt*3;p.mesh.rotation.z+=dt*2;if(p.age>1.1){scene.remove(p.mesh);p.mesh.geometry.dispose();if(i===0||coinBursts[i-1]?.mesh.material!==p.mesh.material)p.mesh.material.dispose();coinBursts.splice(i,1);}}}
 
 function syncUI(){shownCash=THREE.MathUtils.lerp(shownCash,cash,1-Math.exp(-.18));if(Math.abs(shownCash-cash)<1)shownCash=cash;$('cash').textContent=(phase==='pricing'&&cash===0?'':'$')+Math.round(shownCash).toLocaleString('en-US');blueLabel.textContent='$'+price;redLabel.textContent=level===0?'$50':'$40';const sCost=prices[Math.min(speedLevel,prices.length-1)],wCost=prices[Math.min(workerLevel,prices.length-1)];$('speed-cost').textContent=speedLevel>=4?'MAX':'$'+sCost.toLocaleString('en-US');$('worker-cost').textContent=workerLevel>=4?'MAX':'$'+wCost.toLocaleString('en-US');$('speed').classList.toggle('unaffordable',cash<sCost&&speedLevel<4);$('worker').classList.toggle('unaffordable',cash<wCost&&workerLevel<4);$('speed').classList.toggle('maxed',speedLevel>=4);$('worker').classList.toggle('maxed',workerLevel>=4);}
-function upgrade(kind){if(!active())return;lastInput=elapsed;const current=kind==='speed'?speedLevel:workerLevel;if(current>=4){notify('MAX LEVEL!');return;}const cost=prices[current];if(cash<cost){notify('KEEP SERVING TO EARN MORE!');return;}cash-=cost;upgradesUsed++;if(kind==='speed')speedLevel++;else{workerLevel++;simulation.hire();}const button=$(kind);button.classList.remove('bump');void button.offsetWidth;button.classList.add('bump');$('upgrade-hand').classList.add('hidden');confetti(routePoint(0,1),28);playTone('upgrade');syncUI();if(speedLevel>=2&&workerLevel>=2&&phase==='running'){goalClock=2.5;}}
+function upgrade(kind){
+ if(!active())return;lastInput=elapsed;
+ const current=kind==='speed'?speedLevel:workerLevel;
+ if(current>=4){notify('MAX LEVEL!');return;}
+ const cost=prices[current];if(cash<cost){notify('KEEP SERVING TO EARN MORE!');return;}
+ cash-=cost;upgradesUsed++;
+ if(kind==='speed')speedLevel++;else{workerLevel++;simulation.hire();}
+ const button=$(kind);button.classList.remove('bump');void button.offsetWidth;button.classList.add('bump');
+ $('upgrade-hand').classList.add('hidden');confetti(routePoint(0,1),28);playTone('upgrade');syncUI();
+ // Give the expanded team a complete operating stretch. Upgrading used to
+ // freeze the shop on the result screen only 2.5 seconds later.
+ if(speedLevel>=2&&workerLevel>=2){goalSales=sales+12;goalClock=0;}
+}
 $('speed').addEventListener('click',()=>upgrade('speed'));
 $('worker').addEventListener('click',()=>upgrade('worker'));
 
@@ -90,7 +102,7 @@ function resetRound(full=true){
  if(!map)return;
  for(const p of coinBursts){scene.remove(p.mesh);p.mesh.geometry.dispose();p.mesh.material.dispose();}
  coinBursts.length=0;$('effects').replaceChildren();if(full)level=0;
- cash=shownCash=speedLevel=workerLevel=sales=upgradesUsed=goalClock=0;price=selectedPrice=level===0?30:20;
+ cash=shownCash=speedLevel=workerLevel=sales=upgradesUsed=goalClock=goalSales=0;price=selectedPrice=level===0?30:20;
  $('price').value=selectedPrice;$('product-name').textContent=level===0?'Hot Dog':'Ice Cream';$('product-icon').src='assets/'+(level===0?'hotdog':'icecream')+'.png';
  map.getObjectByName('hotdog_map').visible=level===0;map.getObjectByName('ice_cream_map').visible=level===1;
  blueCanopy=map.getObjectByName(level===0?'ITP_hotdog_post_blue':'ITP_icrecream_post_blue');
@@ -111,6 +123,7 @@ function frame(now){
  }
  if(active()){
   if(canopyReveal>0&&canopyReveal<1){canopyReveal=Math.min(1,canopyReveal+dt*1.8);const k=1-Math.pow(1-canopyReveal,3);blueCanopy.scale.copy(blueCanopy.userData.fullScale);blueCanopy.scale.y*=Math.max(.001,k);}
+  if(goalSales>0&&sales>=goalSales&&goalClock===0)goalClock=3;
   if(goalClock>0){goalClock-=dt;if(goalClock<=0)showResult(true);}
   if(elapsed-lastInput>4&&speedLevel===0&&cash>=60)$('upgrade-hand').classList.remove('hidden');
  }
